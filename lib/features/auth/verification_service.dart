@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class VerificationService {
-  // Your Function URL
-  static const String _apiUrl = "https://us-central1-synthora-web.cloudfunctions.net/sendVerificationCode";
+  // Your Function URL (Change this to your actual backend endpoint)
+  static const String _apiUrl = "https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/sendVerificationCode";
 
   /// Sends a verification code to the specified email.
   /// Returns [true] if successful, [false] otherwise.

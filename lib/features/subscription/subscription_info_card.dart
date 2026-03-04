@@ -114,7 +114,7 @@ class SubscriptionInfoCard extends ConsumerWidget {
                  const SizedBox(height: 8),
 
                   Text(
-                   "Account management: synthora.lk",
+                   "Account management: yourdomain.com",
                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38),
                  )
               ],

@@ -82,7 +82,7 @@ class PlansScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "synthora.lk",
+                      "yourdomain.com",
                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: isDark ? Colors.cyanAccent : Colors.blueAccent),
                     ),
                     const SizedBox(height: 8),

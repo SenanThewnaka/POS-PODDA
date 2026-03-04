@@ -49,7 +49,7 @@ class UpgradeDialog extends StatelessWidget {
                  children: [
                    Text("Visit website:", style: TextStyle(fontSize: 12, color: Colors.grey)),
                    SizedBox(height: 4),
-                   Text("synthora.lk", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+                   Text("yourdomain.com", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
                  ],
                ),
              ),
