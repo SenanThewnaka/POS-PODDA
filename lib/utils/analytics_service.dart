@@ -1,15 +1,16 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 // All analytics tracking goes here - easy to find and update
 class AnalyticsService {
   static final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
 
-  // Use this in MaterialApp's navigatorObservers
-  static FirebaseAnalyticsObserver get observer =>
-      FirebaseAnalyticsObserver(analytics: _analytics);
+  
+  static final List<NavigatorObserver> observers =
+      [FirebaseAnalyticsObserver(analytics: _analytics)];
 
-  // Don't log in debug mode, keeps console clean
+  
   static Future<void> _log(String name, [Map<String, Object>? params]) async {
     if (kDebugMode) return;
     try {

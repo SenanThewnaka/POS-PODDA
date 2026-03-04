@@ -329,7 +329,7 @@ class _CustomerHistoryScreenState extends ConsumerState<CustomerHistoryScreen> w
 class _PaymentDialogContent extends StatefulWidget {
   final double remaining;
   final TextEditingController amountCtrl;
-  final Function(double) onPay;
+  final Future<void> Function(double) onPay;
 
   const _PaymentDialogContent({
     required this.remaining, 
@@ -343,6 +343,7 @@ class _PaymentDialogContent extends StatefulWidget {
 
 class _PaymentDialogContentState extends State<_PaymentDialogContent> {
   String? _errorText;
+  bool _isProcessing = false;
 
   @override
   Widget build(BuildContext context) {
@@ -387,9 +388,9 @@ class _PaymentDialogContentState extends State<_PaymentDialogContent> {
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCEL")),
+        TextButton(onPressed: _isProcessing ? null : () => Navigator.pop(context), child: const Text("CANCEL")),
         ElevatedButton(
-          onPressed: () {
+          onPressed: _isProcessing ? null : () async {
             final double? amount = double.tryParse(widget.amountCtrl.text);
             
             if (amount == null || amount <= 0) {
@@ -403,7 +404,11 @@ class _PaymentDialogContentState extends State<_PaymentDialogContent> {
               return;
             }
 
-            widget.onPay(amount);
+            setState(() => _isProcessing = true);
+            await widget.onPay(amount);
+            if (mounted) {
+              setState(() => _isProcessing = false);
+            }
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.blueAccent,
@@ -411,7 +416,9 @@ class _PaymentDialogContentState extends State<_PaymentDialogContent> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
           ),
-          child: const Text("PAY NOW", style: TextStyle(fontWeight: FontWeight.bold)),
+          child: _isProcessing 
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+            : const Text("PAY NOW", style: TextStyle(fontWeight: FontWeight.bold)),
         ),
       ],
     );

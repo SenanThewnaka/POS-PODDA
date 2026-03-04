@@ -43,9 +43,9 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: 24),
 
             // THEME SWITCHER
-            Consumer(
-              builder: (context, ref, _) {
-                 final themeMode = ref.watch(themeModeProvider);
+            Builder(
+              builder: (context) {
+                 final themeMode = currentTheme;
                  final isDark = themeMode == ThemeMode.dark || (themeMode == ThemeMode.system && MediaQuery.of(context).platformBrightness == Brightness.dark);
                  
                  return GlassCard(
@@ -247,6 +247,7 @@ class SettingsScreen extends ConsumerWidget {
               icon: const Icon(Icons.logout),
               label: const Text("SIGN OUT"),
               style: ElevatedButton.styleFrom(
+                textStyle: const TextStyle(inherit: false),
                 backgroundColor: Colors.red.withValues(alpha: 0.1),
                 foregroundColor: Colors.redAccent,
                 elevation: 0,

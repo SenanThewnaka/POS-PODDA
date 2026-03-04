@@ -60,7 +60,7 @@ class SmeBuddyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
-      navigatorObservers: [AnalyticsService.observer],
+      navigatorObservers: AnalyticsService.observers,
       title: 'POS Podda',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,

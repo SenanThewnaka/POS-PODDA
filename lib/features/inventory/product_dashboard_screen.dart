@@ -866,9 +866,9 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
             const SizedBox(height: 24),
             Center(
               child: TextButton.icon(
-                onPressed: _deactivateProduct,
-                icon: const Icon(Icons.archive, color: Colors.orange), // Changed icon to distinguish
-                label: const Text("DEACTIVATE PRODUCT", style: TextStyle(color: Colors.orange)), // Changed color
+                onPressed: product.isActive ? _deactivateProduct : _activateProduct,
+                icon: Icon(product.isActive ? Icons.archive : Icons.unarchive, color: Colors.orange), 
+                label: Text(product.isActive ? "DEACTIVATE PRODUCT" : "ACTIVATE PRODUCT", style: const TextStyle(color: Colors.orange)),
               ),
             ),
             const SizedBox(height: 12),
@@ -1032,6 +1032,28 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
        if (mounted) {
          Navigator.pop(context); // Exit Dashboard
          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Product Deactivated")));
+       }
+    }
+  }
+
+  Future<void> _activateProduct() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Activate Product?"),
+        content: const Text("This will make the product visible in POS and available for sales again."),
+        actions: [
+          TextButton(onPressed:()=>Navigator.pop(ctx, false), child: const Text("CANCEL")),
+          ElevatedButton(onPressed:()=>Navigator.pop(ctx, true), child: const Text("ACTIVATE")),
+        ],
+      )
+    );
+
+    if (confirm == true) {
+       await ref.read(productRepositoryProvider).activateProduct(widget.product.id);
+       if (mounted) {
+         Navigator.pop(context); // Exit Dashboard
+         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Product Activated")));
        }
     }
   }

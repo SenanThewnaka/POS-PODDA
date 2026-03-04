@@ -364,7 +364,7 @@ class ProductRepository {
          'currentStock': FieldValue.increment(-item.quantity)
        };
        
-       if (newTotal <= 0) {
+       if (newTotal <= 0 && product.productType != 'SERVICE') {
           productUpdate['isActive'] = false;
        }
        
@@ -434,7 +434,8 @@ class ProductRepository {
            
            // AUTO-DEACTIVATE CHECK (Cleanup)
            final isActive = productData['isActive'] ?? true;
-           if (actualSum <= 0 && isActive) {
+           final isService = productData['productType'] == 'SERVICE';
+           if (actualSum <= 0 && isActive && !isService) {
               print("FIX: Deactivating stockless product ${productData['name']}");
               batch.update(doc.reference, {'isActive': false});
               corrections++;

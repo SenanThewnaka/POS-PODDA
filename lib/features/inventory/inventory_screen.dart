@@ -220,19 +220,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         borderRadius: 20,
                         padding: const EdgeInsets.all(12),
                         onTap: () {
-                             if (product.productType == 'SERVICE') {
-                               showModalBottomSheet(
-                                 context: context, 
-                                 isScrollControlled: true,
-                                 backgroundColor: Colors.transparent, // Glass Sheet
-                                 builder: (_) => ProductDetailsSheet(product: product)
-                               );
-                             } else {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => ProductDashboardScreen(product: product)),
-                                );
-                             }
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => ProductDashboardScreen(product: product)),
+                          );
                         },
                         border: !product.isActive 
                            ? Border.all(color: Colors.red.withValues(alpha: 0.3)) 
