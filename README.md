@@ -1,32 +1,32 @@
-# POS-PODDA 🚀
+# POS-PODDA
 
 **POS-PODDA** is a modern, high-performance Point of Sale (POS) and SME business management application built with **Flutter** and powered by **Firebase**. It is designed to provide small and medium enterprises with a robust suite of tools to manage inventory, track sales, administer employee roles, and process transactions securely on the go.
 
-🌐 **Live Demo:** [https://pos-podda.web.app](https://pos-podda.web.app)
+**Live Demo:** [https://pos-podda.web.app](https://pos-podda.web.app)
 
 ---
 
-## ✨ Key Features
+## Key Features
 
-- **🛒 Smart POS Scanning & Cart System:** Quick barcode scanning and intuitive cart management for seamless checkout flows.
-- **📦 Inventory & Stock Management:** Track products, manage stock batches, set low stock alerts, and handle break-bulk operations. 
-- **👥 Role-Based Access Control (RBAC):** Administer employee roles (Admin, Cashier, Manager) with fine-grained permissions and custom profiles.
-- **💳 Customer Credit Management:** Track customer histories, manage outstanding balances, and record settlement receipts.
-- **📊 Advanced Analytics & Reporting:** Real-time dashboards with visual charts mapping top products, daily sales, and comprehensive CSV export capabilities.
-- **🔒 Enterprise-Grade Security:** Biometric lock verification (FaceID/Fingerprint) to secure sensitive application areas and enforce strict access policies.
-- **🌐 Cloud-Synced:** Real-time data synchronization utilizing Firebase backend architecture.
-- **📱 Responsive UI/UX:** A beautiful, responsive glassmorphic interface designed for tablets and mobile devices with full dark/light mode support.
+- **Smart POS Scanning & Cart System:** Quick barcode scanning and intuitive cart management for seamless checkout flows.
+- **Inventory & Stock Management:** Track products, manage stock batches, set low stock alerts, and handle break-bulk operations. 
+- **Role-Based Access Control (RBAC):** Administer employee roles (Admin, Cashier, Manager) with fine-grained permissions and custom profiles.
+- **Customer Credit Management:** Track customer histories, manage outstanding balances, and record settlement receipts.
+- **Advanced Analytics & Reporting:** Real-time dashboards with visual charts mapping top products, daily sales, and comprehensive CSV export capabilities.
+- **Enterprise-Grade Security:** Biometric lock verification (FaceID/Fingerprint) to secure sensitive application areas and enforce strict access policies.
+- **Cloud-Synced:** Real-time data synchronization utilizing Firebase backend architecture.
+- **Responsive UI/UX:** A beautiful, responsive glassmorphic interface designed for tablets and mobile devices with full dark/light mode support.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 - **Frontend:** Flutter (Dart)
 - **Backend:** Firebase (Firestore, Authentication, Cloud Functions)
 - **Architecture:** State Management via Providers, highly modular file structures.
 
 ---
 
-## 🚀 How to Run and Test Locally
+## How to Run and Test Locally
 
 To run this project on your local machine, you will need to set up your own Firebase environment, as no production database credentials are included in this public repository for security reasons.
 
@@ -68,7 +68,7 @@ To run this project on your local machine, you will need to set up your own Fire
 
 ---
 
-## 📜 License
+## License
 
 This project is licensed under a **Custom Non-Commercial License**. 
 
