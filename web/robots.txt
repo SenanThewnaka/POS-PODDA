@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://pos-podda.web.app/sitemap.xml
