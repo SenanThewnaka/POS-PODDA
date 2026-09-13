@@ -9,7 +9,8 @@ import 'package:sme_buddy/features/inventory/product_dashboard_screen.dart';
 import 'package:sme_buddy/utils/unit_formatter.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/users/app_permissions.dart';
-import 'package:sme_buddy/features/subscription/subscription_guard.dart';
+import 'package:sme_buddy/features/procurement/grn_history_screen.dart';
+import 'package:sme_buddy/features/procurement/suppliers_screen.dart';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/shimmer_skeletons.dart';
@@ -60,6 +61,22 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             icon: const Icon(Icons.qr_code_scanner),
             tooltip: 'Scan Barcode',
             onPressed: _scanAndFindProduct,
+          ),
+          IconButton(
+            icon: const Icon(Icons.receipt_long),
+            tooltip: 'GRN Inward Stocking',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const GRNHistoryScreen()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.business_outlined),
+            tooltip: 'Suppliers Directory',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SuppliersScreen()),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.compare_arrows),
@@ -353,14 +370,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             return Padding(
               padding: const EdgeInsets.only(bottom: 80), // Raise above Bottom Nav
               child: FloatingActionButton.extended(
-              onPressed: () async {
-                 // ... (Add item logic)
-                if (await SubscriptionGuard.check(context, ref, SubscriptionAction.addItem)) {
-                  Navigator.push(
-                    context, 
-                    MaterialPageRoute(builder: (_) => const AddProductScreen()),
-                  );
-                }
+              onPressed: () {
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(builder: (_) => const AddProductScreen()),
+                );
               },
               backgroundColor: Colors.cyanAccent,
               foregroundColor: Colors.black,

@@ -32,11 +32,10 @@ class GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    // Glass Config
-    // DEEP GLASS (High Contrast)
-    final defaultColor = isDark ? Colors.black.withValues(alpha: 0.85) : Colors.white.withValues(alpha: 0.9);
+    // DEEP GLASS (Slate/Zinc Refinement)
+    final defaultColor = isDark ? const Color(0xFF1E293B).withOpacity(0.85) : Colors.white.withOpacity(0.92);
     final cardColor = color ?? defaultColor;
-    final borderColor = isDark ? Colors.white.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.5);
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
     Widget content = Container(
       width: width,

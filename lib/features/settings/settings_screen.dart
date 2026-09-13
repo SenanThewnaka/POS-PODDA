@@ -8,7 +8,8 @@ import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/users/app_permissions.dart';
 import 'package:sme_buddy/features/settings/theme_provider.dart';
 import 'package:sme_buddy/features/settings/invoice_settings_screen.dart';
-import 'package:sme_buddy/features/subscription/subscription_info_card.dart';
+import 'package:sme_buddy/features/settings/printer_settings_screen.dart';
+
 import 'package:sme_buddy/features/subscription/subscription_guard.dart';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
@@ -32,15 +33,7 @@ class SettingsScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            // SUBSCRIPTION CARD (Check if this needs glass update too)
-            // Ideally SubscriptionInfoCard should be updated separately or wrapped.
-            // For now, let's wrap it in GlassCard if it's not already "glassy".
-            // Since I can't see it, I'll wrap it just in case or leave as is if it's a widget.
-            // Let's assume it's a Card and might need replacement?
-            // Safer to wrap it in a container? Or just let it be.
-            // SUBSCRIPTION CARD
-            const SubscriptionInfoCard(),
-            const SizedBox(height: 24),
+
 
             // THEME SWITCHER
             Builder(
@@ -175,7 +168,7 @@ class SettingsScreen extends ConsumerWidget {
                               ),
                             ),
 
-                         if (profile.isAdmin)
+                          if (profile.isAdmin)
                             GlassCard(
                               margin: const EdgeInsets.only(bottom: 16),
                               padding: EdgeInsets.zero,
@@ -193,6 +186,24 @@ class SettingsScreen extends ConsumerWidget {
                                 },
                               ),
                             ),
+
+                          GlassCard(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            padding: EdgeInsets.zero,
+                            child: ListTile(
+                              title: Text("Printer & Hardware", style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+                              subtitle: Text("Thermal roll (80mm/58mm), Auto-print, USB/BT printers", style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54)),
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(color: Colors.teal.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
+                                child: const Icon(Icons.print, color: Colors.tealAccent),
+                              ),
+                              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.white54),
+                              onTap: () {
+                                 Navigator.push(context, MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()));
+                              },
+                            ),
+                          ),
                          
                          if (profile.isAdmin) // Only Owners can manage Roles
                             GlassCard(

@@ -95,10 +95,6 @@ class _AuthGateState extends ConsumerState<AuthGate> with WidgetsBindingObserver
 
         return userProfileAsync.when(
           data: (profile) {
-            final isEmployee = user.email != null && user.email!.endsWith('.sme');
-            final isVerified = user.emailVerified || (profile != null && profile.isVerified) || isEmployee;
-
-            if (!isVerified) return const VerifyEmailScreen();
             if (profile == null) return const SetupShopScreen();
             if (!profile.isActive) {
               return const Scaffold(
