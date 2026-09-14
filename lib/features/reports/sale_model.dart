@@ -115,4 +115,35 @@ class Sale {
       userName: map['userName'],
     );
   }
+
+  double get cashTendered => paymentMethod == 'CASH' ? amountPaid : totalAmount;
+  double get changeDue => (amountPaid - totalAmount).clamp(0.0, double.infinity);
+
+  Sale copyWith({
+    String? id,
+    DateTime? timestamp,
+    double? totalAmount,
+    String? paymentMethod,
+    String? customerId,
+    double? amountPaid,
+    bool? isFullyPaid,
+    List<SaleItem>? items,
+    List<String>? productIds,
+    String? userId,
+    String? userName,
+  }) {
+    return Sale(
+      id: id ?? this.id,
+      timestamp: timestamp ?? this.timestamp,
+      totalAmount: totalAmount ?? this.totalAmount,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      customerId: customerId ?? this.customerId,
+      amountPaid: amountPaid ?? this.amountPaid,
+      isFullyPaid: isFullyPaid ?? this.isFullyPaid,
+      items: items ?? this.items,
+      productIds: productIds ?? this.productIds,
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+    );
+  }
 }

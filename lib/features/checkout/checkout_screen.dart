@@ -14,6 +14,7 @@ import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/responsive_layout.dart';
 import 'package:sme_buddy/features/shifts/shift_repository.dart';
+import 'package:sme_buddy/features/home/held_bills_provider.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -210,6 +211,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           title: const Text("Checkout", style: TextStyle(fontWeight: FontWeight.bold)),
           backgroundColor: Colors.transparent,
           centerTitle: true,
+          actions: [
+            TextButton.icon(
+              onPressed: () => _holdOrder(context, total),
+              icon: const Icon(Icons.pause_circle_outline, color: Colors.amber, size: 20),
+              label: const Text(
+                "Hold",
+                style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
         ),
         body: Center(
           child: ConstrainedBox(
@@ -867,6 +879,88 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
+  void _holdOrder(BuildContext context, double total) async {
+    final noteController = TextEditingController();
+    final nameController = TextEditingController(text: _selectedCustomer?.name ?? '');
+
+    final shouldHold = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Row(
+          children: [
+            Icon(Icons.pause_circle_filled, color: Colors.amber),
+            SizedBox(width: 8),
+            Text("Hold Current Order", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Park this order so you can serve other customers. You can resume it anytime from the register.",
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: "Customer Name (optional)",
+                labelStyle: TextStyle(color: Colors.white60),
+                prefixIcon: Icon(Icons.person_outline, color: Colors.white60),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: noteController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: "Note (e.g. Counter 2, customer went to car)",
+                labelStyle: TextStyle(color: Colors.white60),
+                prefixIcon: Icon(Icons.notes, color: Colors.white60),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Cancel", style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Hold Order", style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldHold == true && mounted) {
+      final cart = ref.read(cartProvider);
+      final heldBill = await ref.read(heldBillsProvider.notifier).holdCurrentCart(
+        items: cart,
+        totalAmount: total,
+        note: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
+        customerName: nameController.text.trim().isEmpty ? null : nameController.text.trim(),
+      );
+      ref.read(cartProvider.notifier).clearCart();
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Order held as ${heldBill.id}. You can resume it anytime."),
+            backgroundColor: Colors.amber.shade800,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildPaymentToggle(
     String label,
     IconData icon,
@@ -963,6 +1057,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             _paymentMethod,
             _paymentMethod == 'CREDIT' ? _selectedCustomer?.id : null,
             cart,
+            amountTendered: _paymentMethod == 'CASH' ? _cashGiven : null,
           );
 
       // Record in active shift if one is open

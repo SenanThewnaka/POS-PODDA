@@ -35,6 +35,10 @@ import 'package:sme_buddy/features/shifts/close_shift_dialog.dart';
 import 'package:sme_buddy/features/shifts/shift_history_screen.dart';
 import 'package:sme_buddy/features/procurement/grn_history_screen.dart';
 import 'package:sme_buddy/features/procurement/suppliers_screen.dart';
+import 'package:sme_buddy/features/home/held_bills_provider.dart';
+import 'package:sme_buddy/features/home/held_bills_dialog.dart';
+import 'package:sme_buddy/features/reports/verify_receipt_dialog.dart';
+import 'package:sme_buddy/features/reports/sales_repository.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -53,6 +57,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Timer? _barcodeBufferTimer;
   final FocusNode _keyboardFocusNode = FocusNode();
   final FocusNode _searchFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_handleGlobalKey);
+  }
+
+  bool _handleGlobalKey(KeyEvent event) {
+    if (!mounted) return false;
+    if (_searchFocusNode.hasFocus) return false;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return false;
+
+    _handleKey(event);
+    return false;
+  }
 
   void _handleKey(KeyEvent event) {
     if (event is! KeyDownEvent) return;
@@ -226,6 +246,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _showError("Product is inactive");
       }
     } else {
+      // Check if this barcode is a Receipt / Sale ID
+      try {
+        final sale = await ref.read(salesRepositoryProvider).getSaleById(cleanBarcode);
+        if (sale != null && mounted) {
+          VerifyReceiptDialog.show(context, initialBillId: cleanBarcode);
+          return;
+        }
+      } catch (_) {}
       _showError("Product not found: $cleanBarcode");
     }
   }
@@ -236,8 +264,92 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  void _promptHoldCart(double total) async {
+    final cart = ref.read(cartProvider);
+    if (cart.isEmpty) return;
+
+    final noteController = TextEditingController();
+    final nameController = TextEditingController();
+
+    final shouldHold = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Row(
+          children: [
+            Icon(Icons.pause_circle_filled, color: Colors.amber),
+            SizedBox(width: 8),
+            Text("Hold Current Order", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Park this order so you can serve other customers. You can resume it anytime.",
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: "Customer Name (optional)",
+                labelStyle: TextStyle(color: Colors.white60),
+                prefixIcon: Icon(Icons.person_outline, color: Colors.white60),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: noteController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: "Note (e.g. Counter 2, customer went to car)",
+                labelStyle: TextStyle(color: Colors.white60),
+                prefixIcon: Icon(Icons.notes, color: Colors.white60),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Cancel", style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Hold Order", style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldHold == true && mounted) {
+      final heldBill = await ref.read(heldBillsProvider.notifier).holdCurrentCart(
+        items: cart,
+        totalAmount: total,
+        note: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
+        customerName: nameController.text.trim().isEmpty ? null : nameController.text.trim(),
+      );
+      ref.read(cartProvider.notifier).clearCart();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Order held as ${heldBill.id}. You can resume it anytime."),
+            backgroundColor: Colors.amber.shade800,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleGlobalKey);
     _searchCtrl.dispose();
     _searchFocusNode.dispose();
     _barcodeBufferTimer?.cancel();
@@ -267,10 +379,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Focus(
       autofocus: true,
       focusNode: _keyboardFocusNode,
-      onKeyEvent: (node, event) {
-        _handleKey(event);
-        return KeyEventResult.ignored;
-      },
       child: GlassScaffold(
         drawer: isDesktopOrTablet ? null : _buildDrawer(context, userProfile),
         body: isDesktopOrTablet
@@ -369,6 +477,73 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: const Center(
               child: Icon(Icons.qr_code_scanner, size: 26, color: Colors.cyanAccent),
             ),
+          ),
+          // Verify Bill Button
+          Padding(
+            padding: const EdgeInsets.only(left: 10),
+            child: GlassCard(
+              borderRadius: 16,
+              width: 52,
+              height: 52,
+              padding: EdgeInsets.zero,
+              onTap: () => VerifyReceiptDialog.show(context),
+              child: const Center(
+                child: Tooltip(
+                  message: "Verify Bill / Returns",
+                  child: Icon(Icons.verified_outlined, size: 24, color: Colors.cyanAccent),
+                ),
+              ),
+            ),
+          ),
+          // Held Orders Pill Button
+          Consumer(
+            builder: (context, ref, child) {
+              final heldBills = ref.watch(heldBillsProvider);
+              if (heldBills.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(left: 10),
+                child: GlassCard(
+                  borderRadius: 16,
+                  height: 52,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  border: Border.all(color: Colors.amber.withValues(alpha: 0.7), width: 1.5),
+                  onTap: () => HeldBillsDialog.show(context),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.pause_circle_filled, color: Colors.amber, size: 20),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          "${heldBills.length}",
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                      if (isDesktopOrTablet) ...[
+                        const SizedBox(width: 6),
+                        const Text(
+                          "HELD",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
           Consumer(
             builder: (context, ref, child) {
@@ -635,6 +810,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           "${totalUnits.toStringAsFixed(totalUnits % 1 == 0 ? 0 : 2)} items",
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: activeColor),
                         ),
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.pause_circle_outline, color: Colors.amber, size: 20),
+                        tooltip: "Hold Order",
+                        onPressed: () => _promptHoldCart(cartTotal),
                       ),
                       const SizedBox(width: 4),
                       IconButton(
@@ -1287,16 +1470,48 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         decoration: BoxDecoration(color: Theme.of(context).dividerColor, borderRadius: BorderRadius.circular(10)),
                       ),
                    ),
-                   const SizedBox(height: 16),
-                   Text(
-                     "Current Cart", 
-                     style: TextStyle(
-                       fontSize: 22, 
-                       fontWeight: FontWeight.bold, 
-                       color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black
-                     )
+                   Padding(
+                     padding: const EdgeInsets.symmetric(horizontal: 20),
+                     child: Row(
+                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                       children: [
+                         Text(
+                           "Current Cart", 
+                           style: TextStyle(
+                             fontSize: 20, 
+                             fontWeight: FontWeight.bold, 
+                             color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black
+                           )
+                         ),
+                         Consumer(builder: (ctx, ref, _) {
+                           final cart = ref.watch(cartProvider);
+                           if (cart.isEmpty) return const SizedBox.shrink();
+                           return Row(
+                             mainAxisSize: MainAxisSize.min,
+                             children: [
+                               TextButton.icon(
+                                 onPressed: () {
+                                   Navigator.pop(context);
+                                   _promptHoldCart(ref.read(cartTotalProvider));
+                                 },
+                                 icon: const Icon(Icons.pause_circle_outline, color: Colors.amber, size: 16),
+                                 label: const Text("Hold", style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
+                               ),
+                               TextButton.icon(
+                                 onPressed: () {
+                                   Navigator.pop(context);
+                                   _promptClearCart();
+                                 },
+                                 icon: const Icon(Icons.delete_sweep_outlined, color: Colors.redAccent, size: 16),
+                                 label: const Text("Clear", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                               ),
+                             ],
+                           );
+                         }),
+                       ],
+                     ),
                    ),
-                   const SizedBox(height: 16),
+                   const SizedBox(height: 12),
               Expanded(
                 child: Consumer(
                   builder: (context, ref, _) {

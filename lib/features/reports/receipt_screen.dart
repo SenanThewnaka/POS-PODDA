@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:sme_buddy/features/reports/sale_model.dart';
+import 'package:sme_buddy/features/reports/sales_repository.dart';
 import 'package:sme_buddy/features/settings/printer_settings_service.dart';
 import 'package:sme_buddy/features/settings/printer_settings_screen.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
@@ -26,10 +27,12 @@ class ReceiptScreen extends ConsumerStatefulWidget {
 class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
   final FocusNode _keyboardFocusNode = FocusNode();
   bool _hasAutoPrinted = false;
+  late Sale _currentSale;
 
   @override
   void initState() {
     super.initState();
+    _currentSale = widget.sale;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_hasAutoPrinted) {
         final settings = ref.read(printerSettingsProvider);
@@ -62,9 +65,164 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     }
   }
 
+  void _showEditCashDialog(BuildContext context) {
+    final controller = TextEditingController(
+      text: _currentSale.cashTendered % 1 == 0
+          ? _currentSale.cashTendered.toInt().toString()
+          : _currentSale.cashTendered.toString(),
+    );
+    final total = _currentSale.totalAmount;
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          final double entered = double.tryParse(controller.text) ?? 0.0;
+          final double change = (entered - total) > 0 ? (entered - total) : 0.0;
+
+          return AlertDialog(
+            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                const Icon(Icons.edit_note, color: Colors.cyanAccent),
+                const SizedBox(width: 8),
+                const Text("Correct Cash Tendered", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  "Bill Total: Rs. ${total.toStringAsFixed(2)}",
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: "Cash Received from Customer",
+                    prefixText: "Rs. ",
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF0F172A) : Colors.grey.shade100,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    ActionChip(
+                      label: Text("Exact (${total.toInt()})"),
+                      onPressed: () {
+                        controller.text = total.toInt().toString();
+                        setDialogState(() {});
+                      },
+                    ),
+                    ...[500, 1000, 2000, 5000].where((d) => d >= total || d == 500).map(
+                          (denom) => ActionChip(
+                            label: Text("Rs. $denom"),
+                            onPressed: () {
+                              controller.text = denom.toString();
+                              setDialogState(() {});
+                            },
+                          ),
+                        ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Recalculated Change Due:", style: TextStyle(fontWeight: FontWeight.w500)),
+                      Text(
+                        "Rs. ${change.toStringAsFixed(2)}",
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.greenAccent, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.cyanAccent,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: isSaving
+                    ? null
+                    : () async {
+                        final val = double.tryParse(controller.text);
+                        if (val == null || val < total) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Cash given must be at least the bill total"),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          return;
+                        }
+                        setDialogState(() => isSaving = true);
+                        try {
+                          final updated = await ref.read(salesRepositoryProvider).updateSalePaymentDetails(
+                                saleId: _currentSale.id,
+                                amountPaid: val,
+                              );
+                          if (mounted) {
+                            setState(() {
+                              _currentSale = updated;
+                            });
+                            Navigator.pop(dialogCtx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("Receipt updated! Change Due: Rs. ${updated.changeDue.toStringAsFixed(2)}"),
+                                backgroundColor: const Color(0xFF10B981),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          setDialogState(() => isSaving = false);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Failed to update: $e"), backgroundColor: Colors.red),
+                            );
+                          }
+                        }
+                      },
+                child: isSaving
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text("Save & Recalculate", style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final sale = widget.sale;
+    final sale = _currentSale;
     final user = ref.watch(userProfileProvider).value;
     final printerSettings = ref.watch(printerSettingsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -245,7 +403,138 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                                   ),
                                 ),
 
-                              const SizedBox(height: 24),
+                              if (sale.paymentMethod == 'CASH') ...[
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                "Cash Tendered:",
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: isDark ? Colors.white70 : Colors.black54,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              InkWell(
+                                                onTap: () => _showEditCashDialog(context),
+                                                borderRadius: BorderRadius.circular(6),
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.cyanAccent.withValues(alpha: 0.15),
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                  child: const Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(Icons.edit, size: 13, color: Colors.cyanAccent),
+                                                      SizedBox(width: 3),
+                                                      Text(
+                                                        "Edit",
+                                                        style: TextStyle(fontSize: 11, color: Colors.cyanAccent, fontWeight: FontWeight.bold),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          Text(
+                                            "Rs. ${sale.cashTendered.toStringAsFixed(2)}",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                              color: isDark ? Colors.white : Colors.black,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Text(
+                                            "Change Due:",
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF10B981),
+                                            ),
+                                          ),
+                                          Text(
+                                            "Rs. ${sale.changeDue.toStringAsFixed(2)}",
+                                            style: const TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF10B981),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+
+                              const SizedBox(height: 12),
+                              // Receipt Barcode & ID Badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.qr_code_2, size: 18, color: Colors.cyanAccent),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        "Bill #: ${sale.id}",
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark ? Colors.white70 : Colors.black87,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    IconButton(
+                                      icon: const Icon(Icons.copy, size: 15),
+                                      tooltip: "Copy Bill ID",
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: () {
+                                        Clipboard.setData(ClipboardData(text: sale.id));
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text("Bill ID copied to clipboard"),
+                                            duration: Duration(seconds: 1),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              const SizedBox(height: 16),
                               Divider(color: isDark ? Colors.white12 : Colors.black12),
 
                               // Shop Info Preview
@@ -435,7 +724,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     final pdf = await _generatePdf(user, paperSize: settings.paperSize);
     await ref.read(printerSettingsProvider.notifier).printDocument(
           doc: pdf,
-          name: 'receipt_${widget.sale.id}',
+          name: 'receipt_${_currentSale.id}',
         );
   }
 
@@ -443,16 +732,21 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     final sb = StringBuffer();
     sb.writeln("*${user?.shopName ?? "POS Podda Receipt"}*");
     if (user?.shopAddress != null) sb.writeln(user!.shopAddress!);
-    sb.writeln("Date: ${DateFormat('dd MMM yyyy, hh:mm a').format(widget.sale.timestamp)}");
+    sb.writeln("Bill #: ${_currentSale.id}");
+    sb.writeln("Date: ${DateFormat('dd MMM yyyy, hh:mm a').format(_currentSale.timestamp)}");
     sb.writeln("----------------");
-    for (var item in widget.sale.items) {
+    for (var item in _currentSale.items) {
       sb.writeln("${item.productName} x ${item.quantity} = ${item.subTotal}");
       if (item.description != null && item.description!.isNotEmpty) {
         sb.writeln("  (${item.description})");
       }
     }
     sb.writeln("----------------");
-    sb.writeln("*TOTAL: Rs. ${widget.sale.totalAmount}*");
+    sb.writeln("*TOTAL: Rs. ${_currentSale.totalAmount}*");
+    if (_currentSale.paymentMethod == 'CASH') {
+      sb.writeln("Cash Tendered: Rs. ${_currentSale.cashTendered.toStringAsFixed(2)}");
+      sb.writeln("Change Due: Rs. ${_currentSale.changeDue.toStringAsFixed(2)}");
+    }
     if (user?.invoiceFooterMessage != null) sb.writeln("\n${user!.invoiceFooterMessage}");
     return sb.toString();
   }
@@ -462,7 +756,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     final pdf = await _generatePdf(user, paperSize: settings.paperSize);
     await Printing.sharePdf(
       bytes: await pdf.save(),
-      filename: 'receipt_${widget.sale.timestamp.millisecondsSinceEpoch}.pdf',
+      filename: 'receipt_${_currentSale.timestamp.millisecondsSinceEpoch}.pdf',
     );
   }
 
@@ -550,14 +844,20 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
               pw.SizedBox(height: 3),
               pw.Center(
                 child: pw.Text(
-                  DateFormat('yyyy-MM-dd HH:mm').format(widget.sale.timestamp),
+                  "Bill #: ${_currentSale.id}",
+                  style: pw.TextStyle(fontSize: bodySize - 1, fontWeight: pw.FontWeight.bold),
+                ),
+              ),
+              pw.Center(
+                child: pw.Text(
+                  DateFormat('yyyy-MM-dd HH:mm').format(_currentSale.timestamp),
                   style: pw.TextStyle(fontSize: bodySize - 1),
                 ),
               ),
               pw.Divider(thickness: 0.5),
 
               // --- ITEMS ---
-              ...widget.sale.items.map((item) => pw.Container(
+              ..._currentSale.items.map((item) => pw.Container(
                     margin: const pw.EdgeInsets.symmetric(vertical: 1.5),
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -605,7 +905,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                     style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: totalSize - 2),
                   ),
                   pw.Text(
-                    "Rs. ${widget.sale.totalAmount.toStringAsFixed(2)}",
+                    "Rs. ${_currentSale.totalAmount.toStringAsFixed(2)}",
                     style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: totalSize),
                   ),
                 ],
@@ -617,11 +917,29 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text("Payment Method:", style: pw.TextStyle(fontSize: bodySize - 1.5)),
-                  pw.Text(widget.sale.paymentMethod, style: pw.TextStyle(fontSize: bodySize - 1.5)),
+                  pw.Text(_currentSale.paymentMethod, style: pw.TextStyle(fontSize: bodySize - 1.5)),
                 ],
               ),
 
-              if (widget.sale.paymentMethod == 'CREDIT')
+              if (_currentSale.paymentMethod == 'CASH') ...[
+                pw.SizedBox(height: 2),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text("Cash Tendered:", style: pw.TextStyle(fontSize: bodySize - 1.5)),
+                    pw.Text("Rs. ${_currentSale.cashTendered.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: bodySize - 1.5)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text("Change Due:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodySize)),
+                    pw.Text("Rs. ${_currentSale.changeDue.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodySize)),
+                  ],
+                ),
+              ],
+
+              if (_currentSale.paymentMethod == 'CREDIT')
                 pw.Center(
                   child: pw.Text(
                     "(CREDIT SALE - UNPAID)",
@@ -629,6 +947,18 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                   ),
                 ),
 
+              // --- RECEIPT BARCODE (Code128 for verification & returns) ---
+              pw.SizedBox(height: 6),
+              pw.Center(
+                child: pw.BarcodeWidget(
+                  barcode: pw.Barcode.code128(),
+                  data: _currentSale.id,
+                  width: is58 ? 130 : 160,
+                  height: 32,
+                  drawText: true,
+                  textStyle: pw.TextStyle(fontSize: 7),
+                ),
+              ),
               pw.SizedBox(height: 6),
 
               // --- FOOTER ---

@@ -32,15 +32,20 @@ class FakeSalesRepository implements SalesRepository {
     double amount,
     String method,
     String? customerId,
-    Map<String, CartItem> cartItems,
-  ) async {
+    Map<String, CartItem> cartItems, {
+    double? amountTendered,
+  }) async {
+    final double tenderPaid = method == 'CASH'
+        ? (amountTendered != null && amountTendered >= amount ? amountTendered : amount)
+        : (method != 'CREDIT' ? amount : 0.0);
+
     final sale = Sale(
       id: 'sale_${DateTime.now().millisecondsSinceEpoch}',
       timestamp: DateTime.now(),
       totalAmount: amount,
       paymentMethod: method,
       customerId: customerId,
-      amountPaid: method == 'CREDIT' ? 0.0 : amount,
+      amountPaid: tenderPaid,
       isFullyPaid: method != 'CREDIT',
       items: cartItems.values
           .map((item) => SaleItem(
@@ -55,6 +60,27 @@ class FakeSalesRepository implements SalesRepository {
     );
     recordedSales.add(sale);
     return sale;
+  }
+
+  @override
+  Future<Sale?> getSaleById(String saleId) async {
+    try {
+      return recordedSales.firstWhere((s) => s.id == saleId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<Sale> updateSalePaymentDetails({
+    required String saleId,
+    required double amountPaid,
+  }) async {
+    final idx = recordedSales.indexWhere((s) => s.id == saleId);
+    if (idx == -1) throw Exception("Sale not found: $saleId");
+    final updated = recordedSales[idx].copyWith(amountPaid: amountPaid);
+    recordedSales[idx] = updated;
+    return updated;
   }
 
   @override
