@@ -10,6 +10,7 @@ import 'package:sme_buddy/features/reports/receipt_screen.dart';
 import 'package:sme_buddy/features/reports/sale_model.dart';
 import 'package:sme_buddy/features/reports/sales_repository.dart';
 import 'package:sme_buddy/features/reports/verify_receipt_dialog.dart';
+import 'package:sme_buddy/features/settings/theme_provider.dart';
 import 'package:sme_buddy/features/users/user_model.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
 
@@ -345,8 +346,9 @@ void main() {
             salesRepositoryProvider.overrideWithValue(fakeSalesRepo),
             userProfileProvider.overrideWith((ref) => Stream.value(_testUser)),
           ],
-          child: const MaterialApp(
-            home: Scaffold(body: VerifyReceiptDialog(initialBillId: 'REC-554433')),
+          child: MaterialApp(
+            theme: AppTheme.darkTheme,
+            home: const Scaffold(body: VerifyReceiptDialog(initialBillId: 'REC-554433')),
           ),
         ),
       );
@@ -369,8 +371,9 @@ void main() {
             salesRepositoryProvider.overrideWithValue(fakeSalesRepo),
             userProfileProvider.overrideWith((ref) => Stream.value(_testUser)),
           ],
-          child: const MaterialApp(
-            home: Scaffold(body: VerifyReceiptDialog()),
+          child: MaterialApp(
+            theme: AppTheme.darkTheme,
+            home: const Scaffold(body: VerifyReceiptDialog()),
           ),
         ),
       );

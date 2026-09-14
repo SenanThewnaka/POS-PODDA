@@ -173,6 +173,7 @@ class _VerifyReceiptDialogState extends ConsumerState<VerifyReceiptDialog> {
                   const SizedBox(width: 8),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(80, 48),
                       backgroundColor: Colors.cyanAccent,
                       foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),

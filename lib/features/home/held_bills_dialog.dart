@@ -267,6 +267,7 @@ class HeldBillsDialog extends ConsumerWidget {
                   const SizedBox(width: 4),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(0, 36),
                       backgroundColor: Colors.cyanAccent,
                       foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -307,6 +308,7 @@ class HeldBillsDialog extends ConsumerWidget {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
+                minimumSize: const Size(80, 40),
                 backgroundColor: Colors.redAccent,
                 foregroundColor: Colors.white,
               ),
@@ -362,6 +364,7 @@ class HeldBillsDialog extends ConsumerWidget {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
+              minimumSize: const Size(80, 40),
               backgroundColor: Colors.redAccent,
               foregroundColor: Colors.white,
             ),
@@ -389,6 +392,7 @@ class HeldBillsDialog extends ConsumerWidget {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
+              minimumSize: const Size(80, 40),
               backgroundColor: Colors.redAccent,
               foregroundColor: Colors.white,
             ),
