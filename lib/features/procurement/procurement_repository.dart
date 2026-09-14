@@ -38,7 +38,7 @@ class ProcurementRepository {
       .collection('grn');
 
   CollectionReference get _productsCollection => FirebaseFirestore.instance
-      .collection('shops')
+      .collection('users')
       .doc(currentUser.shopId)
       .collection('products');
 
@@ -146,7 +146,7 @@ class ProcurementRepository {
         productUpdate['sellingPrice'] = item.sellingPrice;
       }
 
-      writeBatch.update(productRef, productUpdate);
+      writeBatch.set(productRef, productUpdate, SetOptions(merge: true));
     }
 
     await writeBatch.commit();

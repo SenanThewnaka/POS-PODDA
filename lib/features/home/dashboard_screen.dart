@@ -234,9 +234,35 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       const SizedBox(height: 6),
                       _buildSidebarItem(1, Icons.inventory_2_rounded, "Inventory / Stock", activeColor, isDark, isCollapsed),
                       const SizedBox(height: 6),
+                      if (user?.hasPermission(AppPermissions.canManageInventory) ?? true) ...[
+                        _buildSidebarActionItem(
+                          icon: Icons.local_shipping_outlined,
+                          label: "Procurement & ERP",
+                          activeColor: activeColor,
+                          isDark: isDark,
+                          isCollapsed: isCollapsed,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const GRNHistoryScreen()),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
                       _buildSidebarItem(2, Icons.account_balance_wallet_rounded, "Credit Book (Naya)", activeColor, isDark, isCollapsed),
                       const SizedBox(height: 6),
                       _buildSidebarItem(3, Icons.bar_chart_rounded, "Sales Reports", activeColor, isDark, isCollapsed),
+                      const SizedBox(height: 6),
+                      _buildSidebarActionItem(
+                        icon: Icons.point_of_sale_rounded,
+                        label: "Shifts & Balancing",
+                        activeColor: activeColor,
+                        isDark: isDark,
+                        isCollapsed: isCollapsed,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ShiftHistoryScreen()),
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       _buildSidebarItem(4, Icons.settings_rounded, "Settings", activeColor, isDark, isCollapsed),
 
@@ -323,6 +349,77 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarActionItem({
+    required IconData icon,
+    required String label,
+    required Color activeColor,
+    required bool isDark,
+    required bool isCollapsed,
+    required VoidCallback onTap,
+  }) {
+    if (isCollapsed) {
+      return Tooltip(
+        message: label,
+        waitDuration: const Duration(milliseconds: 300),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: isDark ? Colors.white70 : Colors.black54,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isDark ? Colors.white70 : Colors.black54,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.normal,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
