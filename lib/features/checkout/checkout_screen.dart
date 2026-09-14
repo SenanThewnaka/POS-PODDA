@@ -34,41 +34,54 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final FocusNode _customAmountFocusNode = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_handleGlobalKey);
+  }
+
+  @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleGlobalKey);
     _keyboardFocusNode.dispose();
     _customAmountFocusNode.dispose();
     super.dispose();
   }
 
-  void _handleKey(KeyEvent event, double total) {
-    if (event is! KeyDownEvent) return;
+  bool _handleGlobalKey(KeyEvent event) {
+    if (!mounted) return false;
+    final total = ref.read(cartTotalProvider);
+    return _handleKey(event, total);
+  }
+
+  bool _handleKey(KeyEvent event, double total) {
+    if (event is! KeyDownEvent) return false;
 
     final key = event.logicalKey;
     final isCustomAmountFocused = _customAmountFocusNode.hasFocus;
 
     if (key == LogicalKeyboardKey.escape) {
       Navigator.pop(context);
-      return;
+      return true;
     }
 
     if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter ||
         key == LogicalKeyboardKey.f12) {
       _onCompletePressed(total);
-      return;
+      return true;
     }
 
     if (!isCustomAmountFocused) {
       // Payment method hotkeys: strictly F1, F2, F3
       if (key == LogicalKeyboardKey.f1) {
         _selectPaymentMethod('CASH', total);
-        return;
+        return true;
       } else if (key == LogicalKeyboardKey.f2) {
         _selectPaymentMethod('CARD', total);
-        return;
+        return true;
       } else if (key == LogicalKeyboardKey.f3) {
         _selectPaymentMethod('CREDIT', total);
-        return;
+        return true;
       }
 
       // Cash tender keyboard / numpad typing - numbers 0-9 and numpad 0-9
@@ -132,12 +145,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         } else if (key == LogicalKeyboardKey.backspace || key == LogicalKeyboardKey.delete) {
           _onNumpadDigit('BACK', total);
         }
+        return true;
       } else if (key == LogicalKeyboardKey.keyC) {
         if (_paymentMethod == 'CASH') {
           _onNumpadDigit('CLEAR', total);
+          return true;
         }
       }
     }
+    return false;
   }
 
   void _selectPaymentMethod(String label, double total) {
@@ -189,14 +205,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       }
     }
 
-    return Focus(
-      autofocus: true,
-      focusNode: _keyboardFocusNode,
-      onKeyEvent: (node, event) {
-        _handleKey(event, total);
-        return KeyEventResult.handled;
-      },
-      child: GlassScaffold(
+    return GlassScaffold(
         appBar: AppBar(
           title: const Text("Checkout", style: TextStyle(fontWeight: FontWeight.bold)),
           backgroundColor: Colors.transparent,
@@ -367,64 +376,122 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Cash Received Display with Clear Button (Neumorphic Inset / Screen)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0F172A),
+                          // Cash Received Display with Clear Button (Interactive Neumorphic Input)
+                          MouseRegion(
+                            cursor: SystemMouseCursors.text,
+                            child: InkWell(
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: const Color(0xFF1E293B)),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.5),
-                                  offset: const Offset(1.5, 1.5),
-                                  blurRadius: 4,
+                              onTap: () {
+                                _keyboardFocusNode.requestFocus();
+                                setState(() {
+                                  _hasCustomCashInput = false;
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0F172A),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: _keyboardFocusNode.hasFocus
+                                        ? const Color(0xFF6366F1)
+                                        : const Color(0xFF1E293B),
+                                    width: _keyboardFocusNode.hasFocus ? 1.5 : 1,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _keyboardFocusNode.hasFocus
+                                          ? const Color(0xFF6366F1).withOpacity(0.25)
+                                          : Colors.black.withOpacity(0.5),
+                                      offset: const Offset(1.5, 1.5),
+                                      blurRadius: 6,
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "CASH TENDERED",
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white.withOpacity(0.5),
-                                          letterSpacing: 1.1,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        alignment: Alignment.centerLeft,
-                                        child: Text(
-                                          "Rs. ${_cashGiven.toStringAsFixed(2)}",
-                                          style: const TextStyle(
-                                            fontSize: 26,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            alignment: Alignment.centerLeft,
+                                            child: Row(
+                                              children: [
+                                                Text(
+                                                  "CASH TENDERED",
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.white.withOpacity(0.5),
+                                                    letterSpacing: 1.1,
+                                                  ),
+                                                ),
+                                                if (!_hasCustomCashInput) ...[
+                                                  const SizedBox(width: 8),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFF6366F1).withOpacity(0.25),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    child: const Text(
+                                                      "SELECTED",
+                                                      style: TextStyle(
+                                                        fontSize: 9,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Color(0xFF818CF8),
+                                                        letterSpacing: 0.8,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            alignment: Alignment.centerLeft,
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: !_hasCustomCashInput
+                                                    ? const Color(0xFF6366F1).withOpacity(0.25)
+                                                    : Colors.transparent,
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: !_hasCustomCashInput ? 6 : 0,
+                                              vertical: 1,
+                                            ),
+                                            child: Text(
+                                              "Rs. ${_cashGiven.toStringAsFixed(2)}",
+                                              style: const TextStyle(
+                                                fontSize: 26,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                if (_cashGiven > 0) ...[
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    icon: const Icon(Icons.backspace_outlined, color: Colors.white70),
-                                    tooltip: "Clear / Backspace",
-                                    onPressed: () => _onNumpadDigit('BACK', total),
-                                  ),
+                                  if (_cashGiven > 0) ...[
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      icon: const Icon(Icons.backspace_outlined, color: Colors.white70),
+                                      tooltip: "Clear / Backspace",
+                                      onPressed: () => _onNumpadDigit('BACK', total),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 14),
@@ -614,8 +681,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildHotkeyTag(String text) {

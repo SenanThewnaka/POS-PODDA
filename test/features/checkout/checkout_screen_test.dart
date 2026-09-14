@@ -790,5 +790,43 @@ void main() {
       expect(find.text('CASH TENDERED'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('TC-CHK-26: Tapping CASH TENDERED bar selects amount and keyboard typing overwrites value', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final cart = CartNotifier();
+      cart.addToCart(_testProduct2, quantity: 1); // 750.00
+
+      await tester.pumpWidget(_createCheckoutWidget(cartNotifier: cart));
+      await tester.pumpAndSettle();
+
+      // Initially SELECTED badge is visible and cash matches 750.00
+      expect(find.text('SELECTED'), findsOneWidget);
+      expect(find.text('Rs. 750.00'), findsWidgets);
+
+      // Typing 5 replaces 750 with 5.00
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit5);
+      await tester.pumpAndSettle();
+      expect(find.text('Rs. 5.00'), findsOneWidget);
+      expect(find.text('SELECTED'), findsNothing);
+
+      // Tapping the CASH TENDERED bar re-selects it
+      await tester.tap(find.text('CASH TENDERED'));
+      await tester.pumpAndSettle();
+      expect(find.text('SELECTED'), findsOneWidget);
+
+      // Typing 2 replaces the selected amount with 2.00
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
+      await tester.pumpAndSettle();
+      expect(find.text('Rs. 2.00'), findsOneWidget);
+
+      // Typing 0 appends to make it 20.00
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit0);
+      await tester.pumpAndSettle();
+      expect(find.text('Rs. 20.00'), findsOneWidget);
+    });
   });
 }
