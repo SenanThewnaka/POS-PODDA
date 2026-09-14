@@ -123,15 +123,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         ),
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.local_shipping_outlined, size: 18, color: Colors.cyanAccent),
                             SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                "GRN Inward",
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.cyanAccent),
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                            Text(
+                              "GRN Inward",
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.cyanAccent),
                             ),
                           ],
                         ),
@@ -169,18 +167,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.business_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54),
                             const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                "Suppliers",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87,
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                            Text(
+                              "Suppliers",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87,
                               ),
                             ),
                           ],

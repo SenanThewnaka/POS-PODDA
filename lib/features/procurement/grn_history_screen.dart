@@ -347,71 +347,76 @@ class _GRNHistoryScreenState extends ConsumerState<GRNHistoryScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF6366F1).withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6366F1).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.inventory, color: Color(0xFF818CF8), size: 18),
                       ),
-                      child: const Icon(Icons.inventory, color: Color(0xFF818CF8), size: 18),
-                    ),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          grn.grnNumber,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              grn.grnNumber,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              DateFormat('MMM dd, yyyy').format(grn.receivedAt),
+                              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
+                            ),
+                          ],
                         ),
-                        Text(
-                          DateFormat('MMM dd, yyyy').format(grn.receivedAt),
-                          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 _buildStatusChip(grn.paymentStatus),
               ],
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Icon(Icons.business, size: 14, color: Colors.white.withOpacity(0.5)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      grn.supplierName ?? "Direct / Internal",
-                      style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.business, size: 14, color: Colors.white.withValues(alpha: 0.5)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    grn.supplierName ?? "Direct / Internal",
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  if (grn.invoiceNumber != null) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      "Inv: ${grn.invoiceNumber}",
-                      style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
-                    ),
-                  ],
+                ),
+                if (grn.invoiceNumber != null && grn.invoiceNumber!.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    "Inv: ${grn.invoiceNumber}",
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11),
+                  ),
                 ],
-              ),
+              ],
             ),
-            const Divider(color: Colors.white12, height: 12),
+            const Divider(color: Colors.white12, height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   "${grn.items.length} items received",
-                  style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
                 ),
                 Text(
                   "Rs. ${grn.totalCost.toStringAsFixed(2)}",

@@ -619,6 +619,7 @@ void main() {
       );
 
       final repo = FakeProcurementRepository(initialGRNs: [sampleGRN]);
+      final handle = tester.ensureSemantics();
 
       await tester.pumpWidget(_wrapWithProviders(
         child: const GRNHistoryScreen(),
@@ -631,6 +632,8 @@ void main() {
       expect(find.text('Ceylon Foods PLC'), findsOneWidget);
       expect(find.text('Rs. 15400.00'), findsOneWidget);
       expect(find.text('PAID'), findsOneWidget);
+
+      handle.dispose();
     });
   });
 
@@ -660,6 +663,15 @@ void main() {
       await tester.pumpWidget(_wrapWithProviders(child: const CreateGRNScreen()));
       await tester.pumpAndSettle();
       expect(find.text('New Goods Received Note (GRN)'), findsOneWidget);
+
+      // 4. Mobile Screen (412x915) - GRNHistoryScreen with semantics
+      tester.view.physicalSize = const Size(412 * 2.0, 915 * 2.0);
+      tester.view.devicePixelRatio = 2.0;
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(_wrapWithProviders(child: const GRNHistoryScreen()));
+      await tester.pumpAndSettle();
+      expect(find.text('Procurement & GRN Inward'), findsOneWidget);
+      handle.dispose();
     });
   });
 }
