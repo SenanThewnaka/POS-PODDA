@@ -83,16 +83,20 @@ class _VerifyReceiptDialogState extends ConsumerState<VerifyReceiptDialog> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenSize = MediaQuery.sizeOf(context);
+    final dialogWidth = screenSize.width > 650 ? 600.0 : screenSize.width * 0.92;
+    final dialogHeight = (screenSize.height * 0.82).clamp(420.0, 720.0);
 
     return Dialog(
       backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 720),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: SizedBox(
+        width: dialogWidth,
+        height: dialogHeight,
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Header
@@ -312,108 +316,111 @@ class _VerifyReceiptDialogState extends ConsumerState<VerifyReceiptDialog> {
             ),
           ),
 
-          // Bill Summary
-          Padding(
-            padding: const EdgeInsets.all(14.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Bill #: ${sale.id}",
-                        style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-                      if (sale.userName != null)
-                        Text(
-                          "Cashier: ${sale.userName}",
-                          style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
-                        ),
-                      Text(
-                        "Payment: ${sale.paymentMethod}${sale.paymentMethod == 'CASH' ? ' (Tender: Rs. ${sale.cashTendered.toStringAsFixed(0)} | Change: Rs. ${sale.changeDue.toStringAsFixed(0)})' : ''}",
-                        style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  "Rs. ${sale.totalAmount.toStringAsFixed(2)}",
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.greenAccent),
-                ),
-              ],
-            ),
-          ),
-
-          const Divider(height: 1),
-
-          // Items title
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "Purchased Items (${sale.items.length})",
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                ),
-                const Text(
-                  "Check for Returns",
-                  style: TextStyle(fontSize: 11, color: Colors.cyanAccent),
-                ),
-              ],
-            ),
-          ),
-
-          // Items list
+          // Scrollable Body (Bill Summary + Items)
           Expanded(
-            child: ListView.separated(
-              itemCount: sale.items.length,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              separatorBuilder: (_, __) => Divider(height: 1, color: isDark ? Colors.white10 : Colors.black12),
-              itemBuilder: (context, index) {
-                final item = sale.items[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(6),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.zero,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Bill Summary
+                  Padding(
+                    padding: const EdgeInsets.all(14.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Bill #: ${sale.id}",
+                                style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              if (sale.userName != null)
+                                Text(
+                                  "Cashier: ${sale.userName}",
+                                  style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
+                                ),
+                              Text(
+                                "Payment: ${sale.paymentMethod}${sale.paymentMethod == 'CASH' ? ' (Tender: Rs. ${sale.cashTendered.toStringAsFixed(0)} | Change: Rs. ${sale.changeDue.toStringAsFixed(0)})' : ''}",
+                                style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
+                              ),
+                            ],
+                          ),
                         ),
-                        child: Text(
-                          "${item.quantity.toInt()}x",
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Rs. ${sale.totalAmount.toStringAsFixed(2)}",
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.greenAccent),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.productName,
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                            ),
-                            Text(
-                              "Unit Price: Rs. ${item.unitPrice.toStringAsFixed(2)}",
-                              style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black54),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        "Rs. ${item.subTotal.toStringAsFixed(2)}",
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                );
-              },
+
+                  const Divider(height: 1),
+
+                  // Items title
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Purchased Items (${sale.items.length})",
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
+                        const Text(
+                          "Check for Returns",
+                          style: TextStyle(fontSize: 11, color: Colors.cyanAccent),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Items list
+                  ...sale.items.map((item) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              "${item.quantity.toInt()}x",
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.productName,
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                ),
+                                Text(
+                                  "Unit Price: Rs. ${item.unitPrice.toStringAsFixed(2)}",
+                                  style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black54),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            "Rs. ${item.subTotal.toStringAsFixed(2)}",
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
           ),
 

@@ -18,16 +18,20 @@ class HeldBillsDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final heldBills = ref.watch(heldBillsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenSize = MediaQuery.sizeOf(context);
+    final dialogWidth = screenSize.width > 600 ? 550.0 : screenSize.width * 0.92;
+    final dialogHeight = (screenSize.height * 0.78).clamp(360.0, 650.0);
 
     return Dialog(
       backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 550, maxHeight: 650),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: SizedBox(
+        width: dialogWidth,
+        height: dialogHeight,
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Header
