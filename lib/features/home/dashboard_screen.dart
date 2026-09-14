@@ -8,6 +8,9 @@ import 'package:sme_buddy/features/credit/customer_list_screen.dart';
 import 'package:sme_buddy/features/settings/settings_screen.dart';
 import 'package:sme_buddy/features/reports/reports_screen.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
+import 'package:sme_buddy/features/users/app_permissions.dart';
+import 'package:sme_buddy/features/procurement/grn_history_screen.dart';
+import 'package:sme_buddy/features/shifts/shift_history_screen.dart';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/connectivity_banner.dart';
@@ -448,6 +451,15 @@ class MenuScreen extends ConsumerWidget {
             _buildMenuItem(context, Icons.bar_chart, "Reports", Colors.purpleAccent, () {
                Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsScreen()));
             }),
+
+          if (user?.hasPermission(AppPermissions.canManageInventory) ?? true)
+            _buildMenuItem(context, Icons.local_shipping_outlined, "Procurement & ERP (GRN)", Colors.cyanAccent, () {
+               Navigator.push(context, MaterialPageRoute(builder: (_) => const GRNHistoryScreen()));
+            }),
+
+          _buildMenuItem(context, Icons.point_of_sale_rounded, "Shifts & Cash Balancing", Colors.greenAccent, () {
+             Navigator.push(context, MaterialPageRoute(builder: (_) => const ShiftHistoryScreen()));
+          }),
             
           _buildMenuItem(context, Icons.settings, "Settings", Colors.blueAccent, () {
              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));

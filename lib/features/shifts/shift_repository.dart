@@ -48,13 +48,13 @@ class ShiftRepository {
   Stream<List<ShiftModel>> get shiftHistoryStream {
     return _collection
         .where('isOpen', isEqualTo: false)
-        .orderBy('openedAt', descending: true)
-        .limit(60)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
+      final list = snapshot.docs
           .map((doc) => ShiftModel.fromMap(doc.data() as Map<String, dynamic>))
           .toList();
+      list.sort((a, b) => b.openedAt.compareTo(a.openedAt));
+      return list.take(60).toList();
     });
   }
 

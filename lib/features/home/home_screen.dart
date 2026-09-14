@@ -32,6 +32,8 @@ import 'package:sme_buddy/features/shifts/open_shift_dialog.dart';
 import 'package:sme_buddy/features/shifts/cash_drawer_action_dialog.dart';
 import 'package:sme_buddy/features/shifts/close_shift_dialog.dart';
 import 'package:sme_buddy/features/shifts/shift_history_screen.dart';
+import 'package:sme_buddy/features/procurement/grn_history_screen.dart';
+import 'package:sme_buddy/features/procurement/suppliers_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -931,6 +933,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                Navigator.push(context, MaterialPageRoute(builder: (_) => const InventoryScreen()));
             },
           ),
+
+          if (user.hasPermission(AppPermissions.canManageInventory))
+          ListTile(
+            leading: const Icon(Icons.local_shipping_outlined, color: Colors.cyanAccent),
+            title: const Text("Procurement & ERP (GRN)"),
+            onTap: () {
+               Navigator.pop(context); 
+               Navigator.push(context, MaterialPageRoute(builder: (_) => const GRNHistoryScreen()));
+            },
+          ),
           
           if (user.hasPermission(AppPermissions.canViewCredit))
           ListTile(
@@ -941,13 +953,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerListScreen()));
             },
           ),
+
+          ListTile(
+            leading: const Icon(Icons.point_of_sale_rounded, color: Colors.greenAccent),
+            title: const Text("Shifts & Cash Balancing"),
+            onTap: () {
+               Navigator.pop(context); 
+               Navigator.push(context, MaterialPageRoute(builder: (_) => const ShiftHistoryScreen()));
+            },
+          ),
           
           if (user.isAdmin) 
           ListTile(
             leading: const Icon(Icons.bar_chart),
             title: const Text("Daily Reports"),
             onTap: () {
-               Navigator.pop(context);
+               Navigator.pop(context); 
                Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsScreen()));
             },
           ),
