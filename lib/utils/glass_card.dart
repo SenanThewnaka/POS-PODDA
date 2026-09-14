@@ -33,7 +33,7 @@ class GlassCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     // DEEP GLASS (Slate/Zinc Refinement)
-    final defaultColor = isDark ? const Color(0xFF1E293B).withOpacity(0.85) : Colors.white.withOpacity(0.92);
+    final defaultColor = isDark ? const Color(0xFF1E293B).withValues(alpha: 0.85) : Colors.white.withValues(alpha: 0.92);
     final cardColor = color ?? defaultColor;
     final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
@@ -45,13 +45,31 @@ class GlassCard extends StatelessWidget {
         color: cardColor,
         borderRadius: BorderRadius.circular(borderRadius),
         border: border ?? Border.all(color: borderColor, width: 1.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF334155).withValues(alpha: 0.4),
+                  blurRadius: 8,
+                  offset: const Offset(-3, -3),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  blurRadius: 12,
+                  offset: const Offset(4, 4),
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.white.withValues(alpha: 0.95),
+                  blurRadius: 10,
+                  offset: const Offset(-4, -4),
+                ),
+                BoxShadow(
+                  color: const Color(0xFF94A3B8).withValues(alpha: 0.35),
+                  blurRadius: 12,
+                  offset: const Offset(4, 4),
+                ),
+              ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),

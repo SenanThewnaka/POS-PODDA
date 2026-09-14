@@ -294,13 +294,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Cash Received Display with Clear Button
+                          // Cash Received Display with Clear Button (Neumorphic Inset / Screen)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1E293B),
+                              color: const Color(0xFF0F172A),
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: const Color(0xFF334155)),
+                              border: Border.all(color: const Color(0xFF1E293B)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.5),
+                                  offset: const Offset(1.5, 1.5),
+                                  blurRadius: 4,
+                                ),
+                              ],
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -587,11 +594,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   Widget _buildTouchNumpad(double total) {
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B).withOpacity(0.6),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF334155)),
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF1E293B)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            offset: const Offset(2, 2),
+            blurRadius: 6,
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -627,7 +641,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              _buildNumpadKey('C', () => _onNumpadDigit('CLEAR', total), color: Colors.redAccent.withOpacity(0.2), textColor: Colors.redAccent),
+              _buildNumpadKey('C', () => _onNumpadDigit('CLEAR', total), color: Colors.redAccent.withValues(alpha: 0.18), textColor: Colors.redAccent),
               const SizedBox(width: 8),
               _buildNumpadKey('0', () => _onNumpadDigit('0', total)),
               const SizedBox(width: 8),
@@ -641,22 +655,43 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   Widget _buildNumpadKey(String label, VoidCallback onTap, {Color? color, Color? textColor}) {
     return Expanded(
-      child: Material(
-        key: Key('numpad_$label'),
-        color: color ?? const Color(0xFF334155).withOpacity(0.5),
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
+      child: Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: color ?? const Color(0xFF1E293B),
           borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Container(
-            height: 48,
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: textColor ?? Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF334155).withValues(alpha: 0.4),
+              offset: const Offset(-2, -2),
+              blurRadius: 4,
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.55),
+              offset: const Offset(2.5, 2.5),
+              blurRadius: 5,
+            ),
+          ],
+        ),
+        child: Material(
+          key: Key('numpad_$label'),
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: textColor ?? Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
               ),
             ),
           ),

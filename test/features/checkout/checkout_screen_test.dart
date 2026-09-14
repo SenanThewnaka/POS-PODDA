@@ -13,7 +13,6 @@ import 'package:sme_buddy/features/reports/receipt_screen.dart';
 import 'package:sme_buddy/features/reports/sale_model.dart';
 import 'package:sme_buddy/features/reports/sales_repository.dart';
 import 'package:sme_buddy/features/settings/printer_settings_service.dart';
-import 'package:sme_buddy/features/shifts/shift_model.dart';
 import 'package:sme_buddy/features/shifts/shift_repository.dart';
 import 'package:sme_buddy/features/users/user_model.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';

@@ -199,3 +199,76 @@ class AppTheme {
     ),
   );
 }
+
+/// Neumorphic design system decoration utilities for soft dual-shadow surfaces
+class NeumorphicDecoration {
+  static BoxDecoration convex({
+    required bool isDark,
+    double borderRadius = 16,
+    Color? color,
+    Border? border,
+    double depth = 4,
+  }) {
+    final baseColor = color ?? (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9));
+    return BoxDecoration(
+      color: baseColor,
+      borderRadius: BorderRadius.circular(borderRadius),
+      border: border ??
+          Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.6),
+            width: 1,
+          ),
+      boxShadow: isDark
+          ? [
+              BoxShadow(
+                color: const Color(0xFF334155).withValues(alpha: 0.4),
+                offset: Offset(-depth * 0.7, -depth * 0.7),
+                blurRadius: depth * 2,
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.65),
+                offset: Offset(depth, depth),
+                blurRadius: depth * 2.2,
+              ),
+            ]
+          : [
+              BoxShadow(
+                color: Colors.white.withValues(alpha: 0.95),
+                offset: Offset(-depth, -depth),
+                blurRadius: depth * 2,
+              ),
+              BoxShadow(
+                color: const Color(0xFF94A3B8).withValues(alpha: 0.35),
+                offset: Offset(depth, depth),
+                blurRadius: depth * 2,
+              ),
+            ],
+    );
+  }
+
+  static BoxDecoration concave({
+    required bool isDark,
+    double borderRadius = 16,
+    Color? color,
+    Border? border,
+    double depth = 3,
+  }) {
+    final baseColor = color ?? (isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0));
+    return BoxDecoration(
+      color: baseColor,
+      borderRadius: BorderRadius.circular(borderRadius),
+      border: border ??
+          Border.all(
+            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFCBD5E1),
+            width: 1,
+          ),
+      boxShadow: [
+        BoxShadow(
+          color: isDark ? Colors.black.withValues(alpha: 0.5) : const Color(0xFF94A3B8).withValues(alpha: 0.4),
+          offset: Offset(depth * 0.6, depth * 0.6),
+          blurRadius: depth * 1.5,
+        ),
+      ],
+    );
+  }
+}
