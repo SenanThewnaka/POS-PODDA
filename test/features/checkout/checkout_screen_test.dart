@@ -707,5 +707,80 @@ void main() {
       expect(find.text('[Enter] Pay'), findsOneWidget);
       expect(find.text('[Esc] Back'), findsOneWidget);
     });
+
+    testWidgets('TC-CHK-23: Physical keyboard digits replace default total on first keystroke', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final cart = CartNotifier();
+      cart.addToCart(_testProduct2, quantity: 1); // Total: 750.00
+
+      await tester.pumpWidget(_createCheckoutWidget(cartNotifier: cart));
+      await tester.pumpAndSettle();
+
+      // Initially cash tendered defaults to 750.00
+      expect(find.text('Rs. 750.00'), findsWidgets);
+
+      // Cashier types 1, 0, 0, 0 on physical keyboard
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+      await tester.pumpAndSettle();
+      expect(find.text('Rs. 1.00'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit0);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit0);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit0);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rs. 1000.00'), findsOneWidget);
+      expect(find.text('Rs. 250.00'), findsOneWidget); // Change: 1000 - 750 = 250
+    });
+
+    testWidgets('TC-CHK-24: Physical NumPad digits and backspace work as expected', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final cart = CartNotifier();
+      cart.addToCart(_testProduct2, quantity: 1); // Total: 750.00
+
+      await tester.pumpWidget(_createCheckoutWidget(cartNotifier: cart));
+      await tester.pumpAndSettle();
+
+      // Type 8, 0, 0 on NumPad
+      await tester.sendKeyEvent(LogicalKeyboardKey.numpad8);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.numpad0);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.numpad0);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rs. 800.00'), findsOneWidget);
+
+      // Hit Backspace
+      await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+      await tester.pumpAndSettle();
+      expect(find.text('Rs. 80.00'), findsOneWidget);
+    });
+
+    testWidgets('TC-CHK-25: iPad portrait layout (768x1024) renders with 0 overflow', (tester) async {
+      tester.view.physicalSize = const Size(768, 1024);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final cart = CartNotifier();
+      cart.addToCart(_testProduct2, quantity: 2);
+
+      await tester.pumpWidget(_createCheckoutWidget(cartNotifier: cart));
+      await tester.pumpAndSettle();
+
+      expect(find.text('CASH TENDERED'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

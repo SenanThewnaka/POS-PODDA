@@ -9,6 +9,7 @@ import 'package:sme_buddy/features/procurement/grn_model.dart';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/responsive_layout.dart';
+import 'package:sme_buddy/utils/text_controller_extensions.dart';
 
 class CreateGRNScreen extends ConsumerStatefulWidget {
   const CreateGRNScreen({super.key});
@@ -184,6 +185,7 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
                               child: TextFormField(
                                 controller: qtyCtrl,
                                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                onTap: () => qtyCtrl.selectAll(),
                                 style: const TextStyle(color: Colors.white),
                                 decoration: InputDecoration(
                                   labelText: "Received Qty *",
@@ -204,6 +206,7 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
                               child: TextFormField(
                                 controller: costCtrl,
                                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                onTap: () => costCtrl.selectAll(),
                                 style: const TextStyle(color: Colors.white),
                                 decoration: InputDecoration(
                                   labelText: "Unit Cost (Rs.) *",
@@ -225,6 +228,7 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
                         TextFormField(
                           controller: sellingCtrl,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          onTap: () => sellingCtrl.selectAll(),
                           style: const TextStyle(color: Colors.white),
                           decoration: InputDecoration(
                             labelText: "Batch Selling Price (Rs.) *",
@@ -549,6 +553,7 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
             TextField(
               controller: _amountPaidCtrl,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onTap: () => _amountPaidCtrl.selectAll(),
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 labelText: "Amount Paid (Rs.)",

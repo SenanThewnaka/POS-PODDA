@@ -5,6 +5,7 @@ import 'package:sme_buddy/features/shifts/shift_model.dart';
 import 'package:sme_buddy/features/shifts/shift_repository.dart';
 import 'package:sme_buddy/features/shifts/z_report_screen.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:sme_buddy/utils/text_controller_extensions.dart';
 
 class CloseShiftDialog extends ConsumerStatefulWidget {
   final ShiftModel shift;
@@ -35,6 +36,7 @@ class _CloseShiftDialogState extends ConsumerState<CloseShiftDialog> {
     // Default counted to expected cash so cashier can just adjust or confirm
     _countedCash = widget.shift.expectedCash;
     _countedCtrl.text = _countedCash.toStringAsFixed(2);
+    _countedCtrl.selectAll();
   }
 
   @override
@@ -198,6 +200,7 @@ class _CloseShiftDialogState extends ConsumerState<CloseShiftDialog> {
                     controller: _countedCtrl,
                     autofocus: true,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onTap: () => _countedCtrl.selectAll(),
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,

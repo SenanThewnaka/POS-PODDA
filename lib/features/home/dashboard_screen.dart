@@ -25,8 +25,13 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _currentIndex = 0;
-  bool _isSidebarCollapsed = false;
+  bool? _isSidebarCollapsedOverride;
   final PageController _pageController = PageController();
+
+  bool _isCollapsed(BuildContext context) {
+    if (_isSidebarCollapsedOverride != null) return _isSidebarCollapsedOverride!;
+    return context.isTablet;
+  }
 
   void _navigateTo(int index) {
     setState(() => _currentIndex = index);
@@ -123,11 +128,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final activeColor = isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5);
     final sidebarBg = isDark ? const Color(0xFF1E293B).withOpacity(0.9) : Colors.white;
     final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final isCollapsed = _isCollapsed(context);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
-      width: _isSidebarCollapsed ? 76 : 230,
+      width: isCollapsed ? 76 : 230,
       margin: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: sidebarBg,
@@ -151,21 +157,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 constraints: BoxConstraints(minHeight: constraints.maxHeight > 32 ? constraints.maxHeight - 32 : 0),
                 child: IntrinsicHeight(
                   child: Column(
-                    crossAxisAlignment: _isSidebarCollapsed ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+                    crossAxisAlignment: isCollapsed ? CrossAxisAlignment.center : CrossAxisAlignment.start,
                     children: [
                       // 1. Header & Collapse Toggle
-                      if (_isSidebarCollapsed) ...[
+                      if (isCollapsed) ...[
                         IconButton(
                           icon: const Icon(Icons.store_mall_directory_rounded, size: 24),
                           color: activeColor,
                           tooltip: user?.shopName ?? "POS Podda",
-                          onPressed: () => setState(() => _isSidebarCollapsed = false),
+                          onPressed: () => setState(() => _isSidebarCollapsedOverride = false),
                         ),
                         IconButton(
                           icon: const Icon(Icons.chevron_right, size: 18),
                           color: isDark ? Colors.white54 : Colors.black45,
                           tooltip: "Expand Sidebar",
-                          onPressed: () => setState(() => _isSidebarCollapsed = false),
+                          onPressed: () => setState(() => _isSidebarCollapsedOverride = false),
                         ),
                       ] else ...[
                         Padding(
@@ -213,7 +219,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 tooltip: "Collapse Sidebar",
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
-                                onPressed: () => setState(() => _isSidebarCollapsed = true),
+                                onPressed: () => setState(() => _isSidebarCollapsedOverride = true),
                               ),
                             ],
                           ),
@@ -224,21 +230,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       const SizedBox(height: 16),
 
                       // 2. Navigation Items
-                      _buildSidebarItem(0, Icons.point_of_sale_rounded, "POS Register", activeColor, isDark),
+                      _buildSidebarItem(0, Icons.point_of_sale_rounded, "POS Register", activeColor, isDark, isCollapsed),
                       const SizedBox(height: 6),
-                      _buildSidebarItem(1, Icons.inventory_2_rounded, "Inventory / Stock", activeColor, isDark),
+                      _buildSidebarItem(1, Icons.inventory_2_rounded, "Inventory / Stock", activeColor, isDark, isCollapsed),
                       const SizedBox(height: 6),
-                      _buildSidebarItem(2, Icons.account_balance_wallet_rounded, "Credit Book (Naya)", activeColor, isDark),
+                      _buildSidebarItem(2, Icons.account_balance_wallet_rounded, "Credit Book (Naya)", activeColor, isDark, isCollapsed),
                       const SizedBox(height: 6),
-                      _buildSidebarItem(3, Icons.bar_chart_rounded, "Sales Reports", activeColor, isDark),
+                      _buildSidebarItem(3, Icons.bar_chart_rounded, "Sales Reports", activeColor, isDark, isCollapsed),
                       const SizedBox(height: 6),
-                      _buildSidebarItem(4, Icons.settings_rounded, "Settings", activeColor, isDark),
+                      _buildSidebarItem(4, Icons.settings_rounded, "Settings", activeColor, isDark, isCollapsed),
 
                       const Spacer(),
                       const SizedBox(height: 16),
 
                       // 3. Current Cashier Profile & Sign Out
-                      if (_isSidebarCollapsed) ...[
+                      if (isCollapsed) ...[
                         Tooltip(
                           message: "${user?.name ?? 'Cashier'} (${user?.role ?? 'Staff'})",
                           child: CircleAvatar(
@@ -322,10 +328,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildSidebarItem(int index, IconData icon, String label, Color activeColor, bool isDark) {
+  Widget _buildSidebarItem(int index, IconData icon, String label, Color activeColor, bool isDark, bool isCollapsed) {
     final isSelected = _currentIndex == index;
 
-    if (_isSidebarCollapsed) {
+    if (isCollapsed) {
       return Tooltip(
         message: label,
         waitDuration: const Duration(milliseconds: 300),

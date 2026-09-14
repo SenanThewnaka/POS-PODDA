@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/shifts/shift_repository.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:sme_buddy/utils/text_controller_extensions.dart';
 
 class OpenShiftDialog extends ConsumerStatefulWidget {
   const OpenShiftDialog({super.key});
@@ -25,6 +26,12 @@ class _OpenShiftDialogState extends ConsumerState<OpenShiftDialog> {
   bool _isLoading = false;
 
   final List<double> _presetFloats = [0, 2000, 5000, 10000, 20000];
+
+  @override
+  void initState() {
+    super.initState();
+    _floatCtrl.selectAll();
+  }
 
   @override
   void dispose() {
@@ -145,6 +152,7 @@ class _OpenShiftDialogState extends ConsumerState<OpenShiftDialog> {
                 child: TextField(
                   controller: _floatCtrl,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onTap: () => _floatCtrl.selectAll(),
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,

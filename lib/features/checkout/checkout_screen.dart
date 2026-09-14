@@ -28,6 +28,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   Customer? _selectedCustomer;
   bool _isLoading = false;
   bool _hasInitializedCash = false;
+  bool _hasCustomCashInput = false;
 
   final FocusNode _keyboardFocusNode = FocusNode();
   final FocusNode _customAmountFocusNode = FocusNode();
@@ -58,21 +59,51 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
 
     if (!isCustomAmountFocused) {
-      if (key == LogicalKeyboardKey.digit1 ||
-          key == LogicalKeyboardKey.numpad1 ||
-          key == LogicalKeyboardKey.f1 ||
+      // Payment method hotkeys
+      if (key == LogicalKeyboardKey.f1 ||
+          (_paymentMethod != 'CASH' && (key == LogicalKeyboardKey.digit1 || key == LogicalKeyboardKey.numpad1)) ||
           key == LogicalKeyboardKey.keyC) {
         _selectPaymentMethod('CASH', total);
-      } else if (key == LogicalKeyboardKey.digit2 ||
-          key == LogicalKeyboardKey.numpad2 ||
-          key == LogicalKeyboardKey.f2 ||
+        return;
+      } else if (key == LogicalKeyboardKey.f2 ||
+          (_paymentMethod != 'CARD' && (key == LogicalKeyboardKey.digit2 || key == LogicalKeyboardKey.numpad2)) ||
           key == LogicalKeyboardKey.keyD) {
         _selectPaymentMethod('CARD', total);
-      } else if (key == LogicalKeyboardKey.digit3 ||
-          key == LogicalKeyboardKey.numpad3 ||
-          key == LogicalKeyboardKey.f3 ||
+        return;
+      } else if (key == LogicalKeyboardKey.f3 ||
+          (_paymentMethod != 'CREDIT' && (key == LogicalKeyboardKey.digit3 || key == LogicalKeyboardKey.numpad3)) ||
           key == LogicalKeyboardKey.keyP) {
         _selectPaymentMethod('CREDIT', total);
+        return;
+      }
+
+      // Cash tender keyboard / numpad typing
+      if (_paymentMethod == 'CASH') {
+        if (key == LogicalKeyboardKey.digit0 || key == LogicalKeyboardKey.numpad0) {
+          _onNumpadDigit('0', total);
+        } else if (key == LogicalKeyboardKey.digit1 || key == LogicalKeyboardKey.numpad1) {
+          _onNumpadDigit('1', total);
+        } else if (key == LogicalKeyboardKey.digit2 || key == LogicalKeyboardKey.numpad2) {
+          _onNumpadDigit('2', total);
+        } else if (key == LogicalKeyboardKey.digit3 || key == LogicalKeyboardKey.numpad3) {
+          _onNumpadDigit('3', total);
+        } else if (key == LogicalKeyboardKey.digit4 || key == LogicalKeyboardKey.numpad4) {
+          _onNumpadDigit('4', total);
+        } else if (key == LogicalKeyboardKey.digit5 || key == LogicalKeyboardKey.numpad5) {
+          _onNumpadDigit('5', total);
+        } else if (key == LogicalKeyboardKey.digit6 || key == LogicalKeyboardKey.numpad6) {
+          _onNumpadDigit('6', total);
+        } else if (key == LogicalKeyboardKey.digit7 || key == LogicalKeyboardKey.numpad7) {
+          _onNumpadDigit('7', total);
+        } else if (key == LogicalKeyboardKey.digit8 || key == LogicalKeyboardKey.numpad8) {
+          _onNumpadDigit('8', total);
+        } else if (key == LogicalKeyboardKey.digit9 || key == LogicalKeyboardKey.numpad9) {
+          _onNumpadDigit('9', total);
+        } else if (key == LogicalKeyboardKey.period || key == LogicalKeyboardKey.numpadDecimal || key == LogicalKeyboardKey.comma) {
+          _onNumpadDigit('.', total);
+        } else if (key == LogicalKeyboardKey.backspace || key == LogicalKeyboardKey.delete) {
+          _onNumpadDigit('BACK', total);
+        }
       }
     }
   }
@@ -82,6 +113,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       _paymentMethod = label;
       _cashGiven = label == 'CASH' ? total : 0;
       _selectedCustomer = null;
+      _hasCustomCashInput = false;
     });
     HapticFeedback.mediumImpact();
   }
@@ -245,7 +277,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                     : const Color(0xFF1E293B),
                                 onPressed: () {
                                   HapticFeedback.selectionClick();
-                                  setState(() => _cashGiven = total);
+                                  setState(() {
+                                    _cashGiven = total;
+                                    _hasCustomCashInput = true;
+                                  });
                                 },
                               ),
                               ...[500.0, 1000.0, 2000.0, 5000.0]
@@ -266,7 +301,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                       : const Color(0xFF1E293B),
                                   onPressed: () {
                                     HapticFeedback.selectionClick();
-                                    setState(() => _cashGiven = denom);
+                                    setState(() {
+                                      _cashGiven = denom;
+                                      _hasCustomCashInput = true;
+                                    });
                                   },
                                 );
                               }),
@@ -286,7 +324,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                       : const Color(0xFF1E293B),
                                   onPressed: () {
                                     HapticFeedback.selectionClick();
-                                    setState(() => _cashGiven = opt);
+                                    setState(() {
+                                      _cashGiven = opt;
+                                      _hasCustomCashInput = true;
+                                    });
                                   },
                                 );
                               }),
@@ -562,6 +603,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   void _onNumpadDigit(String digit, double total) {
     HapticFeedback.lightImpact();
     setState(() {
+      if (!_hasCustomCashInput && digit != 'BACK' && digit != 'CLEAR') {
+        _hasCustomCashInput = true;
+        if (digit == '.') {
+          _cashGiven = 0;
+        } else if (digit == '00') {
+          _cashGiven = 0;
+          return;
+        } else {
+          _cashGiven = double.tryParse(digit) ?? 0;
+          return;
+        }
+      }
+      _hasCustomCashInput = true;
+
       String current = _cashGiven == 0
           ? ''
           : (_cashGiven % 1 == 0 ? _cashGiven.toInt().toString() : _cashGiven.toString());

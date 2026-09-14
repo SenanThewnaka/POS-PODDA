@@ -22,8 +22,9 @@ import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/users/app_permissions.dart';
 import 'package:sme_buddy/features/inventory/batch_price_selection_dialog.dart';
 import 'dart:ui';
-import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
+import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:sme_buddy/utils/text_controller_extensions.dart';
 import 'package:sme_buddy/utils/responsive_layout.dart';
 import 'package:sme_buddy/utils/shimmer_skeletons.dart';
 import 'package:sme_buddy/features/shifts/shift_model.dart';
@@ -312,6 +313,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   controller: _searchCtrl,
                   focusNode: _searchFocusNode,
                   textAlignVertical: TextAlignVertical.center,
+                  onTap: () => _searchCtrl.selectAll(),
                   onChanged: (val) {
                     setState(() => _searchQuery = val.trim());
                   },
@@ -575,9 +577,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildDesktopCartPane(BuildContext context, WidgetRef ref, double cartTotal, Map<String, CartItem> cart, bool isDark) {
     final activeColor = isDark ? Colors.cyanAccent : Colors.blueAccent;
     final totalUnits = cart.values.fold<double>(0, (sum, item) => sum + item.quantity);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final cartWidth = screenWidth < 900 ? 300.0 : (screenWidth < 1200 ? 340.0 : 370.0);
 
     return Container(
-      width: 370,
+      width: cartWidth,
       margin: const EdgeInsets.fromLTRB(0, 16, 16, 16),
       decoration: BoxDecoration(
         color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.8),
@@ -1056,7 +1060,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           padding: const EdgeInsets.all(16),
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 160, 
-            childAspectRatio: 0.72, 
+            childAspectRatio: 0.67, 
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
           ),
@@ -1108,8 +1112,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     );
                  } else {
                     Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => ProductDashboardScreen(product: product)),
+                       context,
+                       MaterialPageRoute(builder: (_) => ProductDashboardScreen(product: product)),
                     );
                  }
               },
@@ -1126,15 +1130,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black54
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    product.name,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  const SizedBox(height: 5),
+                  Flexible(
+                    child: Text(
+                      product.name,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   product.isVariablePrice 
                   ? const Text("Variable", style: TextStyle(fontSize: 11, color: Colors.orangeAccent, fontWeight: FontWeight.bold))
                   : Builder(builder: (_) {

@@ -6,6 +6,7 @@ import 'package:sme_buddy/features/inventory/product_model.dart';
 import 'package:sme_buddy/utils/quantity_parser.dart';
 import 'package:sme_buddy/utils/unit_formatter.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:sme_buddy/utils/text_controller_extensions.dart';
 
 class AddToCartSheet extends ConsumerStatefulWidget {
   final Product product;
@@ -49,6 +50,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
     if (widget.product.stockType == 'unit' || widget.product.stockType == 'service') {
       _quantity = 1.0;
       _smartInputController.text = "1"; // Init text for Unit Counter
+      _smartInputController.selectAll();
     } else {
        _quantity = 0.0;
     }
@@ -57,6 +59,22 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
     if (widget.product.costPrice > 0) {
       _manualCostController.text = widget.product.costPrice.toStringAsFixed(2);
     }
+
+    _qtyFocusNode.addListener(() {
+      if (_qtyFocusNode.hasFocus) {
+        _smartInputController.selectAll();
+      }
+    });
+    _costFocusNode.addListener(() {
+      if (_costFocusNode.hasFocus) {
+        _manualCostController.selectAll();
+      }
+    });
+    _discountFocusNode.addListener(() {
+      if (_discountFocusNode.hasFocus) {
+        _overridePriceController.selectAll();
+      }
+    });
   }
 
   @override
@@ -432,6 +450,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                             }
                          },
                          onChanged: (val) => setState((){}), 
+                         onTap: () => _manualCostController.selectAll(),
                          decoration: InputDecoration(
                            labelText: "Cost Price (Per Unit)",
                            hintText: "Cost for 1 item (e.g. Labor + Parts)",
@@ -622,6 +641,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                  setState(() => _quantity = parsed);
                }
             },
+            onTap: () => _smartInputController.selectAll(),
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.zero,

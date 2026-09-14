@@ -456,5 +456,23 @@ void main() {
       expect(find.text('White Bread 450g'), findsWidgets); // Shown in catalog and in cart pane!
       expect(find.textContaining('CHECKOUT [F12]'), findsOneWidget);
     });
+
+    testWidgets('TC-POS-21: iPad portrait layout (768x1024) renders dual-pane with 0 overflow', (tester) async {
+      tester.view.physicalSize = const Size(768, 1024);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final cartNotifier = CartNotifier();
+      cartNotifier.addToCart(_testProducts[0], quantity: 2);
+
+      await tester.pumpWidget(_createTestWidget(cartNotifier: cartNotifier));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Current Order'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/shifts/shift_repository.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:sme_buddy/utils/text_controller_extensions.dart';
 
 class CashDrawerActionDialog extends ConsumerStatefulWidget {
   final String initialType; // 'IN' or 'OUT'
@@ -281,6 +282,7 @@ class _CashDrawerActionDialogState
                   controller: _amountCtrl,
                   autofocus: true,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onTap: () => _amountCtrl.selectAll(),
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
