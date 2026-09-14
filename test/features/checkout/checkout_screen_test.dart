@@ -233,26 +233,34 @@ void main() {
       expect(find.text('Tap to Select Customer'), findsOneWidget);
     });
 
-    testWidgets('TC-CHK-04: Keyboard hotkeys 1, 2, 3 switch payment modes', (tester) async {
+    testWidgets('TC-CHK-04: Keyboard hotkeys F1, F2, F3 switch payment modes and digits type into cash tender', (tester) async {
       final cart = CartNotifier();
       cart.addToCart(_testProduct2, quantity: 1);
 
       await tester.pumpWidget(_createCheckoutWidget(cartNotifier: cart));
       await tester.pumpAndSettle();
 
-      // Press '2' -> CARD
-      await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
+      // Press 'F2' -> CARD
+      await tester.sendKeyEvent(LogicalKeyboardKey.f2);
       await tester.pumpAndSettle();
       expect(find.text('CASH TENDERED'), findsNothing);
 
-      // Press '3' -> CREDIT
-      await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+      // Press 'F3' -> CREDIT
+      await tester.sendKeyEvent(LogicalKeyboardKey.f3);
       await tester.pumpAndSettle();
       expect(find.text('Tap to Select Customer'), findsOneWidget);
 
-      // Press '1' -> CASH
-      await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+      // Press 'F1' -> CASH
+      await tester.sendKeyEvent(LogicalKeyboardKey.f1);
       await tester.pumpAndSettle();
+      expect(find.text('CASH TENDERED'), findsOneWidget);
+
+      // Typing digits 1, 2, 3 types into cash tender without switching payment mode
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+      await tester.pumpAndSettle();
+      expect(find.text('Rs. 123.00'), findsOneWidget);
       expect(find.text('CASH TENDERED'), findsOneWidget);
     });
   });
@@ -701,9 +709,9 @@ void main() {
       await tester.pumpWidget(_createCheckoutWidget(cartNotifier: cart));
       await tester.pumpAndSettle();
 
-      expect(find.text('[1] Cash'), findsOneWidget);
-      expect(find.text('[2] Card'), findsOneWidget);
-      expect(find.text('[3] Credit'), findsOneWidget);
+      expect(find.text('[F1] Cash'), findsOneWidget);
+      expect(find.text('[F2] Card'), findsOneWidget);
+      expect(find.text('[F3] Credit'), findsOneWidget);
       expect(find.text('[Enter] Pay'), findsOneWidget);
       expect(find.text('[Esc] Back'), findsOneWidget);
     });

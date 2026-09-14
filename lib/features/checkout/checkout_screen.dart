@@ -59,26 +59,54 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
 
     if (!isCustomAmountFocused) {
-      // Payment method hotkeys
-      if (key == LogicalKeyboardKey.f1 ||
-          (_paymentMethod != 'CASH' && (key == LogicalKeyboardKey.digit1 || key == LogicalKeyboardKey.numpad1)) ||
-          key == LogicalKeyboardKey.keyC) {
+      // Payment method hotkeys: strictly F1, F2, F3
+      if (key == LogicalKeyboardKey.f1) {
         _selectPaymentMethod('CASH', total);
         return;
-      } else if (key == LogicalKeyboardKey.f2 ||
-          (_paymentMethod != 'CARD' && (key == LogicalKeyboardKey.digit2 || key == LogicalKeyboardKey.numpad2)) ||
-          key == LogicalKeyboardKey.keyD) {
+      } else if (key == LogicalKeyboardKey.f2) {
         _selectPaymentMethod('CARD', total);
         return;
-      } else if (key == LogicalKeyboardKey.f3 ||
-          (_paymentMethod != 'CREDIT' && (key == LogicalKeyboardKey.digit3 || key == LogicalKeyboardKey.numpad3)) ||
-          key == LogicalKeyboardKey.keyP) {
+      } else if (key == LogicalKeyboardKey.f3) {
         _selectPaymentMethod('CREDIT', total);
         return;
       }
 
-      // Cash tender keyboard / numpad typing
-      if (_paymentMethod == 'CASH') {
+      // Cash tender keyboard / numpad typing - numbers 0-9 and numpad 0-9
+      final isDigitKey = key == LogicalKeyboardKey.digit0 ||
+          key == LogicalKeyboardKey.numpad0 ||
+          key == LogicalKeyboardKey.digit1 ||
+          key == LogicalKeyboardKey.numpad1 ||
+          key == LogicalKeyboardKey.digit2 ||
+          key == LogicalKeyboardKey.numpad2 ||
+          key == LogicalKeyboardKey.digit3 ||
+          key == LogicalKeyboardKey.numpad3 ||
+          key == LogicalKeyboardKey.digit4 ||
+          key == LogicalKeyboardKey.numpad4 ||
+          key == LogicalKeyboardKey.digit5 ||
+          key == LogicalKeyboardKey.numpad5 ||
+          key == LogicalKeyboardKey.digit6 ||
+          key == LogicalKeyboardKey.numpad6 ||
+          key == LogicalKeyboardKey.digit7 ||
+          key == LogicalKeyboardKey.numpad7 ||
+          key == LogicalKeyboardKey.digit8 ||
+          key == LogicalKeyboardKey.numpad8 ||
+          key == LogicalKeyboardKey.digit9 ||
+          key == LogicalKeyboardKey.numpad9 ||
+          key == LogicalKeyboardKey.period ||
+          key == LogicalKeyboardKey.numpadDecimal ||
+          key == LogicalKeyboardKey.comma ||
+          key == LogicalKeyboardKey.backspace ||
+          key == LogicalKeyboardKey.delete;
+
+      if (isDigitKey) {
+        if (_paymentMethod != 'CASH') {
+          setState(() {
+            _paymentMethod = 'CASH';
+            _cashGiven = 0;
+            _hasCustomCashInput = true;
+          });
+        }
+
         if (key == LogicalKeyboardKey.digit0 || key == LogicalKeyboardKey.numpad0) {
           _onNumpadDigit('0', total);
         } else if (key == LogicalKeyboardKey.digit1 || key == LogicalKeyboardKey.numpad1) {
@@ -103,6 +131,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           _onNumpadDigit('.', total);
         } else if (key == LogicalKeyboardKey.backspace || key == LogicalKeyboardKey.delete) {
           _onNumpadDigit('BACK', total);
+        }
+      } else if (key == LogicalKeyboardKey.keyC) {
+        if (_paymentMethod == 'CASH') {
+          _onNumpadDigit('CLEAR', total);
         }
       }
     }
@@ -222,7 +254,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                 Icons.money,
                                 Colors.greenAccent,
                                 total,
-                                hotkeyHint: "1",
+                                hotkeyHint: "F1",
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -232,7 +264,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                 Icons.credit_card,
                                 Colors.blueAccent,
                                 total,
-                                hotkeyHint: "2",
+                                hotkeyHint: "F2",
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -242,7 +274,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                 Icons.person,
                                 Colors.redAccent,
                                 total,
-                                hotkeyHint: "3",
+                                hotkeyHint: "F3",
                               ),
                             ),
                           ],
@@ -565,11 +597,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _buildHotkeyTag("[1] Cash"),
+                          _buildHotkeyTag("[F1] Cash"),
                           const SizedBox(width: 8),
-                          _buildHotkeyTag("[2] Card"),
+                          _buildHotkeyTag("[F2] Card"),
                           const SizedBox(width: 8),
-                          _buildHotkeyTag("[3] Credit"),
+                          _buildHotkeyTag("[F3] Credit"),
                           const SizedBox(width: 8),
                           _buildHotkeyTag("[Enter] Pay"),
                           const SizedBox(width: 8),
