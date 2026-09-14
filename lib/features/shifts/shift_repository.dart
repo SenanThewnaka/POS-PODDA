@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/shifts/shift_model.dart';
 import 'package:sme_buddy/features/users/user_model.dart';
@@ -83,16 +84,15 @@ class ShiftRepository {
     return shift;
   }
 
-  Future<void> addCashTransaction({
+  Future<bool> addCashTransaction({
     required String type, // 'IN' or 'OUT'
     required double amount,
     required String reason,
   }) async {
     final activeDocs = await _collection.where('isOpen', isEqualTo: true).limit(1).get();
-    if (activeDocs.docs.isEmpty) return;
+    if (activeDocs.docs.isEmpty) return false;
 
     final doc = activeDocs.docs.first;
-    final shift = ShiftModel.fromMap(doc.data() as Map<String, dynamic>);
 
     final tx = CashDrawerTransaction(
       id: const Uuid().v4(),
@@ -103,16 +103,15 @@ class ShiftRepository {
       cashierName: currentUser.name ?? currentUser.username ?? 'Cashier',
     );
 
-    final updatedTxList = [...shift.cashTransactions, tx];
-    final double updatedIn = shift.cashInTotal + (type == 'IN' ? amount : 0);
-    final double updatedOut = shift.cashOutTotal + (type == 'OUT' ? amount : 0);
-
+    final isIn = type == 'IN';
     await doc.reference.update({
-      'cashTransactions': updatedTxList.map((x) => x.toMap()).toList(),
-      'cashInTotal': updatedIn,
-      'cashOutTotal': updatedOut,
-      'expectedCash': shift.openingFloat + shift.cashSales + updatedIn - updatedOut,
+      'cashTransactions': FieldValue.arrayUnion([tx.toMap()]),
+      if (isIn) 'cashInTotal': FieldValue.increment(amount),
+      if (!isIn) 'cashOutTotal': FieldValue.increment(amount),
+      'expectedCash': FieldValue.increment(isIn ? amount : -amount),
     });
+
+    return true;
   }
 
   Future<void> recordSaleInActiveShift({
@@ -121,31 +120,34 @@ class ShiftRepository {
   }) async {
     try {
       final activeDocs = await _collection.where('isOpen', isEqualTo: true).limit(1).get();
-      if (activeDocs.docs.isEmpty) return;
+      if (activeDocs.docs.isEmpty) {
+        if (kDebugMode) print('ShiftRepository: No open shift found to record sale.');
+        return;
+      }
 
       final doc = activeDocs.docs.first;
-      final shift = ShiftModel.fromMap(doc.data() as Map<String, dynamic>);
 
       final isCash = paymentMethod == 'CASH';
       final isCard = paymentMethod == 'CARD';
       final isCredit = paymentMethod == 'CREDIT';
 
-      final double newCash = shift.cashSales + (isCash ? amount : 0);
-      final double newCard = shift.cardSales + (isCard ? amount : 0);
-      final double newCredit = shift.creditSales + (isCredit ? amount : 0);
-      final double newTotal = shift.totalSales + amount;
-      final int newCount = shift.transactionCount + 1;
+      final Map<String, dynamic> updates = {
+        'totalSales': FieldValue.increment(amount),
+        'transactionCount': FieldValue.increment(1),
+      };
 
-      await doc.reference.update({
-        'cashSales': newCash,
-        'cardSales': newCard,
-        'creditSales': newCredit,
-        'totalSales': newTotal,
-        'transactionCount': newCount,
-        'expectedCash': shift.openingFloat + newCash + shift.cashInTotal - shift.cashOutTotal,
-      });
+      if (isCash) {
+        updates['cashSales'] = FieldValue.increment(amount);
+        updates['expectedCash'] = FieldValue.increment(amount);
+      } else if (isCard) {
+        updates['cardSales'] = FieldValue.increment(amount);
+      } else if (isCredit) {
+        updates['creditSales'] = FieldValue.increment(amount);
+      }
+
+      await doc.reference.update(updates);
     } catch (e) {
-      // Fire-and-forget: do not block sale if shift update encounters error
+      if (kDebugMode) print('ShiftRepository error recording sale in active shift: $e');
     }
   }
 

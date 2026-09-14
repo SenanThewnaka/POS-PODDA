@@ -80,12 +80,25 @@ class _CashDrawerActionDialogState
     setState(() => _isLoading = true);
 
     try {
-      await ref.read(shiftRepositoryProvider).addCashTransaction(
+      final success = await ref.read(shiftRepositoryProvider).addCashTransaction(
             type: _type,
             amount: amount,
             reason: reason,
           );
       HapticFeedback.mediumImpact();
+
+      if (!success) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("No open shift found. Please open a register shift first."),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
 
       if (mounted) {
         Navigator.pop(context, true);

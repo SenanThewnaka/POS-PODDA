@@ -53,7 +53,7 @@ class FakeShiftRepository implements ShiftRepository {
   }
 
   @override
-  Future<void> addCashTransaction({
+  Future<bool> addCashTransaction({
     required String type,
     required double amount,
     required String reason,
@@ -76,7 +76,9 @@ class FakeShiftRepository implements ShiftRepository {
         cashInTotal: updatedIn,
         cashOutTotal: updatedOut,
       );
+      return true;
     }
+    return false;
   }
 
   @override
@@ -529,6 +531,11 @@ void main() {
     });
 
     testWidgets('TC-SFT-20: Responsive layouts (Mobile 412x915, Small 330x700, Desktop 1200x800) render with 0 overflow', (tester) async {
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       final closedShift = _createSampleShift(isOpen: false, actualCash: 18500.0);
 
       // 1. Mobile Portrait
@@ -550,9 +557,6 @@ void main() {
       await tester.pumpWidget(_wrapWithProviders(child: ZReportScreen(shift: closedShift)));
       await tester.pumpAndSettle();
       expect(find.text('Day-End Z-Report'), findsOneWidget);
-
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
     });
   });
 }

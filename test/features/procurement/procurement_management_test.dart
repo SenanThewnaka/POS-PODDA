@@ -636,6 +636,11 @@ void main() {
 
   group('Category E: Multi-Device Layout & Ergonomics', () {
     testWidgets('TC-PRC-20: Responsive Layouts (Mobile, Small, Desktop) render with 0 overflow', (tester) async {
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       // 1. Mobile Portrait (412x915)
       tester.view.physicalSize = const Size(412 * 2.0, 915 * 2.0);
       tester.view.devicePixelRatio = 2.0;
@@ -655,10 +660,6 @@ void main() {
       await tester.pumpWidget(_wrapWithProviders(child: const CreateGRNScreen()));
       await tester.pumpAndSettle();
       expect(find.text('New Goods Received Note (GRN)'), findsOneWidget);
-
-      // Reset
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
     });
   });
 }
