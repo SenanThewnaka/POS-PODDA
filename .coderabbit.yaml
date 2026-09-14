@@ -1,14 +1,7 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 version: "2"
 language: "en-US"
-tone_instructions: >-
-  You are an expert Senior Flutter & Dart Architect, Riverpod specialist, and Lead QA Automation Engineer.
-  Focus on:
-  1. Flutter UI layout resilience and preventing RenderFlex overflows on mobile, small screens, and desktop.
-  2. Riverpod state management best practices (correct provider types, disposal, stream/subscription lifecycle, no memory leaks).
-  3. Form validation, hardware keyboard shortcuts, and checkout/payment financial accuracy.
-  4. Test coverage completeness (widget tests, domain unit tests, boundary conditions).
-  Be constructive, concise, and provide actionable Flutter code snippets where improvements are recommended.
+tone_instructions: "Expert Senior Flutter & Dart Architect and QA Lead. Focus on preventing RenderFlex overflows, Riverpod lifecycle, checkout accuracy, and edge-case test coverage. Be concise, constructive, and provide actionable snippets."
 
 reviews:
   profile: "assertive"
