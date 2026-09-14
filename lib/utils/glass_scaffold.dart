@@ -40,14 +40,14 @@ class GlassScaffold extends StatelessWidget {
                 end: Alignment.bottomRight,
                 colors: isDark 
                   ? [
-                      const Color(0xFF000000), // Pure Black
-                      const Color(0xFF0D0025), // Darker Deep Purple
-                      const Color(0xFF00100C), // Darker Teal
+                      const Color(0xFF0B0F19), // Slate 950
+                      const Color(0xFF0F172A), // Slate 900
+                      const Color(0xFF131C31), // Deep Slate Blue
                     ]
                   : [
-                      const Color(0xFFF0F4F8), // Grey Blue
-                      const Color(0xFFE0EAFC),
-                      const Color(0xFFCFDEF3),
+                      const Color(0xFFF8FAFC), // Slate 50
+                      const Color(0xFFF1F5F9), // Slate 100
+                      const Color(0xFFE2E8F0), // Slate 200
                     ],
               ),
             ),

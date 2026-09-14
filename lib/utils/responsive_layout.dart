@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class ResponsiveLayout extends StatelessWidget {
@@ -12,28 +13,52 @@ class ResponsiveLayout extends StatelessWidget {
     required this.desktop,
   });
 
-  static bool isMobile(BuildContext context) =>
-      MediaQuery.of(context).size.width < 650;
+  static bool isTabletOrDesktop(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    if (kIsWeb) {
+      return size.width >= 750;
+    }
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return size.width >= 750;
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      default:
+        // On mobile OS, phones in landscape have shortestSide < 600dp (e.g. ~412dp).
+        // Only true tablets (sw600dp) should trigger desktop/tablet dual-pane layout.
+        return size.width >= 750 && size.shortestSide >= 600;
+    }
+  }
 
-  static bool isTablet(BuildContext context) =>
-      MediaQuery.of(context).size.width >= 650 &&
-      MediaQuery.of(context).size.width < 1100;
+  static bool isMobile(BuildContext context) => !isTabletOrDesktop(context);
 
-  static bool isDesktop(BuildContext context) =>
-      MediaQuery.of(context).size.width >= 1100;
+  static bool isTablet(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    return isTabletOrDesktop(context) && size.width < 1100;
+  }
+
+  static bool isDesktop(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    return isTabletOrDesktop(context) && size.width >= 1100;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= 1100) {
-          return desktop;
-        } else if (constraints.maxWidth >= 650) {
-          return tablet ?? desktop;
-        } else {
-          return mobile;
-        }
-      },
-    );
+    if (isDesktop(context)) {
+      return desktop;
+    } else if (isTablet(context)) {
+      return tablet ?? desktop;
+    } else {
+      return mobile;
+    }
   }
+}
+
+extension ResponsiveContext on BuildContext {
+  bool get isMobile => ResponsiveLayout.isMobile(this);
+  bool get isTablet => ResponsiveLayout.isTablet(this);
+  bool get isDesktop => ResponsiveLayout.isDesktop(this);
+  bool get isTabletOrDesktop => ResponsiveLayout.isTabletOrDesktop(this);
 }

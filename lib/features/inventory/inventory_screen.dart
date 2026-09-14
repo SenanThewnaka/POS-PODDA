@@ -9,7 +9,8 @@ import 'package:sme_buddy/features/inventory/product_dashboard_screen.dart';
 import 'package:sme_buddy/utils/unit_formatter.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/users/app_permissions.dart';
-import 'package:sme_buddy/features/subscription/subscription_guard.dart';
+import 'package:sme_buddy/features/procurement/grn_history_screen.dart';
+import 'package:sme_buddy/features/procurement/suppliers_screen.dart';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/shimmer_skeletons.dart';
@@ -62,6 +63,22 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             onPressed: _scanAndFindProduct,
           ),
           IconButton(
+            icon: const Icon(Icons.receipt_long),
+            tooltip: 'GRN Inward Stocking',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const GRNHistoryScreen()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.business_outlined),
+            tooltip: 'Suppliers Directory',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SuppliersScreen()),
+            ),
+          ),
+          IconButton(
             icon: const Icon(Icons.compare_arrows),
             tooltip: 'Break Bulk',
             onPressed: () => Navigator.push(
@@ -73,6 +90,104 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       ),
       body: Column(
         children: [
+            // Quick ERP Access (Mobile & Desktop)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const GRNHistoryScreen()),
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF1E293B)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.cyanAccent.withValues(alpha: 0.35),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.local_shipping_outlined, size: 18, color: Colors.cyanAccent),
+                            SizedBox(width: 8),
+                            Text(
+                              "GRN Inward",
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.cyanAccent),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SuppliersScreen()),
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF1E293B)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white.withValues(alpha: 0.1)
+                                : Colors.black12,
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.business_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54),
+                            const SizedBox(width: 8),
+                            Text(
+                              "Suppliers",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             // FILTERS (Glass Card)
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -353,14 +468,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             return Padding(
               padding: const EdgeInsets.only(bottom: 80), // Raise above Bottom Nav
               child: FloatingActionButton.extended(
-              onPressed: () async {
-                 // ... (Add item logic)
-                if (await SubscriptionGuard.check(context, ref, SubscriptionAction.addItem)) {
-                  Navigator.push(
-                    context, 
-                    MaterialPageRoute(builder: (_) => const AddProductScreen()),
-                  );
-                }
+              onPressed: () {
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(builder: (_) => const AddProductScreen()),
+                );
               },
               backgroundColor: Colors.cyanAccent,
               foregroundColor: Colors.black,

@@ -77,8 +77,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     
     final newEmail = _emailCtrl.text.trim();
     final emailChanged = newEmail != originalUser.email;
-    String? newCode;
-    
     // 1. Handle Email Change
     if (emailChanged) {
        try {
@@ -86,10 +84,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
          if (user == null) throw "No Auth User";
          
          await user.updateEmail(newEmail);
-         newCode = (100000 + Random().nextInt(900000)).toString();
-         
-         // Send Verification
-         await VerificationService.sendCode(newEmail, newCode);
        } catch (e) {
           String msg = "Email Update Failed: $e";
           if (e.toString().contains("email-already-in-use")) msg = "Email already in use.";
@@ -112,8 +106,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       shopName: originalUser.isAdmin ? _shopNameCtrl.text.trim() : originalUser.shopName,
       shopAddress: originalUser.isAdmin ? _shopAddressCtrl.text.trim() : originalUser.shopAddress,
       // Verification Status Update
-      isVerified: emailChanged ? false : originalUser.isVerified,
-      verificationCode: emailChanged ? newCode : originalUser.verificationCode,
+      isVerified: true,
+      verificationCode: null,
       // Preserve others (Wait, if I use constructor I MUST providing others or defaults?)
       // Ah, UserModel constructor uses defaults for optional fields.
       // But fields like `welcomeSent`, `billingCycle`, etc. might be lost if not passed?
@@ -139,15 +133,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
        mobile: _mobileCtrl.text.trim(),
        shopName: originalUser.isAdmin ? _shopNameCtrl.text.trim() : originalUser.shopName,
        shopAddress: originalUser.isAdmin ? _shopAddressCtrl.text.trim() : originalUser.shopAddress,
-       isVerified: emailChanged ? false : originalUser.isVerified,
-       verificationCode: emailChanged ? newCode : originalUser.verificationCode,
+       isVerified: true,
+       verificationCode: null,
     );
 
     // Save
     await ref.read(userProfileRepositoryProvider).saveUserProfile(finalUser);
     
     setState(() => _isEditing = false);
-    if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(emailChanged ? "Email Updated! Please Verify." : "Profile Updated!")));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile Updated!")));
   }
 
   @override
