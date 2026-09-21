@@ -1549,11 +1549,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         if (product.baseUnit == 'g') {
                           priceDisplay = "Rs. ${(item.effectivePrice * 1000).toStringAsFixed(2)}";
                           unitLabel = " / kg";
+                        } else if (product.baseUnit == 'kg') {
+                          priceDisplay = "Rs. ${item.effectivePrice.toStringAsFixed(2)}";
+                          unitLabel = " / kg";
                         } else if (product.baseUnit == 'ml') {
                            priceDisplay = "Rs. ${(item.effectivePrice * 1000).toStringAsFixed(2)}";
                            unitLabel = " / L";
+                        } else if (product.baseUnit == 'l') {
+                           priceDisplay = "Rs. ${item.effectivePrice.toStringAsFixed(2)}";
+                           unitLabel = " / L";
                         } else if (product.baseUnit == 'cm') {
                            priceDisplay = "Rs. ${(item.effectivePrice * 100).toStringAsFixed(2)}";
+                           unitLabel = " / m";
+                        } else if (product.baseUnit == 'm') {
+                           priceDisplay = "Rs. ${item.effectivePrice.toStringAsFixed(2)}";
                            unitLabel = " / m";
                         } else {
                            unitLabel = " / unit";

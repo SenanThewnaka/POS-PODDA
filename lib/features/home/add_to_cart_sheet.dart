@@ -93,23 +93,24 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
   void _parseInput(String val) {
     if (widget.product.stockType == 'unit') return;
     
-    double qty = QuantityParser.parse(val, widget.product.baseUnit!);
+    final bUnit = widget.product.baseUnit ?? 'g';
+    double qty = QuantityParser.parse(val, bUnit);
     setState(() {
       _quantity = qty;
-      _parsedFeedback = _quantity > 0 ? "Adding: ${UnitFormatter.format(_quantity, widget.product.baseUnit)}" : "";
+      _parsedFeedback = _quantity > 0 ? "Adding: ${UnitFormatter.format(_quantity, bUnit)}" : "";
       _errorMessage = null; // Clear error on change
     });
   }
 
   // Submit Handler (Extracted for Enter Key)
-  // Submit Handler (Extracted for Enter Key)
   void _submit() {
      // Helper for Conversion
      double conversionFactor = 1.0;
      if (widget.product.stockType != 'unit' && widget.product.stockType != 'service') {
-        if (widget.product.baseUnit == 'g' || widget.product.baseUnit == 'ml') {
+        final bUnit = (widget.product.baseUnit ?? 'g').trim().toLowerCase();
+        if (bUnit == 'g' || bUnit == 'ml') {
            conversionFactor = 1000.0;
-        } else if (widget.product.baseUnit == 'cm') {
+        } else if (bUnit == 'cm') {
            conversionFactor = 100.0;
         }
      }
@@ -217,11 +218,21 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
     String displayUnitLabel = "/${widget.product.baseUnit ?? 'unit'}";
     
     if (widget.product.stockType != 'unit' && widget.product.stockType != 'service') {
-       if (widget.product.baseUnit == 'g' || widget.product.baseUnit == 'ml') {
+       final bUnit = (widget.product.baseUnit ?? 'g').trim().toLowerCase();
+       if (bUnit == 'g' || bUnit == 'ml') {
           conversionFactor = 1000.0;
-          displayUnitLabel = widget.product.baseUnit == 'g' ? "/kg" : "/L";
-       } else if (widget.product.baseUnit == 'cm') {
+          displayUnitLabel = bUnit == 'g' ? "/kg" : "/L";
+       } else if (bUnit == 'cm') {
           conversionFactor = 100.0;
+          displayUnitLabel = "/m";
+       } else if (bUnit == 'kg') {
+          conversionFactor = 1.0;
+          displayUnitLabel = "/kg";
+       } else if (bUnit == 'l') {
+          conversionFactor = 1.0;
+          displayUnitLabel = "/L";
+       } else if (bUnit == 'm') {
+          conversionFactor = 1.0;
           displayUnitLabel = "/m";
        }
     }

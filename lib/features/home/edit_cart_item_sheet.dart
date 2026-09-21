@@ -42,10 +42,11 @@ class _EditCartItemSheetState extends ConsumerState<EditCartItemSheet> {
   void _parseInput(String val) {
     if (widget.cartItem.product.stockType == 'unit') return;
     
-    double qty = QuantityParser.parse(val, widget.cartItem.product.baseUnit!);
+    final bUnit = widget.cartItem.product.baseUnit ?? 'g';
+    double qty = QuantityParser.parse(val, bUnit);
     setState(() {
       _quantity = qty;
-      _parsedFeedback = _quantity > 0 ? "New Qty: ${UnitFormatter.format(_quantity, widget.cartItem.product.baseUnit)}" : "";
+      _parsedFeedback = _quantity > 0 ? "New Qty: ${UnitFormatter.format(_quantity, bUnit)}" : "";
     });
   }
 

@@ -44,21 +44,24 @@ class BatchPriceSelectionDialog extends StatelessWidget {
           if (product.baseUnit == 'g') {
              displayPrice = price * 1000;
              unitLabel = "/kg";
+          } else if (product.baseUnit == 'kg') {
+             unitLabel = "/kg";
           } else if (product.baseUnit == 'ml') {
              displayPrice = price * 1000;
              unitLabel = "/L";
+          } else if (product.baseUnit == 'l') {
+             unitLabel = "/L";
           } else if (product.baseUnit == 'cm') {
              displayPrice = price * 100;
+             unitLabel = "/m";
+          } else if (product.baseUnit == 'm') {
              unitLabel = "/m";
           }
 
           // Format Qty Label
           String qtyLabel = "Qty: ${qty.toInt()}";
           if (product.stockType != 'unit') {
-             // Use UnitFormatter? Or manual. Let's use simple logic for now.
-             if (product.baseUnit == 'g') qtyLabel = "${(qty/1000).toStringAsFixed(2)} kg";
-             else if (product.baseUnit == 'ml') qtyLabel = "${(qty/1000).toStringAsFixed(2)} L";
-             else if (product.baseUnit == 'cm') qtyLabel = "${(qty/100).toStringAsFixed(2)} m";
+             qtyLabel = UnitFormatter.format(qty, product.baseUnit);
           }
 
           return Padding(

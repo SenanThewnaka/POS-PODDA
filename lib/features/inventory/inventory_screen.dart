@@ -327,8 +327,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       String unit = "unit";
                       if (product.stockType == 'weight') {
                          if (product.baseUnit == 'g') { price *= 1000; unit = "Kg"; }
+                         else if (product.baseUnit == 'kg') { unit = "Kg"; }
                          else if (product.baseUnit == 'ml') { price *= 1000; unit = "L"; }
+                         else if (product.baseUnit == 'l') { unit = "L"; }
                          else if (product.baseUnit == 'cm') { price *= 100; unit = "M"; }
+                         else if (product.baseUnit == 'm') { unit = "M"; }
                       }
 
                       return GlassCard(
