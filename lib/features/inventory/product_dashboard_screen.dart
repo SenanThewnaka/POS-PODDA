@@ -123,6 +123,9 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
   // --- TAB 1: STOCK BATCHES ---
   
   Widget _buildBatchList(Product product) {
+    final user = ref.watch(userProfileProvider).value;
+    final canViewCost = user == null ? true : (user.isAdmin || user.hasPermission(AppPermissions.canViewCostPrice));
+
     return FutureBuilder<List<StockBatch>>(
       future: ref.watch(productRepositoryProvider).getActiveBatches(product.id),
       builder: (context, snapshot) {
@@ -271,7 +274,10 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
                      crossAxisAlignment: CrossAxisAlignment.start,
                      children: [
                         Text("Cost Price", style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black54)),
-                        Text("Rs. ${_formatPrice(batch.costPrice)}", style: TextStyle(fontSize: 16, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87)),
+                        Text(
+                          canViewCost ? "Rs. ${_formatPrice(batch.costPrice)}" : "Rs. ••••",
+                          style: TextStyle(fontSize: 16, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87),
+                        ),
                      ],
                    ),
                    Column(
@@ -308,6 +314,9 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
 
   void _showRestockDialog(Product product) {
     try {
+      final user = ref.read(userProfileProvider).value;
+      final canViewCost = user == null ? true : (user.isAdmin || user.hasPermission(AppPermissions.canViewCostPrice));
+
       final qtyController = TextEditingController();
       // Default to last known price or product price
       double initialPrice = product.sellingPrice;
@@ -366,31 +375,41 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
                     },
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: priceController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: "Selling Price", border: OutlineInputBorder()),
-                          onTap: () {
-                             if (priceController.text == '0.00' || priceController.text == '0') priceController.clear();
-                          },
+                  if (canViewCost)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: priceController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: "Selling Price", border: OutlineInputBorder()),
+                            onTap: () {
+                               if (priceController.text == '0.00' || priceController.text == '0') priceController.clear();
+                            },
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: costController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: "Cost Price", border: OutlineInputBorder()),
-                          onTap: () {
-                            if (costController.text == '0.00' || costController.text == '0') costController.clear();
-                          },
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: costController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: "Cost Price", border: OutlineInputBorder()),
+                            onTap: () {
+                              if (costController.text == '0.00' || costController.text == '0') costController.clear();
+                            },
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    )
+                  else
+                    TextField(
+                      controller: priceController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: "Selling Price", border: OutlineInputBorder()),
+                      onTap: () {
+                         if (priceController.text == '0.00' || priceController.text == '0') priceController.clear();
+                      },
+                    ),
                 ],
               ),
               actions: [
@@ -401,7 +420,7 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
                   ElevatedButton(
                   onPressed: () {
                     final pVal = double.tryParse(priceController.text) ?? 0;
-                    final cVal = double.tryParse(costController.text) ?? 0;
+                    final cVal = canViewCost ? (double.tryParse(costController.text) ?? 0) : initialCost;
 
                     void executeSave() {
                       // 1. Close Dialog
@@ -428,7 +447,7 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
                           if (qty <= 0) throw "Invalid Quantity.";
                           
                           double price = double.tryParse(priceController.text) ?? 0;
-                          double cost = double.tryParse(costController.text) ?? 0;
+                          double cost = canViewCost ? (double.tryParse(costController.text) ?? 0) : initialCost;
   
                            // Convert Price/Cost
                           if (baseUnit == 'g' || baseUnit == 'ml') {
@@ -448,55 +467,64 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
                             createdAt: DateTime.now(),
                           );
   
-                          // Optimistic SnackBar
-                          if (mounted) {
-                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Adding stock...")));
-                          }
-  
                           await ref.read(productRepositoryProvider).addStockBatch(product.id, batch);
                           
+                          // Auto-Activate Check (Manual)
+                          // If product was inactive and new stock > 0, activate it
+                          if (!product.isActive && qty > 0) {
+                             await ref.read(productRepositoryProvider).activateProduct(product.id);
+                          }
+  
                           if (mounted) {
-                             ScaffoldMessenger.of(context).hideCurrentSnackBar();
                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Stock Added Successfully!"), backgroundColor: Colors.green));
+                             setState(() {}); // Refresh HUD & Batches
                           }
                         } catch (e) {
-                           if (mounted) {
-                              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                               // Show error safely
-                              showDialog(context: context, builder: (c) => AlertDialog(
-                                 title: const Text("Error Adding Stock"),
-                                 content: Text(e.toString().replaceAll("Exception: ", "")),
-                                 actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("OK"))]
-                              ));
-                           }
+                          if (mounted) {
+                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Restock Failed: $e"), backgroundColor: Colors.red));
+                          }
                         }
                       });
                     }
 
-                    // VALIDATION CHECKS
-                    if (pVal < cVal) {
-                       showDialog(
-                         context: context,
-                         builder: (c) => AlertDialog(
-                           title: const Text("Check Pricing"),
-                           content: const Text("The Selling Price is lower than the Cost Price.\nDo you want to continue?"),
-                           actions: [
-                             TextButton(onPressed: () => Navigator.pop(c), child: const Text("EDIT")),
-                             ElevatedButton(
-                               onPressed: () {
-                                 Navigator.pop(c); // Close warning
-                                 executeSave(); // Proceed
-                               }, 
-                               child: const Text("CONTINUE")
-                             ),
-                           ],
-                         )
-                       );
+                    // Strict Zero-Cost Enforcement
+                    if (canViewCost && cVal == 0 && pVal > 0) {
+                      showDialog(
+                        context: context,
+                        builder: (alertCtx) => AlertDialog(
+                          title: const Row(
+                            children: [
+                              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                              SizedBox(width: 8),
+                              Text("Zero Cost Warning"),
+                            ],
+                          ),
+                          content: const Text(
+                            "You are receiving this stock with a Cost Price of Rs. 0.00.\n\n"
+                            "This will record 100% gross profit for all future sales from this batch. "
+                            "Are you sure this stock was obtained for free?",
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(alertCtx).pop(),
+                              child: const Text("GO BACK & EDIT"),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+                              onPressed: () {
+                                Navigator.of(alertCtx).pop(); // Close confirmation
+                                executeSave();                // Proceed with save
+                              },
+                              child: const Text("CONFIRM ZERO COST"),
+                            ),
+                          ],
+                        ),
+                      );
                     } else {
-                       executeSave();
+                      executeSave();
                     }
                   },
-                  child: const Text("ADD STOCK"),
+                  child: const Text("RECEIVE")
                 )
               ],
             );
@@ -505,12 +533,14 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
       }
     );
     } catch (e) {
-       // Only fallback if Dialog fails to OPEN (rare)
-       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("System Error: $e"), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
     }
   }
 
   void _showEditBatchDialog(StockBatch batch, Product product) {
+    final user = ref.read(userProfileProvider).value;
+    final canViewCost = user == null ? true : (user.isAdmin || user.hasPermission(AppPermissions.canViewCostPrice));
+
     // Determine display multipliers
     double multiplier = 1.0;
     if (widget.product.baseUnit == 'g' || widget.product.baseUnit == 'ml') multiplier = 1000.0;
@@ -573,12 +603,13 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
                       decoration: const InputDecoration(labelText: "Selling Price"),
                       onTap: () => priceCtrl.selection = TextSelection(baseOffset: 0, extentOffset: priceCtrl.text.length),
                     ),
-                    TextField(
-                      controller: costCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: "Cost Price"),
-                      onTap: () => costCtrl.selection = TextSelection(baseOffset: 0, extentOffset: costCtrl.text.length),
-                    ),
+                    if (canViewCost)
+                      TextField(
+                        controller: costCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: "Cost Price"),
+                        onTap: () => costCtrl.selection = TextSelection(baseOffset: 0, extentOffset: costCtrl.text.length),
+                      ),
                     TextField(
                       controller: qtyCtrl,
                       keyboardType: widget.product.stockType == 'unit' ? TextInputType.number : TextInputType.text,
@@ -608,7 +639,7 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
                     
                     try {
                       double p = double.tryParse(priceCtrl.text) ?? 0;
-                      double c = double.tryParse(costCtrl.text) ?? 0;
+                      double c = canViewCost ? (double.tryParse(costCtrl.text) ?? 0) : (batch.costPrice * multiplier);
                       
                       // Validate Unit Compatibility
                       if (widget.product.stockType != 'unit' && !_validateUnitCompatibility(qtyCtrl.text, widget.product.baseUnit ?? 'unit')) {

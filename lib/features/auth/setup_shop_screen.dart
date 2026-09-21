@@ -34,11 +34,12 @@ class _SetupShopScreenState extends ConsumerState<SetupShopScreen> {
         shopId: user.uid,
         shopName: _shopNameCtrl.text.trim(),
         
-        // Subscription Initialization (14-Day Trial)
-        plan: 'trial',
+        // Subscription Initialization (Completely Free Lifetime)
+        plan: 'free',
         subscriptionStatus: 'active',
-        billingCycle: 'trial',
-        expiryDate: DateTime.now().add(const Duration(days: 14)),
+        billingCycle: 'lifetime',
+        expiryDate: null,
+        isVerified: true,
       );
 
       await ref.read(userProfileRepositoryProvider).saveUserProfile(userModel);

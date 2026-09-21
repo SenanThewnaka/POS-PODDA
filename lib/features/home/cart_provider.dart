@@ -20,6 +20,28 @@ class CartItem {
   });
 
   double get subTotal => quantity * effectivePrice;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'product': product.toMap(),
+      'quantity': quantity,
+      'effectivePrice': effectivePrice,
+      'costPrice': costPrice,
+      'description': description,
+    };
+  }
+
+  factory CartItem.fromMap(Map<String, dynamic> map) {
+    return CartItem(
+      id: map['id'] ?? '',
+      product: Product.fromMap(Map<String, dynamic>.from(map['product'] as Map)),
+      quantity: (map['quantity'] ?? 1.0).toDouble(),
+      effectivePrice: (map['effectivePrice'] ?? 0.0).toDouble(),
+      costPrice: (map['costPrice'] ?? 0.0).toDouble(),
+      description: map['description'],
+    );
+  }
 }
 
 // Key: CartItem ID (Unique), Value: CartItem
@@ -149,5 +171,9 @@ class CartNotifier extends StateNotifier<Map<String, CartItem>> {
 
   void clearCart() {
     state = {};
+  }
+
+  void replaceCart(Map<String, CartItem> newCart) {
+    state = Map.from(newCart);
   }
 }

@@ -32,163 +32,243 @@ final themeModeProvider = StateNotifierProvider<ThemeNotifier, ThemeMode>((ref) 
 });
 
 class AppTheme {
-  // --- LIGHT THEME ---
+  // --- LIGHT THEME (Slate / Crisp Clean) ---
   static final lightTheme = ThemeData(
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: Colors.cyan, // BLUE SHIFT
-      brightness: Brightness.light,
-    ),
     useMaterial3: true,
-    scaffoldBackgroundColor: const Color(0xFFF0F4F8), // Slightly blue-ish grey
+    brightness: Brightness.light,
+    colorScheme: const ColorScheme.light(
+      surface: Colors.white,
+      primary: Color(0xFF4F46E5), // Indigo 600
+      onPrimary: Colors.white,
+      secondary: Color(0xFF059669), // Emerald 600
+      onSecondary: Colors.white,
+      tertiary: Color(0xFF0284C7), // Sky 600
+      error: Color(0xFFDC2626),
+      onSurface: Color(0xFF0F172A),
+    ),
+    scaffoldBackgroundColor: const Color(0xFFF8FAFC), // Slate 50
     appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       centerTitle: true,
       elevation: 0,
-      titleTextStyle: TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
-      iconTheme: IconThemeData(color: Colors.black),
+      titleTextStyle: TextStyle(
+        color: Color(0xFF0F172A),
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+      ),
+      iconTheme: IconThemeData(color: Color(0xFF0F172A)),
     ),
     cardTheme: CardThemeData(
-      elevation: 0, 
+      elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.blue.shade100),
+        side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
       ),
       color: Colors.white,
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
     ),
-    textTheme: GoogleFonts.outfitTextTheme().apply(
-      bodyColor: Colors.black87,
-      displayColor: Colors.black,
+    textTheme: GoogleFonts.plusJakartaSansTextTheme().apply(
+      bodyColor: const Color(0xFF1E293B),
+      displayColor: const Color(0xFF0F172A),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: Colors.white,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
+        borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.blue.shade100),
+        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.cyan, width: 2),
+        borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 2),
       ),
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 50),
+        minimumSize: const Size(64, 48),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        backgroundColor: Colors.cyan, // Primary color
-        foregroundColor: Colors.white, // Text color
+        backgroundColor: const Color(0xFF4F46E5),
+        foregroundColor: Colors.white,
         elevation: 0,
+        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
       ),
     ),
   );
 
-  // --- DARK THEME (Neon Glass - CYBER BLUE) ---
+  // --- DARK THEME (Refined Slate / Indigo Glass) ---
   static final darkTheme = ThemeData(
-    brightness: Brightness.dark,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: Colors.cyan,
-      brightness: Brightness.dark,
-    ).copyWith(
-      background: const Color(0xFF050505), // Deep Black
-      surface: const Color(0xFF101015), // Slightly blue tinted black
-      onSurface: Colors.white,
-      primary: Colors.cyanAccent, // Neon Blue
-      secondary: Colors.blueAccent,
-      tertiary: Colors.purpleAccent,
-    ),
     useMaterial3: true,
-    scaffoldBackgroundColor: const Color(0xFF000000), 
+    brightness: Brightness.dark,
+    colorScheme: const ColorScheme.dark(
+      surface: Color(0xFF1E293B), // Slate 800
+      primary: Color(0xFF6366F1), // Electric Indigo
+      onPrimary: Colors.white,
+      secondary: Color(0xFF10B981), // Emerald
+      onSecondary: Colors.white,
+      tertiary: Color(0xFF38BDF8), // Sky
+      error: Color(0xFFEF4444),
+      onSurface: Color(0xFFF8FAFC), // Slate 50
+    ),
+    scaffoldBackgroundColor: const Color(0xFF0B0F19), // Deep Slate Canvas
     appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.transparent, 
+      backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      centerTitle: true,
-      titleTextStyle: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-      iconTheme: IconThemeData(color: Colors.cyanAccent),
+      centerTitle: false,
+      titleTextStyle: TextStyle(
+        color: Color(0xFFF8FAFC),
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 0.2,
+      ),
+      iconTheme: IconThemeData(color: Color(0xFFF8FAFC)),
     ),
     cardTheme: CardThemeData(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Colors.cyanAccent.withValues(alpha: 0.1)),
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFF334155), width: 1),
       ),
-      color: const Color(0xFF101520).withValues(alpha: 0.5), // Blue-ish Glass
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      color: const Color(0xFF1E293B).withOpacity(0.85),
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
     ),
-    textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme).apply(
-      bodyColor: const Color(0xFFE0EFFF), // Cool White
-      displayColor: Colors.white,
+    textTheme: GoogleFonts.plusJakartaSansTextTheme(ThemeData.dark().textTheme).apply(
+      bodyColor: const Color(0xFFE2E8F0),
+      displayColor: const Color(0xFFF8FAFC),
     ).copyWith(
-      bodyMedium: GoogleFonts.outfit(
-        color: const Color(0xFFE0EFFF),
-        shadows: [const Shadow(color: Colors.black, offset: Offset(0, 1), blurRadius: 2)],
-      ),
-      titleMedium: GoogleFonts.outfit(
-        color: Colors.white,
-        fontWeight: FontWeight.bold,
-        shadows: [const Shadow(color: Colors.black, offset: Offset(0, 1), blurRadius: 2)],
-      ),
-      headlineSmall: GoogleFonts.outfit(
-         color: Colors.white,
-         fontWeight: FontWeight.bold,
-         shadows: [const Shadow(color: Colors.cyan, offset: Offset(0, 0), blurRadius: 8)], // Glow
-       ),
+      bodyMedium: GoogleFonts.plusJakartaSans(color: const Color(0xFFE2E8F0), fontSize: 14),
+      titleMedium: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+      headlineSmall: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: Colors.blue.withValues(alpha: 0.05),
-      hintStyle: TextStyle(color: Colors.blueGrey.shade200),
-      labelStyle: const TextStyle(color: Colors.cyanAccent),
+      fillColor: const Color(0xFF1E293B),
+      hintStyle: const TextStyle(color: Color(0xFF64748B)),
+      labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF334155)),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: Colors.cyanAccent.withValues(alpha: 0.1)),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF334155)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Colors.cyanAccent, width: 1),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
       ),
-      contentPadding: const EdgeInsets.all(20),
+      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 56),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: Colors.cyanAccent.withValues(alpha: 0.8), 
-        foregroundColor: Colors.black, // Low contrast text on neon
+        minimumSize: const Size(64, 50),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: const Color(0xFF6366F1),
+        foregroundColor: Colors.white,
         elevation: 0,
-        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        shadowColor: Colors.cyanAccent.withValues(alpha: 0.5),
+        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
       ),
     ),
-    iconTheme: const IconThemeData(color: Colors.cyanAccent),
-    dividerTheme: DividerThemeData(color: Colors.cyanAccent.withValues(alpha: 0.1)),
-    bottomSheetTheme: BottomSheetThemeData(
-      backgroundColor: const Color(0xFF050A10).withValues(alpha: 0.9), // Deep Blue Black
-      modalBackgroundColor: const Color(0xFF050A10).withValues(alpha: 0.9),
+    iconTheme: const IconThemeData(color: Color(0xFF94A3B8)),
+    dividerTheme: const DividerThemeData(color: Color(0xFF334155), thickness: 1),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: Color(0xFF1E293B),
+      modalBackgroundColor: Color(0xFF1E293B),
       surfaceTintColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: const Color(0xFF101520).withValues(alpha: 0.9),
+      backgroundColor: const Color(0xFF1E293B),
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: Colors.cyanAccent.withValues(alpha: 0.2))),
-      titleTextStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.cyanAccent),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: Color(0xFF334155)),
+      ),
+      titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
     ),
     textSelectionTheme: const TextSelectionThemeData(
-      cursorColor: Colors.cyanAccent,
-      selectionColor: Colors.cyanAccent,
-      selectionHandleColor: Colors.cyanAccent,
+      cursorColor: Color(0xFF6366F1),
+      selectionColor: Color(0x4D6366F1),
+      selectionHandleColor: Color(0xFF6366F1),
     ),
   );
+}
+
+/// Neumorphic design system decoration utilities for soft dual-shadow surfaces
+class NeumorphicDecoration {
+  static BoxDecoration convex({
+    required bool isDark,
+    double borderRadius = 16,
+    Color? color,
+    Border? border,
+    double depth = 4,
+  }) {
+    final baseColor = color ?? (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9));
+    return BoxDecoration(
+      color: baseColor,
+      borderRadius: BorderRadius.circular(borderRadius),
+      border: border ??
+          Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.6),
+            width: 1,
+          ),
+      boxShadow: isDark
+          ? [
+              BoxShadow(
+                color: const Color(0xFF334155).withValues(alpha: 0.4),
+                offset: Offset(-depth * 0.7, -depth * 0.7),
+                blurRadius: depth * 2,
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.65),
+                offset: Offset(depth, depth),
+                blurRadius: depth * 2.2,
+              ),
+            ]
+          : [
+              BoxShadow(
+                color: Colors.white.withValues(alpha: 0.95),
+                offset: Offset(-depth, -depth),
+                blurRadius: depth * 2,
+              ),
+              BoxShadow(
+                color: const Color(0xFF94A3B8).withValues(alpha: 0.35),
+                offset: Offset(depth, depth),
+                blurRadius: depth * 2,
+              ),
+            ],
+    );
+  }
+
+  static BoxDecoration concave({
+    required bool isDark,
+    double borderRadius = 16,
+    Color? color,
+    Border? border,
+    double depth = 3,
+  }) {
+    final baseColor = color ?? (isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0));
+    return BoxDecoration(
+      color: baseColor,
+      borderRadius: BorderRadius.circular(borderRadius),
+      border: border ??
+          Border.all(
+            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFCBD5E1),
+            width: 1,
+          ),
+      boxShadow: [
+        BoxShadow(
+          color: isDark ? Colors.black.withValues(alpha: 0.5) : const Color(0xFF94A3B8).withValues(alpha: 0.4),
+          offset: Offset(depth * 0.6, depth * 0.6),
+          blurRadius: depth * 1.5,
+        ),
+      ],
+    );
+  }
 }

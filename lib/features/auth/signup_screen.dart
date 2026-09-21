@@ -43,10 +43,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         _passCtrl.text.trim()
       );
       
-      final code = (100000 + Random().nextInt(900000)).toString();
-      
       if (user != null) {
-         // Create Firestore Profile with Verification Code
+         // Create Firestore Profile with Free Lifetime Plan and Verified status
          final userModel = UserModel(
            uid: user.uid,
            email: user.email!, // Email is non-null after signup
@@ -55,18 +53,15 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
            role: 'owner', // Default to owner for new signups
            shopId: user.uid, // Owner's Shop ID is their own UID
            shopName: "${_nameCtrl.text.trim()}'s Shop", // Default Shop Name
-           plan: 'trial',
+           plan: 'free',
            subscriptionStatus: 'active',
-           billingCycle: 'trial',
-           expiryDate: DateTime.now().add(const Duration(days: 15)),
-           isVerified: false,
-           verificationCode: code,
+           billingCycle: 'lifetime',
+           expiryDate: null,
+           isVerified: true,
+           verificationCode: null,
            welcomeSent: false,
          );
          await ref.read(userProfileRepositoryProvider).saveUserProfile(userModel);
-         
-         // Send OTP
-         await VerificationService.sendCode(user.email!, code);
       }
       
       // Auto-send verification email -> REPLACED WITH OTP

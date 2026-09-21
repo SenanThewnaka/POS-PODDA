@@ -7,12 +7,19 @@ class UnitFormatter {
       return "${quantity.toStringAsFixed(0)} Units";
     }
 
-    if (baseUnit == 'g') {
+    final bUnit = baseUnit.trim().toLowerCase();
+    if (bUnit == 'g') {
       return _formatWeight(quantity);
-    } else if (baseUnit == 'ml') {
+    } else if (bUnit == 'kg') {
+      return _formatWeight(quantity * 1000);
+    } else if (bUnit == 'ml') {
       return _formatVolume(quantity);
-    } else if (baseUnit == 'cm') {
+    } else if (bUnit == 'l') {
+      return _formatVolume(quantity * 1000);
+    } else if (bUnit == 'cm') {
       return _formatLength(quantity);
+    } else if (bUnit == 'm') {
+      return _formatLength(quantity * 100);
     }
 
     return "${quantity.toStringAsFixed(2)} $baseUnit";

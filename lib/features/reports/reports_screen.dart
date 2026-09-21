@@ -6,13 +6,11 @@ import 'package:sme_buddy/features/reports/receipt_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:sme_buddy/features/reports/top_products_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:sme_buddy/features/subscription/subscription_guard.dart';
-import 'package:sme_buddy/features/subscription/upgrade_dialog.dart';
 import 'package:sme_buddy/utils/shimmer_skeletons.dart';
-import 'package:sme_buddy/features/subscription/subscription_provider.dart';
-import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:sme_buddy/features/shifts/shift_history_screen.dart';
+import 'package:sme_buddy/features/reports/profit_loss_screen.dart';
 import 'package:sme_buddy/features/reports/advanced_charts_widget.dart';
 import 'package:sme_buddy/features/reports/low_stock_alert_widget.dart'; // Low Stock Widget
 import 'package:sme_buddy/utils/csv_exporter.dart'; // Imported CSV Exporter
@@ -88,7 +86,6 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     final range = _getDateRange();
     final summaryAsync = ref.watch(salesSummaryProvider(range));
     final salesState = ref.watch(pagedSalesProvider(range));
-    final subState = ref.watch(subscriptionProvider).valueOrNull;
     
     if (!_scrollController.hasListeners) _setupScrollListener(range);
 
@@ -101,6 +98,26 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         title: const Text("Sales Reports"), 
         backgroundColor: Colors.transparent,
         actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfitLossScreen()),
+              );
+            },
+            icon: const Icon(Icons.analytics_outlined),
+            tooltip: "P&L & Net Profit",
+          ),
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ShiftHistoryScreen()),
+              );
+            },
+            icon: const Icon(Icons.assessment_outlined),
+            tooltip: "Shifts & Z-Reports",
+          ),
           IconButton(
             onPressed: () {
                if (salesState.sales.isEmpty) {
@@ -166,8 +183,120 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ShiftHistoryScreen()),
+                );
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: GlassCard(
+                borderRadius: 16,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.3)),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.cyanAccent.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.point_of_sale, color: Colors.cyanAccent, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Shifts & Cash Drawer Balancing",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black87,
+                            ),
+                          ),
+                          Text(
+                            "Opening floats, drawer payouts & Day-End Z-Reports",
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white54
+                                  : Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.cyanAccent),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfitLossScreen()),
+                );
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: GlassCard(
+                borderRadius: 16,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.greenAccent.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.trending_up, color: Colors.greenAccent, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "P&L & Net Profit Statement",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black87,
+                            ),
+                          ),
+                          Text(
+                            "COGS, gross profit margins & shift expense deductions",
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white54
+                                  : Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.greenAccent),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
-            
+
             // LOW STOCK ALERT 
             const LowStockAlertWidget(),
 
@@ -204,11 +333,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                     ),
                     const SizedBox(height: 24),
                     
-                    // ADVANCED CHARTS SECTION (PRO Only)
-                    if (subState?.canViewAdvancedStats == true) 
-                       AdvancedChartsWidget(range: range)
-                    else 
-                       _buildUpgradeTeaser(context),
+                    // ADVANCED CHARTS SECTION (Always unlocked)
+                    AdvancedChartsWidget(range: range),
+                    const SizedBox(height: 16),
 
                     if (summary.totalSales > 0)
                       GlassCard( // Use GlassCard for Top Item
@@ -226,12 +353,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                                      children: [
                                         const Text("Top Item (Qty)", style: TextStyle(color: Colors.purpleAccent)),
                                         TextButton(
-                                          onPressed: () async {
-                                             if (await SubscriptionGuard.check(context, ref, SubscriptionAction.viewAdvancedStats)) {
-                                                if (context.mounted) {
-                                                   Navigator.push(context, MaterialPageRoute(builder: (_) => const TopProductsScreen()));
-                                                }
-                                             }
+                                          onPressed: () {
+                                            Navigator.push(context, MaterialPageRoute(builder: (_) => const TopProductsScreen()));
                                           },
                                           style: TextButton.styleFrom(
                                             padding: EdgeInsets.zero,
@@ -369,37 +492,6 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
            const SizedBox(height: 8),
            Text("Rs. ${value.toInt()}", style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
          ],
-      ),
-    );
-  }
-
-  Widget _buildUpgradeTeaser(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 24),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark ? Colors.grey[900] : Colors.grey[100],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        children: [
-           const Icon(Icons.lock_outline, size: 40, color: Colors.purpleAccent),
-           const SizedBox(height: 12),
-           const Text("Advanced Analytics", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-           const SizedBox(height: 8),
-           const Text(
-             "Upgrade to Pro to view Sales Trends, Revenue breakdown, and Top Selling Items.",
-             textAlign: TextAlign.center,
-             style: TextStyle(color: Colors.grey),
-           ),
-           const SizedBox(height: 16),
-           ElevatedButton(
-             onPressed: () => UpgradeDialog.show(context, reason: "View Advanced Analytics"),
-             style: ElevatedButton.styleFrom(backgroundColor: Colors.purpleAccent, foregroundColor: Colors.white),
-             child: const Text("UPGRADE TO PRO"),
-           )
-        ],
       ),
     );
   }

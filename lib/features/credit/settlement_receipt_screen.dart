@@ -10,6 +10,7 @@ import 'package:sme_buddy/features/users/user_model.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:sme_buddy/features/settings/printer_settings_service.dart';
 
 class SettlementReceiptScreen extends ConsumerWidget {
   final String customerName;
@@ -54,7 +55,7 @@ class SettlementReceiptScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: Icon(Icons.share, color: isDark ? Colors.white : Colors.black),
-            onPressed: () => _sharePdf(context, user),
+            onPressed: () => _sharePdf(context, ref, user),
           )
         ],
       ),
@@ -145,7 +146,7 @@ class SettlementReceiptScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 32),
                   ElevatedButton.icon(
-                    onPressed: () => _printPdf(context, user),
+                    onPressed: () => _printPdf(context, ref, user),
                     icon: const Icon(Icons.print),
                     label: const Text("PRINT RECEIPT"),
                     style: ElevatedButton.styleFrom(
@@ -161,7 +162,7 @@ class SettlementReceiptScreen extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => _sharePdf(context, user),
+                          onPressed: () => _sharePdf(context, ref, user),
                           icon: const Icon(Icons.share),
                           label: const Text("PDF"),
                           style: OutlinedButton.styleFrom(
@@ -212,15 +213,18 @@ class SettlementReceiptScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _printPdf(BuildContext context, UserModel? user) async {
-    final pdf = await _generatePdf(user);
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-    );
+  Future<void> _printPdf(BuildContext context, WidgetRef ref, UserModel? user) async {
+    final settings = ref.read(printerSettingsProvider);
+    final pdf = await _generatePdf(user, paperSize: settings.paperSize);
+    await ref.read(printerSettingsProvider.notifier).printDocument(
+          doc: pdf,
+          name: 'settlement_${billId.substring(0, 6)}',
+        );
   }
 
-  Future<void> _sharePdf(BuildContext context, UserModel? user) async {
-    final pdf = await _generatePdf(user);
+  Future<void> _sharePdf(BuildContext context, WidgetRef ref, UserModel? user) async {
+    final settings = ref.read(printerSettingsProvider);
+    final pdf = await _generatePdf(user, paperSize: settings.paperSize);
     await Printing.sharePdf(
       bytes: await pdf.save(), 
       filename: 'receipt_${billId.substring(0,6)}.pdf'
@@ -256,8 +260,13 @@ class SettlementReceiptScreen extends ConsumerWidget {
      }
   }
 
-  Future<pw.Document> _generatePdf(UserModel? user) async {
+  Future<pw.Document> _generatePdf(UserModel? user, {String paperSize = '80mm'}) async {
     final pdf = pw.Document();
+    final is58 = paperSize == '58mm';
+    final pageFormat = is58 ? PdfPageFormat.roll57 : PdfPageFormat.roll80;
+    final margin = is58 ? 4.0 : 8.0;
+    final titleSize = is58 ? 13.0 : 16.0;
+    final bodySize = is58 ? 8.0 : 9.5;
     
     // Attempt to load logo if available
     pw.ImageProvider? logoImage;
@@ -271,71 +280,69 @@ class SettlementReceiptScreen extends ConsumerWidget {
 
     pdf.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.roll80, 
-        // roll80 is standard 80mm thermal paper
-        // Margin adjusted for thermal printer
-        margin: const pw.EdgeInsets.all(10), 
+        pageFormat: pageFormat, 
+        margin: pw.EdgeInsets.all(margin), 
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
               // --- HEADER ---
               if (logoImage != null)
-                 pw.Container(height: 50, child: pw.Image(logoImage)),
+                 pw.Container(height: is58 ? 35 : 45, child: pw.Image(logoImage)),
               
-              pw.SizedBox(height: 10),
-              pw.Text(user?.shopName ?? "POS Podda", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
+              pw.SizedBox(height: 6),
+              pw.Text(user?.shopName ?? "POS Podda", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: titleSize)),
               if (user?.shopAddress != null)
-                 pw.Text(user!.shopAddress!, textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 10)),
+                 pw.Text(user!.shopAddress!, textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: bodySize - 1)),
               if (user?.shopMobile != null)
-                 pw.Text("Tel: ${user!.shopMobile}", style: const pw.TextStyle(fontSize: 10)),
+                 pw.Text("Tel: ${user!.shopMobile}", style: pw.TextStyle(fontSize: bodySize - 1)),
               
-              pw.Divider(), 
+              pw.Divider(thickness: 0.5), 
 
               // --- SUB HEADER ---
-              pw.Text(isHistoryView ? "BILL STATEMENT" : "PAYMENT RECEIPT", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 5),
-              pw.Text("Date: ${DateFormat("yyyy-MM-dd HH:mm").format(timestamp)}", style: const pw.TextStyle(fontSize: 10)),
-              pw.SizedBox(height: 10),
+              pw.Text(isHistoryView ? "BILL STATEMENT" : "PAYMENT RECEIPT", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodySize)),
+              pw.SizedBox(height: 3),
+              pw.Text("Date: ${DateFormat("yyyy-MM-dd HH:mm").format(timestamp)}", style: pw.TextStyle(fontSize: bodySize - 1.5)),
+              pw.SizedBox(height: 6),
               
               // --- BODY ---
               pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-                pw.Text("Customer:", style: const pw.TextStyle(fontSize: 10)),
-                pw.Text(customerName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                pw.Text("Customer:", style: pw.TextStyle(fontSize: bodySize)),
+                pw.Text(customerName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodySize)),
               ]),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 3),
               pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-                pw.Text("Bill Ref:", style: const pw.TextStyle(fontSize: 10)),
-                pw.Text(billId.substring(0, 6), style: const pw.TextStyle(fontSize: 10)),
+                pw.Text("Bill Ref:", style: pw.TextStyle(fontSize: bodySize)),
+                pw.Text(billId.substring(0, 6), style: pw.TextStyle(fontSize: bodySize)),
               ]),
               pw.Divider(thickness: 0.5),
 
-              pw.SizedBox(height: 10),
+              pw.SizedBox(height: 6),
               pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-                pw.Text("Total Due Before:", style: const pw.TextStyle(fontSize: 10)),
-                pw.Text("${previousDue.toStringAsFixed(2)}", style: const pw.TextStyle(fontSize: 10)),
+                pw.Text("Total Due Before:", style: pw.TextStyle(fontSize: bodySize)),
+                pw.Text("${previousDue.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: bodySize)),
               ]),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 3),
               pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-                pw.Text("PAID AMOUNT:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
-                pw.Text("Rs. ${amountPaid.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                pw.Text("PAID AMOUNT:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodySize + 1.5)),
+                pw.Text("Rs. ${amountPaid.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodySize + 1.5)),
               ]),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 3),
               pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-                pw.Text("Remaining Balance:", style: const pw.TextStyle(fontSize: 10)),
-                pw.Text("${remainingDue.toStringAsFixed(2)}", style: const pw.TextStyle(fontSize: 10)),
+                pw.Text("Remaining Balance:", style: pw.TextStyle(fontSize: bodySize)),
+                pw.Text("${remainingDue.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: bodySize)),
               ]),
               
-              pw.Divider(),
+              pw.Divider(thickness: 0.5),
 
               // --- FOOTER ---
-              pw.SizedBox(height: 10),
-              pw.Text(user?.invoiceFooterMessage ?? "Thank You!", textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 10, fontStyle: pw.FontStyle.italic)),
+              pw.SizedBox(height: 6),
+              pw.Text(user?.invoiceFooterMessage ?? "Thank You!", textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: bodySize, fontStyle: pw.FontStyle.italic)),
               if (user?.invoiceContactInfo != null)
-                 pw.Text(user!.invoiceContactInfo!, textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 10)),
-                 
-              pw.SizedBox(height: 20),
-              pw.Text("Powered by POS Podda", style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500)),
+                 pw.Text(user!.invoiceContactInfo!, textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: bodySize - 1.5)),
+                  
+              pw.SizedBox(height: 12),
+              pw.Text("Powered by POS Podda", style: pw.TextStyle(fontSize: bodySize - 3, color: PdfColors.grey500)),
             ],
           );
         },
