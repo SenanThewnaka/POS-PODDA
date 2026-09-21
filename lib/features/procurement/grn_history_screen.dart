@@ -147,6 +147,21 @@ class _GRNHistoryScreenState extends ConsumerState<GRNHistoryScreen> {
           ),
         ),
         actions: [
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF6366F1),
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.edit, size: 16),
+            label: const Text("Edit GRN"),
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => CreateGRNScreen(existingGRN: grn)),
+              );
+            },
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text("Close", style: TextStyle(color: Colors.white70)),
@@ -386,6 +401,19 @@ class _GRNHistoryScreenState extends ConsumerState<GRNHistoryScreen> {
                 ),
                 const SizedBox(width: 8),
                 _buildStatusChip(grn.paymentStatus),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.white70),
+                  tooltip: "Edit GRN",
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(4),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => CreateGRNScreen(existingGRN: grn)),
+                    );
+                  },
+                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -414,10 +442,14 @@ class _GRNHistoryScreenState extends ConsumerState<GRNHistoryScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  "${grn.items.length} items received",
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
+                Expanded(
+                  child: Text(
+                    "${grn.items.length} items received",
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   "Rs. ${grn.totalCost.toStringAsFixed(2)}",
                   style: const TextStyle(

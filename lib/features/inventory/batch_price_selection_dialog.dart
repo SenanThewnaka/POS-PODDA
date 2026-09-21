@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../features/inventory/product_model.dart';
 import '../../features/inventory/stock_batch_model.dart';
+import '../../utils/unit_formatter.dart';
 
 class BatchPriceSelectionDialog extends StatelessWidget {
   final Product product;

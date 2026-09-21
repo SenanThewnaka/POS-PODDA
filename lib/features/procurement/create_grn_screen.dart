@@ -12,7 +12,9 @@ import 'package:sme_buddy/utils/responsive_layout.dart';
 import 'package:sme_buddy/utils/text_controller_extensions.dart';
 
 class CreateGRNScreen extends ConsumerStatefulWidget {
-  const CreateGRNScreen({super.key});
+  final GRNModel? existingGRN;
+
+  const CreateGRNScreen({super.key, this.existingGRN});
 
   @override
   ConsumerState<CreateGRNScreen> createState() => _CreateGRNScreenState();
@@ -30,6 +32,34 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
 
   // Working list of items in this GRN
   final List<GRNItem> _items = [];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.existingGRN != null) {
+      final grn = widget.existingGRN!;
+      _items.addAll(grn.items);
+      _invoiceCtrl.text = grn.invoiceNumber ?? '';
+      _notesCtrl.text = grn.notes ?? '';
+      _amountPaidCtrl.text = grn.amountPaid % 1 == 0
+          ? grn.amountPaid.toInt().toString()
+          : grn.amountPaid.toString();
+      _paymentStatus = grn.paymentStatus;
+      _receivedDate = grn.receivedAt;
+      if (grn.supplierId != null || grn.supplierName != null) {
+        _selectedSupplier = SupplierModel(
+          id: grn.supplierId ?? '',
+          name: grn.supplierName ?? '',
+          companyName: '',
+          phone: '',
+          email: '',
+          address: '',
+          isActive: true,
+          createdAt: DateTime.now(),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -731,6 +761,300 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
     );
   }
 
+  void _editItemDialog(int idx) async {
+    final item = _items[idx];
+    final qtyCtrl = TextEditingController(
+      text: item.quantity % 1 == 0
+          ? item.quantity.toInt().toString()
+          : item.quantity.toString(),
+    );
+    final costCtrl = TextEditingController(text: item.unitCostPrice.toString());
+    final sellingCtrl = TextEditingController(text: item.sellingPrice.toString());
+    final formKey = GlobalKey<FormState>();
+
+    // Check if this item belongs to widget.existingGRN
+    final origItem = widget.existingGRN?.items.cast<GRNItem?>().firstWhere(
+      (it) => it?.productId == item.productId || (it?.batchId != null && it?.batchId == item.batchId),
+      orElse: () => null,
+    );
+
+    double? unitsSold;
+    if (origItem != null && (item.batchId?.isNotEmpty ?? false)) {
+      final remaining = await ref
+          .read(procurementRepositoryProvider)
+          .getBatchRemainingStock(item.productId, item.batchId!);
+      if (remaining != null) {
+        unitsSold = (origItem.quantity - remaining).clamp(0.0, double.infinity);
+      }
+    }
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final double currentUnitCost = double.tryParse(costCtrl.text.trim()) ?? 0.0;
+          final double currentSellingPrice = double.tryParse(sellingCtrl.text.trim()) ?? 0.0;
+          final double currentMargin = currentSellingPrice > 0
+              ? ((currentSellingPrice - currentUnitCost) / currentSellingPrice) * 100
+              : 0.0;
+
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: Colors.white.withOpacity(0.1)),
+            ),
+            title: Row(
+              children: [
+                const Icon(Icons.edit_note, color: Colors.cyanAccent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Edit: ${item.productName}",
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 480,
+              child: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (origItem != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.3)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.info_outline, color: Color(0xFF818CF8), size: 16),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    "Originally received: ${origItem.quantity} units",
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                              if (unitsSold != null && unitsSold! > 0) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  "Already sold: ${unitsSold!.toStringAsFixed(unitsSold! % 1 == 0 ? 0 : 2)} units. "
+                                  "Quantity cannot be reduced below this floor.",
+                                  style: const TextStyle(color: Colors.amberAccent, fontSize: 12),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: qtyCtrl,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              onTap: () => qtyCtrl.selectAll(),
+                              style: const TextStyle(color: Colors.white),
+                              decoration: InputDecoration(
+                                labelText: "Quantity *",
+                                labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                                filled: true,
+                                fillColor: Colors.white.withOpacity(0.05),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              validator: (v) {
+                                final numVal = double.tryParse(v ?? '');
+                                if (numVal == null || numVal <= 0) return "Valid qty required";
+                                if (unitsSold != null && numVal < unitsSold! - 0.0001) {
+                                  final soldStr = unitsSold!.toStringAsFixed(unitsSold! % 1 == 0 ? 0 : 2);
+                                  return "Min qty is $soldStr (units sold)";
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: costCtrl,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              onTap: () => costCtrl.selectAll(),
+                              style: const TextStyle(color: Colors.white),
+                              decoration: InputDecoration(
+                                labelText: "Unit Cost (Rs.) *",
+                                labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                                filled: true,
+                                fillColor: Colors.white.withOpacity(0.05),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onChanged: (_) => setModalState(() {}),
+                              validator: (v) {
+                                final numVal = double.tryParse(v ?? '');
+                                if (numVal == null || numVal < 0) return "Cost required";
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: sellingCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        onTap: () => sellingCtrl.selectAll(),
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          labelText: "Selling Price (Rs.) *",
+                          labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.05),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onChanged: (_) => setModalState(() {}),
+                        validator: (v) {
+                          final numVal = double.tryParse(v ?? '');
+                          if (numVal == null || numVal <= 0) return "Selling price required";
+                          return null;
+                        },
+                      ),
+                      if (currentSellingPrice > 0 && currentUnitCost > 0) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: currentMargin >= 0
+                                ? Colors.green.withOpacity(0.12)
+                                : Colors.red.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: currentMargin >= 0
+                                  ? Colors.greenAccent.withOpacity(0.3)
+                                  : Colors.redAccent.withOpacity(0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Profit: Rs. ${(currentSellingPrice - currentUnitCost).toStringAsFixed(2)} / unit",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: currentMargin >= 0 ? Colors.greenAccent : Colors.redAccent,
+                                ),
+                              ),
+                              Text(
+                                "Margin: ${currentMargin.toStringAsFixed(1)}%",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: currentMargin >= 0 ? Colors.greenAccent : Colors.redAccent,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Cancel", style: TextStyle(color: Colors.white70)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6366F1)),
+                onPressed: () {
+                  if (!formKey.currentState!.validate()) return;
+                  final qty = double.parse(qtyCtrl.text.trim());
+                  final cost = double.parse(costCtrl.text.trim());
+                  final selling = double.parse(sellingCtrl.text.trim());
+
+                  setState(() {
+                    _items[idx] = item.copyWith(
+                      quantity: qty,
+                      unitCostPrice: cost,
+                      sellingPrice: selling,
+                      subTotal: qty * cost,
+                    );
+                  });
+                  Navigator.pop(ctx);
+                },
+                child: const Text("Update Item", style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _removeItem(int idx) async {
+    final item = _items[idx];
+    if (widget.existingGRN != null) {
+      final origItem = widget.existingGRN!.items.cast<GRNItem?>().firstWhere(
+        (it) => it?.productId == item.productId || (it?.batchId != null && it?.batchId == item.batchId),
+        orElse: () => null,
+      );
+      if (origItem != null && (item.batchId?.isNotEmpty ?? false)) {
+        final remaining = await ref
+            .read(procurementRepositoryProvider)
+            .getBatchRemainingStock(item.productId, item.batchId!);
+        if (remaining != null) {
+          final unitsSold = (origItem.quantity - remaining).clamp(0.0, double.infinity);
+          if (unitsSold > 0.0001) {
+            final soldStr = unitsSold.toStringAsFixed(unitsSold % 1 == 0 ? 0 : 2);
+            if (!mounted) return;
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: const Color(0xFF1E293B),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.amberAccent),
+                    SizedBox(width: 8),
+                    Text("Cannot Remove Item", style: TextStyle(color: Colors.white, fontSize: 18)),
+                  ],
+                ),
+                content: Text(
+                  "Cannot remove '${item.productName}'. $soldStr units have already been sold from this batch at checkout.",
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("OK", style: TextStyle(color: Colors.cyanAccent)),
+                  ),
+                ],
+              ),
+            );
+            return;
+          }
+        }
+      }
+    }
+    setState(() => _items.removeAt(idx));
+  }
+
   Future<void> _submitGRN() async {
     if (_items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -742,37 +1066,67 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      final grn = GRNModel(
-        id: '',
-        shopId: '',
-        grnNumber: '',
-        supplierId: _selectedSupplier?.id,
-        supplierName: _selectedSupplier?.name,
-        invoiceNumber: _invoiceCtrl.text.trim().isEmpty ? null : _invoiceCtrl.text.trim(),
-        receivedAt: _receivedDate,
-        items: _items,
-        totalCost: _totalCost,
-        paymentStatus: _paymentStatus,
-        amountPaid: double.tryParse(_amountPaidCtrl.text.trim()) ?? 0.0,
-        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-      );
-
-      await ref.read(procurementRepositoryProvider).receiveGRN(grn);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Goods Received Note processed! Batches created & stock updated."),
-            backgroundColor: Colors.green,
-          ),
+      if (widget.existingGRN != null) {
+        final updatedGrn = widget.existingGRN!.copyWith(
+          supplierId: _selectedSupplier?.id,
+          supplierName: _selectedSupplier?.name,
+          invoiceNumber: _invoiceCtrl.text.trim().isEmpty ? null : _invoiceCtrl.text.trim(),
+          receivedAt: _receivedDate,
+          items: _items,
+          totalCost: _totalCost,
+          paymentStatus: _paymentStatus,
+          amountPaid: double.tryParse(_amountPaidCtrl.text.trim()) ?? 0.0,
+          notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         );
-        Navigator.pop(context);
+
+        await ref.read(procurementRepositoryProvider).updateGRN(updatedGrn, widget.existingGRN!);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Goods Received Note updated successfully! Batches and stock adjusted."),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        }
+      } else {
+        final grn = GRNModel(
+          id: '',
+          shopId: '',
+          grnNumber: '',
+          supplierId: _selectedSupplier?.id,
+          supplierName: _selectedSupplier?.name,
+          invoiceNumber: _invoiceCtrl.text.trim().isEmpty ? null : _invoiceCtrl.text.trim(),
+          receivedAt: _receivedDate,
+          items: _items,
+          totalCost: _totalCost,
+          paymentStatus: _paymentStatus,
+          amountPaid: double.tryParse(_amountPaidCtrl.text.trim()) ?? 0.0,
+          notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        );
+
+        await ref.read(procurementRepositoryProvider).receiveGRN(grn);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Goods Received Note processed! Batches created & stock updated."),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error submitting GRN: $e"), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(e.toString().replaceAll("Exception: ", "")),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
     }
@@ -784,9 +1138,16 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
     final productsAsync = ref.watch(productsStreamProvider);
     final isDesktop = ResponsiveLayout.isDesktop(context);
 
+    final isEditing = widget.existingGRN != null;
+
     return GlassScaffold(
       appBar: AppBar(
-        title: const Text("New Goods Received Note (GRN)", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          isEditing
+              ? "Edit Goods Received Note (${widget.existingGRN!.grnNumber})"
+              : "New Goods Received Note (GRN)",
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.transparent,
         actions: [
           TextButton.icon(
@@ -797,9 +1158,14 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
-                : const Icon(Icons.check_circle_outline, color: Colors.greenAccent),
+                : Icon(
+                    isEditing ? Icons.save_outlined : Icons.check_circle_outline,
+                    color: Colors.greenAccent,
+                  ),
             label: Text(
-              _isSubmitting ? "PROCESSING..." : "CONFIRM & INWARD",
+              _isSubmitting
+                  ? "PROCESSING..."
+                  : (isEditing ? "UPDATE GRN" : "CONFIRM & INWARD"),
               style: TextStyle(
                 color: _items.isEmpty ? Colors.white38 : Colors.greenAccent,
                 fontWeight: FontWeight.bold,
@@ -854,16 +1220,18 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
                   const SizedBox(height: 24),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.shade700,
+                      backgroundColor: isEditing ? const Color(0xFF6366F1) : Colors.green.shade700,
                       minimumSize: const Size(double.infinity, 52),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: _items.isEmpty || _isSubmitting ? null : _submitGRN,
                     icon: _isSubmitting
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : const Icon(Icons.inventory, color: Colors.white),
+                        : Icon(isEditing ? Icons.save : Icons.inventory, color: Colors.white),
                     label: Text(
-                      _isSubmitting ? "PROCESSING..." : "CONFIRM & INWARD STOCK",
+                      _isSubmitting
+                          ? "PROCESSING..."
+                          : (isEditing ? "UPDATE GRN" : "CONFIRM & INWARD STOCK"),
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),
@@ -887,9 +1255,20 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
             loading: () => const LinearProgressIndicator(),
             error: (_, __) => const Text("Error loading suppliers", style: TextStyle(color: Colors.redAccent)),
             data: (suppliers) {
+              final supplierList = List<SupplierModel>.from(suppliers);
+              if (_selectedSupplier != null && !supplierList.any((s) => s.id == _selectedSupplier!.id)) {
+                supplierList.insert(0, _selectedSupplier!);
+              }
+              final activeValue = _selectedSupplier == null
+                  ? null
+                  : supplierList.cast<SupplierModel?>().firstWhere(
+                      (s) => s?.id == _selectedSupplier?.id,
+                      orElse: () => null,
+                    );
+
               return DropdownButtonFormField<SupplierModel>(
                 isExpanded: true,
-                value: _selectedSupplier,
+                value: activeValue,
                 dropdownColor: const Color(0xFF1E293B),
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
@@ -909,7 +1288,7 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  ...suppliers.map(
+                  ...supplierList.map(
                     (s) => DropdownMenuItem<SupplierModel>(
                       value: s,
                       child: Text(
@@ -1113,12 +1492,13 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
 
           return ListTile(
             dense: true,
+            onTap: () => _editItemDialog(idx),
             title: Text(
               item.productName,
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
             ),
             subtitle: Text(
-              "Qty: ${item.quantity}  ×  Cost: Rs. ${item.unitCostPrice.toStringAsFixed(2)}  •  Selling: Rs. ${item.sellingPrice.toStringAsFixed(2)}  (Margin: ${margin.toStringAsFixed(1)}%)",
+              "Qty: ${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity}  ×  Cost: Rs. ${item.unitCostPrice.toStringAsFixed(2)}  •  Selling: Rs. ${item.sellingPrice.toStringAsFixed(2)}  (Margin: ${margin.toStringAsFixed(1)}%)",
               style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
             ),
             trailing: Row(
@@ -1129,10 +1509,14 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
                   style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 IconButton(
+                  icon: const Icon(Icons.edit_outlined, color: Colors.cyanAccent, size: 20),
+                  tooltip: "Edit Item",
+                  onPressed: () => _editItemDialog(idx),
+                ),
+                IconButton(
                   icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                  onPressed: () {
-                    setState(() => _items.removeAt(idx));
-                  },
+                  tooltip: "Remove Item",
+                  onPressed: () => _removeItem(idx),
                 ),
               ],
             ),

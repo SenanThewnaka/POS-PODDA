@@ -89,6 +89,24 @@ class ProcurementRepository {
     });
   }
 
+  // Get remaining stock of a specific batch
+  Future<double?> getBatchRemainingStock(String productId, String batchId) async {
+    if (batchId.isEmpty) return null;
+    try {
+      final doc = await _productsCollection
+          .doc(productId)
+          .collection('batches')
+          .doc(batchId)
+          .get();
+      if (!doc.exists) return null;
+      final data = doc.data() as Map<String, dynamic>?;
+      if (data == null) return null;
+      return (data['currentStock'] as num?)?.toDouble();
+    } catch (_) {
+      return null;
+    }
+  }
+
   // Receive GRN & automatically increment stock and create batches
   Future<String> receiveGRN(GRNModel grn) async {
     final firestore = FirebaseFirestore.instance;
@@ -99,27 +117,8 @@ class ProcurementRepository {
         ? 'GRN-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}'
         : grn.grnNumber;
 
-    final updatedGrn = GRNModel(
-      id: grnRef.id,
-      shopId: currentUser.shopId,
-      grnNumber: grnNumber,
-      supplierId: grn.supplierId,
-      supplierName: grn.supplierName,
-      invoiceNumber: grn.invoiceNumber,
-      receivedAt: grn.receivedAt,
-      items: grn.items,
-      totalCost: grn.totalCost,
-      paymentStatus: grn.paymentStatus,
-      amountPaid: grn.amountPaid,
-      notes: grn.notes,
-      receivedById: currentUser.uid,
-      receivedByName: currentUser.name,
-    );
-
-    // 1. Save GRN document
-    writeBatch.set(grnRef, updatedGrn.toMap());
-
-    // 2. For each line item: Create new StockBatch and update Product currentStock & cost/selling prices
+    // 1. For each line item: Create new StockBatch and update Product currentStock & cost/selling prices
+    final savedItems = <GRNItem>[];
     for (final item in grn.items) {
       final productRef = _productsCollection.doc(item.productId);
       final batchRef = productRef.collection('batches').doc();
@@ -135,6 +134,7 @@ class ProcurementRepository {
       );
 
       writeBatch.set(batchRef, newBatch.toMap());
+      savedItems.add(item.copyWith(batchId: batchRef.id));
 
       // Update product current stock, latest cost price, and latest selling price
       final Map<String, dynamic> productUpdate = {
@@ -149,7 +149,183 @@ class ProcurementRepository {
       writeBatch.set(productRef, productUpdate, SetOptions(merge: true));
     }
 
+    final updatedGrn = GRNModel(
+      id: grnRef.id,
+      shopId: currentUser.shopId,
+      grnNumber: grnNumber,
+      supplierId: grn.supplierId,
+      supplierName: grn.supplierName,
+      invoiceNumber: grn.invoiceNumber,
+      receivedAt: grn.receivedAt,
+      items: savedItems,
+      totalCost: grn.totalCost,
+      paymentStatus: grn.paymentStatus,
+      amountPaid: grn.amountPaid,
+      notes: grn.notes,
+      receivedById: currentUser.uid,
+      receivedByName: currentUser.name,
+    );
+
+    // 2. Save GRN document
+    writeBatch.set(grnRef, updatedGrn.toMap());
+
     await writeBatch.commit();
     return grnRef.id;
+  }
+
+  // Update an existing GRN with Batch Consumption Floor Guard
+  Future<void> updateGRN(GRNModel updatedGrn, GRNModel originalGrn) async {
+    final firestore = FirebaseFirestore.instance;
+    final writeBatch = firestore.batch();
+    final grnRef = _grnCollection.doc(originalGrn.id);
+
+    // Map original items by batchId or productId for lookup
+    final origItemMap = <String, GRNItem>{};
+    for (final it in originalGrn.items) {
+      final key = (it.batchId != null && it.batchId!.isNotEmpty) ? it.batchId! : it.productId;
+      origItemMap[key] = it;
+    }
+
+    final finalItems = <GRNItem>[];
+    final remainingKeysInOriginal = Set<String>.from(origItemMap.keys);
+
+    // Process updated items
+    for (final currItem in updatedGrn.items) {
+      final key = (currItem.batchId != null && currItem.batchId!.isNotEmpty)
+          ? currItem.batchId!
+          : currItem.productId;
+
+      if (origItemMap.containsKey(key)) {
+        // Existing line item modified or kept
+        remainingKeysInOriginal.remove(key);
+        final origItem = origItemMap[key]!;
+        final batchId = currItem.batchId ?? origItem.batchId ?? '';
+        final productRef = _productsCollection.doc(currItem.productId);
+
+        final deltaStock = currItem.quantity - origItem.quantity;
+
+        if (deltaStock < 0) {
+          // Quantity reduction requested -> Check Floor Guard
+          final remainingStock = await getBatchRemainingStock(currItem.productId, batchId);
+          if (remainingStock != null) {
+            final unitsSold = (origItem.quantity - remainingStock).clamp(0.0, double.infinity);
+            if (currItem.quantity < unitsSold - 0.0001) {
+              final soldStr = unitsSold.toStringAsFixed(unitsSold % 1 == 0 ? 0 : 2);
+              throw Exception(
+                "Cannot reduce '${origItem.productName}' quantity below $soldStr. "
+                "$soldStr units have already been sold from this batch.",
+              );
+            }
+          }
+        }
+
+        // Apply batch update if batchId exists
+        if (batchId.isNotEmpty) {
+          final batchRef = productRef.collection('batches').doc(batchId);
+          writeBatch.update(batchRef, {
+            'currentStock': FieldValue.increment(deltaStock),
+            'costPrice': currItem.unitCostPrice,
+            if (currItem.sellingPrice > 0) 'sellingPrice': currItem.sellingPrice,
+          });
+        }
+
+        // Apply product stock delta and pricing update
+        final Map<String, dynamic> productUpdate = {
+          'currentStock': FieldValue.increment(deltaStock),
+          'costPrice': currItem.unitCostPrice,
+        };
+        if (currItem.sellingPrice > 0) {
+          productUpdate['sellingPrice'] = currItem.sellingPrice;
+        }
+        writeBatch.set(productRef, productUpdate, SetOptions(merge: true));
+
+        finalItems.add(currItem.copyWith(
+          batchId: batchId,
+          subTotal: currItem.quantity * currItem.unitCostPrice,
+        ));
+      } else {
+        // Brand new line item added during edit
+        final productRef = _productsCollection.doc(currItem.productId);
+        final batchRef = productRef.collection('batches').doc();
+
+        final newBatch = StockBatch(
+          id: batchRef.id,
+          productId: currItem.productId,
+          costPrice: currItem.unitCostPrice,
+          sellingPrice: currItem.sellingPrice,
+          currentStock: currItem.quantity,
+          createdAt: DateTime.now(),
+          isActive: true,
+        );
+
+        writeBatch.set(batchRef, newBatch.toMap());
+
+        final Map<String, dynamic> productUpdate = {
+          'currentStock': FieldValue.increment(currItem.quantity),
+          'costPrice': currItem.unitCostPrice,
+        };
+        if (currItem.sellingPrice > 0) {
+          productUpdate['sellingPrice'] = currItem.sellingPrice;
+        }
+        writeBatch.set(productRef, productUpdate, SetOptions(merge: true));
+
+        finalItems.add(currItem.copyWith(
+          batchId: batchRef.id,
+          subTotal: currItem.quantity * currItem.unitCostPrice,
+        ));
+      }
+    }
+
+    // Process removed items
+    for (final removedKey in remainingKeysInOriginal) {
+      final removedItem = origItemMap[removedKey]!;
+      final batchId = removedItem.batchId ?? '';
+
+      if (batchId.isNotEmpty) {
+        final remainingStock = await getBatchRemainingStock(removedItem.productId, batchId);
+        if (remainingStock != null) {
+          final unitsSold = (removedItem.quantity - remainingStock).clamp(0.0, double.infinity);
+          if (unitsSold > 0.0001) {
+            final soldStr = unitsSold.toStringAsFixed(unitsSold % 1 == 0 ? 0 : 2);
+            throw Exception(
+              "Cannot remove '${removedItem.productName}'. "
+              "$soldStr units have already been sold from this batch.",
+            );
+          }
+        }
+
+        // Units sold is 0: batch can be safely marked inactive / zeroed
+        final batchRef = _productsCollection
+            .doc(removedItem.productId)
+            .collection('batches')
+            .doc(batchId);
+        writeBatch.update(batchRef, {
+          'currentStock': 0.0,
+          'isActive': false,
+        });
+      }
+
+      // Revert product currentStock
+      final productRef = _productsCollection.doc(removedItem.productId);
+      writeBatch.set(productRef, {
+        'currentStock': FieldValue.increment(-removedItem.quantity),
+      }, SetOptions(merge: true));
+    }
+
+    final newTotalCost = finalItems.fold(0.0, (sum, it) => sum + it.subTotal);
+
+    final toSaveGRN = updatedGrn.copyWith(
+      id: originalGrn.id,
+      shopId: originalGrn.shopId,
+      grnNumber: originalGrn.grnNumber,
+      items: finalItems,
+      totalCost: newTotalCost,
+      receivedAt: updatedGrn.receivedAt,
+      receivedById: currentUser.uid,
+      receivedByName: currentUser.name,
+    );
+
+    writeBatch.set(grnRef, toSaveGRN.toMap(), SetOptions(merge: true));
+    await writeBatch.commit();
   }
 }

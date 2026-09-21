@@ -9,6 +9,7 @@ class GRNItem {
   final double subTotal; // quantity * unitCostPrice
   final DateTime? expiryDate;
   final String? batchNumber;
+  final String? batchId; // Link to StockBatch
 
   GRNItem({
     required this.productId,
@@ -19,7 +20,32 @@ class GRNItem {
     required this.subTotal,
     this.expiryDate,
     this.batchNumber,
+    this.batchId,
   });
+
+  GRNItem copyWith({
+    String? productId,
+    String? productName,
+    double? quantity,
+    double? unitCostPrice,
+    double? sellingPrice,
+    double? subTotal,
+    DateTime? expiryDate,
+    String? batchNumber,
+    String? batchId,
+  }) {
+    return GRNItem(
+      productId: productId ?? this.productId,
+      productName: productName ?? this.productName,
+      quantity: quantity ?? this.quantity,
+      unitCostPrice: unitCostPrice ?? this.unitCostPrice,
+      sellingPrice: sellingPrice ?? this.sellingPrice,
+      subTotal: subTotal ?? this.subTotal,
+      expiryDate: expiryDate ?? this.expiryDate,
+      batchNumber: batchNumber ?? this.batchNumber,
+      batchId: batchId ?? this.batchId,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -31,6 +57,7 @@ class GRNItem {
       'subTotal': subTotal,
       'expiryDate': expiryDate != null ? Timestamp.fromDate(expiryDate!) : null,
       'batchNumber': batchNumber,
+      'batchId': batchId,
     };
   }
 
@@ -52,6 +79,7 @@ class GRNItem {
       subTotal: (map['subTotal'] ?? 0.0).toDouble(),
       expiryDate: parseDate(map['expiryDate']),
       batchNumber: map['batchNumber'],
+      batchId: map['batchId'],
     );
   }
 }
@@ -88,6 +116,40 @@ class GRNModel {
     this.receivedById,
     this.receivedByName,
   });
+
+  GRNModel copyWith({
+    String? id,
+    String? shopId,
+    String? grnNumber,
+    String? supplierId,
+    String? supplierName,
+    String? invoiceNumber,
+    DateTime? receivedAt,
+    List<GRNItem>? items,
+    double? totalCost,
+    String? paymentStatus,
+    double? amountPaid,
+    String? notes,
+    String? receivedById,
+    String? receivedByName,
+  }) {
+    return GRNModel(
+      id: id ?? this.id,
+      shopId: shopId ?? this.shopId,
+      grnNumber: grnNumber ?? this.grnNumber,
+      supplierId: supplierId ?? this.supplierId,
+      supplierName: supplierName ?? this.supplierName,
+      invoiceNumber: invoiceNumber ?? this.invoiceNumber,
+      receivedAt: receivedAt ?? this.receivedAt,
+      items: items ?? this.items,
+      totalCost: totalCost ?? this.totalCost,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      amountPaid: amountPaid ?? this.amountPaid,
+      notes: notes ?? this.notes,
+      receivedById: receivedById ?? this.receivedById,
+      receivedByName: receivedByName ?? this.receivedByName,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {

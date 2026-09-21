@@ -27,6 +27,8 @@ class FakeProcurementRepository implements ProcurementRepository {
   final List<SupplierModel> savedSuppliers = [];
   final List<String> deletedSupplierIds = [];
   final List<GRNModel> receivedGRNs = [];
+  final List<GRNModel> updatedGRNs = [];
+  final Map<String, double> batchStock = {};
 
   final StreamController<List<SupplierModel>> _supplierStreamCtrl =
       StreamController<List<SupplierModel>>.broadcast();
@@ -42,6 +44,13 @@ class FakeProcurementRepository implements ProcurementRepository {
         grns = initialGRNs ?? [] {
     _supplierStreamCtrl.add(suppliers);
     _grnStreamCtrl.add(grns);
+    for (final grn in grns) {
+      for (final it in grn.items) {
+        if (it.batchId != null && it.batchId!.isNotEmpty) {
+          batchStock[it.batchId!] = it.quantity;
+        }
+      }
+    }
   }
 
   @override
@@ -77,12 +86,116 @@ class FakeProcurementRepository implements ProcurementRepository {
   }
 
   @override
+  Future<double?> getBatchRemainingStock(String productId, String batchId) async {
+    return batchStock[batchId];
+  }
+
+  @override
   Future<String> receiveGRN(GRNModel grn) async {
-    receivedGRNs.add(grn);
     final id = grn.id.isEmpty ? 'grn-${grns.length + 1}' : grn.id;
-    grns.insert(0, grn);
+    final savedItems = <GRNItem>[];
+    for (int i = 0; i < grn.items.length; i++) {
+      final it = grn.items[i];
+      final bId = it.batchId?.isNotEmpty == true ? it.batchId! : 'batch-${it.productId}-$i';
+      savedItems.add(it.copyWith(batchId: bId));
+      batchStock[bId] = it.quantity;
+    }
+    final savedGRN = grn.copyWith(id: id, items: savedItems);
+    receivedGRNs.add(savedGRN);
+    grns.insert(0, savedGRN);
     _grnStreamCtrl.add(List.from(grns));
     return id;
+  }
+
+  @override
+  Future<void> updateGRN(GRNModel updatedGrn, GRNModel originalGrn) async {
+    final origItemMap = <String, GRNItem>{};
+    for (final it in originalGrn.items) {
+      final key = (it.batchId != null && it.batchId!.isNotEmpty) ? it.batchId! : it.productId;
+      origItemMap[key] = it;
+    }
+
+    final finalItems = <GRNItem>[];
+    final remainingKeys = Set<String>.from(origItemMap.keys);
+
+    for (final currItem in updatedGrn.items) {
+      final key = (currItem.batchId != null && currItem.batchId!.isNotEmpty)
+          ? currItem.batchId!
+          : currItem.productId;
+
+      if (origItemMap.containsKey(key)) {
+        remainingKeys.remove(key);
+        final origItem = origItemMap[key]!;
+        final batchId = currItem.batchId ?? origItem.batchId ?? '';
+        final deltaStock = currItem.quantity - origItem.quantity;
+
+        if (deltaStock < 0) {
+          final remaining = batchStock[batchId] ?? origItem.quantity;
+          final unitsSold = (origItem.quantity - remaining).clamp(0.0, double.infinity);
+          if (currItem.quantity < unitsSold - 0.0001) {
+            final soldStr = unitsSold.toStringAsFixed(unitsSold % 1 == 0 ? 0 : 2);
+            throw Exception(
+              "Cannot reduce '${origItem.productName}' quantity below $soldStr. "
+              "$soldStr units have already been sold from this batch.",
+            );
+          }
+        }
+
+        if (batchId.isNotEmpty) {
+          final remaining = batchStock[batchId] ?? origItem.quantity;
+          batchStock[batchId] = remaining + deltaStock;
+        }
+
+        finalItems.add(currItem.copyWith(
+          batchId: batchId,
+          subTotal: currItem.quantity * currItem.unitCostPrice,
+        ));
+      } else {
+        final bId = currItem.batchId?.isNotEmpty == true
+            ? currItem.batchId!
+            : 'batch-${currItem.productId}-${batchStock.length + 1}';
+        batchStock[bId] = currItem.quantity;
+        finalItems.add(currItem.copyWith(
+          batchId: bId,
+          subTotal: currItem.quantity * currItem.unitCostPrice,
+        ));
+      }
+    }
+
+    for (final removedKey in remainingKeys) {
+      final removedItem = origItemMap[removedKey]!;
+      final batchId = removedItem.batchId ?? '';
+      if (batchId.isNotEmpty) {
+        final remaining = batchStock[batchId] ?? removedItem.quantity;
+        final unitsSold = (removedItem.quantity - remaining).clamp(0.0, double.infinity);
+        if (unitsSold > 0.0001) {
+          final soldStr = unitsSold.toStringAsFixed(unitsSold % 1 == 0 ? 0 : 2);
+          throw Exception(
+            "Cannot remove '${removedItem.productName}'. "
+            "$soldStr units have already been sold from this batch.",
+          );
+        }
+        batchStock[batchId] = 0.0;
+      }
+    }
+
+    final newTotalCost = finalItems.fold(0.0, (sum, it) => sum + it.subTotal);
+    final savedGRN = updatedGrn.copyWith(
+      id: originalGrn.id,
+      shopId: originalGrn.shopId,
+      grnNumber: originalGrn.grnNumber,
+      items: finalItems,
+      totalCost: newTotalCost,
+    );
+
+    updatedGRNs.add(savedGRN);
+    final idx = grns.indexWhere((g) => g.id == originalGrn.id);
+    if (idx >= 0) {
+      grns[idx] = savedGRN;
+    } else {
+      grns.insert(0, savedGRN);
+    }
+    _grnStreamCtrl.add(List.from(grns));
   }
 
   void dispose() {
@@ -840,4 +953,394 @@ void main() {
       expect(find.text('Rs. 4500.00'), findsNWidgets(2)); // In line item subtotal and totals summary card
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Category G: GRN Editing & Batch Consumption Floor Guard
+  // ---------------------------------------------------------------------------
+  group('Category G: GRN Editing & Batch Consumption Floor Guard', () {
+    late FakeProcurementRepository repo;
+
+    setUp(() {
+      repo = FakeProcurementRepository();
+    });
+
+    test('TC-PRC-23: Edit GRN metadata (Invoice, Notes, Payment Status) updates GRN record', () async {
+      final origGRN = GRNModel(
+        id: 'grn-1',
+        shopId: 'test-shop-id',
+        grnNumber: 'GRN-1001',
+        supplierId: 'supp-1',
+        supplierName: 'Ceylon Foods PLC',
+        invoiceNumber: 'INV-OLD',
+        receivedAt: DateTime(2026, 1, 10),
+        items: [
+          GRNItem(
+            productId: 'prod-1',
+            productName: 'Highland Fresh Milk 1L',
+            quantity: 20,
+            unitCostPrice: 420.0,
+            sellingPrice: 500.0,
+            subTotal: 8400.0,
+            batchId: 'batch-milk-1',
+          ),
+        ],
+        totalCost: 8400.0,
+        paymentStatus: 'CREDIT',
+        amountPaid: 0.0,
+        notes: 'Initial notes',
+      );
+
+      await repo.receiveGRN(origGRN);
+
+      final updatedGRN = origGRN.copyWith(
+        invoiceNumber: 'INV-NEW-999',
+        notes: 'Updated note: paid via cheque',
+        paymentStatus: 'PAID',
+        amountPaid: 8400.0,
+      );
+
+      await repo.updateGRN(updatedGRN, origGRN);
+
+      expect(repo.grns.length, 1);
+      final saved = repo.grns.first;
+      expect(saved.invoiceNumber, 'INV-NEW-999');
+      expect(saved.notes, 'Updated note: paid via cheque');
+      expect(saved.paymentStatus, 'PAID');
+      expect(saved.amountPaid, 8400.0);
+      expect(saved.totalCost, 8400.0);
+      expect(saved.items.length, 1);
+    });
+
+    test('TC-PRC-24: Edit GRN and add missing product creates batch and increases total cost', () async {
+      final origGRN = GRNModel(
+        id: 'grn-2',
+        shopId: 'test-shop-id',
+        grnNumber: 'GRN-1002',
+        supplierId: 'supp-1',
+        supplierName: 'Ceylon Foods PLC',
+        receivedAt: DateTime(2026, 1, 10),
+        items: [
+          GRNItem(
+            productId: 'prod-1',
+            productName: 'Highland Fresh Milk 1L',
+            quantity: 10,
+            unitCostPrice: 420.0,
+            sellingPrice: 500.0,
+            subTotal: 4200.0,
+            batchId: 'batch-milk-2',
+          ),
+        ],
+        totalCost: 4200.0,
+        paymentStatus: 'PAID',
+        amountPaid: 4200.0,
+      );
+
+      await repo.receiveGRN(origGRN);
+
+      final updatedGRN = origGRN.copyWith(
+        items: [
+          ...origGRN.items,
+          GRNItem(
+            productId: 'prod-2',
+            productName: 'Munchee Super Cream Cracker',
+            quantity: 15,
+            unitCostPrice: 180.0,
+            sellingPrice: 230.0,
+            subTotal: 2700.0,
+          ),
+        ],
+      );
+
+      await repo.updateGRN(updatedGRN, origGRN);
+
+      expect(repo.grns.length, 1);
+      final saved = repo.grns.first;
+      expect(saved.items.length, 2);
+      expect(saved.totalCost, 4200.0 + 2700.0);
+      expect(saved.items[1].productName, 'Munchee Super Cream Cracker');
+      expect(saved.items[1].batchId, isNotNull);
+      expect(repo.batchStock[saved.items[1].batchId], 15.0);
+    });
+
+    test('TC-PRC-25: Edit GRN item quantity increase updates batch stock and total cost', () async {
+      final origGRN = GRNModel(
+        id: 'grn-3',
+        shopId: 'test-shop-id',
+        grnNumber: 'GRN-1003',
+        supplierId: 'supp-1',
+        supplierName: 'Ceylon Foods PLC',
+        receivedAt: DateTime(2026, 1, 10),
+        items: [
+          GRNItem(
+            productId: 'prod-1',
+            productName: 'Highland Fresh Milk 1L',
+            quantity: 10,
+            unitCostPrice: 400.0,
+            sellingPrice: 500.0,
+            subTotal: 4000.0,
+            batchId: 'batch-milk-3',
+          ),
+        ],
+        totalCost: 4000.0,
+        paymentStatus: 'PAID',
+        amountPaid: 4000.0,
+      );
+
+      await repo.receiveGRN(origGRN);
+      expect(repo.batchStock['batch-milk-3'], 10.0);
+
+      // Increase quantity from 10 to 25
+      final updatedGRN = origGRN.copyWith(
+        items: [
+          origGRN.items[0].copyWith(quantity: 25, subTotal: 25 * 400.0),
+        ],
+      );
+
+      await repo.updateGRN(updatedGRN, origGRN);
+
+      final saved = repo.grns.first;
+      expect(saved.items.first.quantity, 25.0);
+      expect(saved.totalCost, 10000.0);
+      expect(repo.batchStock['batch-milk-3'], 25.0);
+    });
+
+    test('TC-PRC-26: Edit GRN item quantity decrease above floor guard succeeds', () async {
+      final origGRN = GRNModel(
+        id: 'grn-4',
+        shopId: 'test-shop-id',
+        grnNumber: 'GRN-1004',
+        supplierId: 'supp-1',
+        supplierName: 'Ceylon Foods PLC',
+        receivedAt: DateTime(2026, 1, 10),
+        items: [
+          GRNItem(
+            productId: 'prod-1',
+            productName: 'Highland Fresh Milk 1L',
+            quantity: 50,
+            unitCostPrice: 400.0,
+            sellingPrice: 500.0,
+            subTotal: 20000.0,
+            batchId: 'batch-milk-4',
+          ),
+        ],
+        totalCost: 20000.0,
+        paymentStatus: 'PAID',
+        amountPaid: 20000.0,
+      );
+
+      await repo.receiveGRN(origGRN);
+
+      // Simulate 10 units sold from this batch at checkout -> remaining 40
+      repo.batchStock['batch-milk-4'] = 40.0;
+
+      // Safe reduction: shop owner reduces received quantity from 50 to 40 (floor is 10 sold units)
+      final updatedGRN = origGRN.copyWith(
+        items: [
+          origGRN.items[0].copyWith(quantity: 40, subTotal: 40 * 400.0),
+        ],
+      );
+
+      await repo.updateGRN(updatedGRN, origGRN);
+
+      final saved = repo.grns.first;
+      expect(saved.items.first.quantity, 40.0);
+      expect(saved.totalCost, 16000.0);
+      // Batch stock delta is -10 (40 remaining - 10 = 30)
+      expect(repo.batchStock['batch-milk-4'], 30.0);
+    });
+
+    test('TC-PRC-27: Batch Consumption Floor Guard blocks reducing quantity below sold units', () async {
+      final origGRN = GRNModel(
+        id: 'grn-5',
+        shopId: 'test-shop-id',
+        grnNumber: 'GRN-1005',
+        supplierId: 'supp-1',
+        supplierName: 'Ceylon Foods PLC',
+        receivedAt: DateTime(2026, 1, 10),
+        items: [
+          GRNItem(
+            productId: 'prod-1',
+            productName: 'Highland Fresh Milk 1L',
+            quantity: 50,
+            unitCostPrice: 400.0,
+            sellingPrice: 500.0,
+            subTotal: 20000.0,
+            batchId: 'batch-milk-5',
+          ),
+        ],
+        totalCost: 20000.0,
+        paymentStatus: 'PAID',
+        amountPaid: 20000.0,
+      );
+
+      await repo.receiveGRN(origGRN);
+
+      // Simulate 20 units sold -> remaining 30
+      repo.batchStock['batch-milk-5'] = 30.0;
+
+      // Owner tries to reduce to 15 (less than 20 sold)
+      final updatedGRN = origGRN.copyWith(
+        items: [
+          origGRN.items[0].copyWith(quantity: 15, subTotal: 15 * 400.0),
+        ],
+      );
+
+      expect(
+        () => repo.updateGRN(updatedGRN, origGRN),
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'message',
+          contains("Cannot reduce 'Highland Fresh Milk 1L' quantity below 20. 20 units have already been sold from this batch."),
+        )),
+      );
+    });
+
+    test('TC-PRC-28: Batch Consumption Floor Guard blocks deleting item when units have already been sold', () async {
+      final origGRN = GRNModel(
+        id: 'grn-6',
+        shopId: 'test-shop-id',
+        grnNumber: 'GRN-1006',
+        supplierId: 'supp-1',
+        supplierName: 'Ceylon Foods PLC',
+        receivedAt: DateTime(2026, 1, 10),
+        items: [
+          GRNItem(
+            productId: 'prod-1',
+            productName: 'Highland Fresh Milk 1L',
+            quantity: 50,
+            unitCostPrice: 400.0,
+            sellingPrice: 500.0,
+            subTotal: 20000.0,
+            batchId: 'batch-milk-6',
+          ),
+        ],
+        totalCost: 20000.0,
+        paymentStatus: 'PAID',
+        amountPaid: 20000.0,
+      );
+
+      await repo.receiveGRN(origGRN);
+
+      // Simulate 5 units sold -> remaining 45
+      repo.batchStock['batch-milk-6'] = 45.0;
+
+      // Owner attempts to completely delete item
+      final updatedGRN = origGRN.copyWith(items: []);
+
+      expect(
+        () => repo.updateGRN(updatedGRN, origGRN),
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'message',
+          contains("Cannot remove 'Highland Fresh Milk 1L'. 5 units have already been sold from this batch."),
+        )),
+      );
+    });
+
+    testWidgets('TC-PRC-29: CreateGRNScreen in edit mode pre-populates fields and shows UPDATE GRN', (tester) async {
+      final sampleGRN = GRNModel(
+        id: 'grn-widget-1',
+        shopId: 'test-shop-id',
+        grnNumber: 'GRN-9988',
+        supplierId: 'supp-1',
+        supplierName: 'Ceylon Foods PLC',
+        invoiceNumber: 'INV-4455',
+        receivedAt: DateTime(2026, 2, 15),
+        items: [
+          GRNItem(
+            productId: 'prod-1',
+            productName: 'Highland Fresh Milk 1L',
+            quantity: 12,
+            unitCostPrice: 420.0,
+            sellingPrice: 500.0,
+            subTotal: 5040.0,
+            batchId: 'batch-milk-w1',
+          ),
+        ],
+        totalCost: 5040.0,
+        paymentStatus: 'PAID',
+        amountPaid: 5040.0,
+        notes: 'Initial delivery note',
+      );
+
+      await repo.receiveGRN(sampleGRN);
+
+      tester.view.physicalSize = const Size(1200 * 2.0, 900 * 2.0);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(_wrapWithProviders(
+        child: CreateGRNScreen(existingGRN: sampleGRN),
+        procurementRepo: repo,
+      ));
+      await tester.pumpAndSettle();
+
+      // Verify title shows Edit mode with GRN Number
+      expect(find.text('Edit Goods Received Note (GRN-9988)'), findsOneWidget);
+
+      // Verify Action button says UPDATE GRN
+      expect(find.text('UPDATE GRN'), findsOneWidget);
+
+      // Verify pre-filled invoice and line item
+      expect(find.text('INV-4455'), findsOneWidget);
+      expect(find.text('Highland Fresh Milk 1L'), findsOneWidget);
+      expect(find.text('Rs. 5040.00'), findsNWidgets(2)); // Line item subtotal and total summary
+    });
+
+    testWidgets('TC-PRC-30: GRNHistoryScreen shows Edit button on cards and modal', (tester) async {
+      final sampleGRN = GRNModel(
+        id: 'grn-history-1',
+        shopId: 'test-shop-id',
+        grnNumber: 'GRN-7777',
+        supplierId: 'supp-1',
+        supplierName: 'Ceylon Foods PLC',
+        invoiceNumber: 'INV-7777',
+        receivedAt: DateTime(2026, 2, 20),
+        items: [
+          GRNItem(
+            productId: 'prod-1',
+            productName: 'Highland Fresh Milk 1L',
+            quantity: 8,
+            unitCostPrice: 420.0,
+            sellingPrice: 500.0,
+            subTotal: 3360.0,
+            batchId: 'batch-milk-h1',
+          ),
+        ],
+        totalCost: 3360.0,
+        paymentStatus: 'PAID',
+        amountPaid: 3360.0,
+      );
+
+      final historyRepo = FakeProcurementRepository(initialGRNs: [sampleGRN]);
+
+      tester.view.physicalSize = const Size(1200 * 2.0, 900 * 2.0);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(_wrapWithProviders(
+        child: const GRNHistoryScreen(),
+        procurementRepo: historyRepo,
+      ));
+      await tester.pumpAndSettle();
+
+      // Edit icon button on the card
+      final editButton = find.byTooltip('Edit GRN');
+      expect(editButton, findsOneWidget);
+
+      // Open details dialog
+      await tester.tap(find.text('GRN-7777'));
+      await tester.pumpAndSettle();
+
+      // Details dialog should have "Edit GRN" button
+      expect(find.widgetWithText(ElevatedButton, 'Edit GRN'), findsOneWidget);
+    });
+  });
 }
+
