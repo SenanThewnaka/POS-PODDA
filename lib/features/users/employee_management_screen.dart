@@ -6,6 +6,8 @@ import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/users/app_permissions.dart';
 import 'package:sme_buddy/features/users/edit_employee_screen.dart';
 import 'package:sme_buddy/features/roles/role_list_screen.dart';
+import 'package:sme_buddy/features/roles/role_model.dart';
+import 'package:sme_buddy/features/roles/role_repository.dart';
 
 class EmployeeManagementScreen extends ConsumerWidget {
   const EmployeeManagementScreen({super.key});
@@ -224,9 +226,14 @@ class AddEmployeeDialog extends ConsumerStatefulWidget {
 
 class _AddEmployeeDialogState extends ConsumerState<AddEmployeeDialog> {
   final _usernameCtrl = TextEditingController();
-  final _passCtrl = TextEditingController();   final _nameCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
   final _mobileCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+
+  String? _selectedRoleId;
+  String _selectedRoleName = 'Cashier';
+  Map<String, bool> _permissions = Map.from(AppPermissions.defaultCashierPermissions);
   bool _isLoading = false;
 
   void _addEmployee() async {
@@ -234,37 +241,37 @@ class _AddEmployeeDialogState extends ConsumerState<AddEmployeeDialog> {
     setState(() => _isLoading = true);
 
     try {
-      // CONSTRUCT SYNTHETIC EMAIL
-      // Format: username@shopcode.sme
-      // e.g. kasun@X92A1.sme
-      // This is unique globally if ShopCode+Username is unique.
       final syntheticEmail = "${_usernameCtrl.text.trim().toLowerCase()}@${widget.shopCode.toLowerCase()}.sme";
 
       final repo = ref.read(authRepositoryProvider);
       final newUid = await repo.createEmployeeAccount(
         syntheticEmail, 
-        _passCtrl.text.trim()
+        _passCtrl.text.trim(),
       );
       
       if (newUid != null) {
-        // 2. Create Profile linked to this Shop
         final newEmp = UserModel(
           uid: newUid,
-          email: syntheticEmail, // Store synthetic email for auth reference
+          email: syntheticEmail,
           name: _nameCtrl.text.trim(),
           mobile: _mobileCtrl.text.trim(), 
-          role: 'cashier',
+          role: _selectedRoleName.toLowerCase(),
+          roleId: _selectedRoleId,
           shopId: widget.shopId,
           shopName: widget.shopName,
-          username: _usernameCtrl.text.trim(), // Store plain username for display
-          storedPassword: _passCtrl.text.trim(), // Store for recovery
+          username: _usernameCtrl.text.trim(),
+          storedPassword: _passCtrl.text.trim(),
+          permissions: _permissions,
         );
         
         await ref.read(userProfileRepositoryProvider).saveUserProfile(newEmp);
         if (mounted) Navigator.pop(context);
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Employee Added Successfully!")));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Employee '${newEmp.name}' added with role '$_selectedRoleName'!"))
+          );
+        }
       }
-      
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
@@ -274,46 +281,195 @@ class _AddEmployeeDialogState extends ConsumerState<AddEmployeeDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final rolesAsync = ref.watch(shopRolesStreamProvider(widget.shopId));
+
     return AlertDialog(
-      title: const Text("Add Employee"),
-      content: SingleChildScrollView(
-         child: Form(
-           key: _formKey,
-           child: Column(
-             mainAxisSize: MainAxisSize.min,
-             children: [
-               TextFormField(controller: _nameCtrl, decoration: const InputDecoration(labelText: "Full Name"), validator: (v)=>v!.isEmpty?"Req":null),
-               const SizedBox(height: 12),
-               TextFormField(
-                 controller: _mobileCtrl, 
-                 decoration: const InputDecoration(labelText: "Mobile Number", prefixIcon: Icon(Icons.phone)), 
-                 keyboardType: TextInputType.phone
-               ),
-               const SizedBox(height: 12),
-               TextFormField(
-                 controller: _usernameCtrl, 
-                 decoration: const InputDecoration(labelText: "Username", prefixIcon: Icon(Icons.person_pin)), 
-                 validator: (v)=>v!.isEmpty?"Req":null
-               ),
-               const SizedBox(height: 12),
-               TextFormField(
-                 controller: _passCtrl, 
-                 decoration: const InputDecoration(labelText: "Password", prefixIcon: Icon(Icons.lock)), 
-                 validator: (v)=>v!.length>5?null:"Too short"
-               ),
-               const SizedBox(height: 16),
-               Container(
-                 padding: const EdgeInsets.all(8),
-                  color: Colors.white10,
-                 child: Text("Login: ${_usernameCtrl.text}@${widget.shopCode}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-               )
-             ],
-           ),
-         ),
+      title: const Row(
+        children: [
+          Icon(Icons.person_add_alt_1, color: Color(0xFF6366F1)),
+          SizedBox(width: 8),
+          Text("Add Employee"),
+        ],
+      ),
+      content: SizedBox(
+        width: 440,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: _nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: "Full Name *",
+                    prefixIcon: Icon(Icons.badge_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) => v == null || v.trim().isEmpty ? "Name is required" : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _mobileCtrl, 
+                  decoration: const InputDecoration(
+                    labelText: "Mobile Number",
+                    prefixIcon: Icon(Icons.phone_outlined),
+                    border: OutlineInputBorder(),
+                  ), 
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _usernameCtrl, 
+                  decoration: const InputDecoration(
+                    labelText: "Username (Staff ID / Name) *",
+                    prefixIcon: Icon(Icons.alternate_email),
+                    border: OutlineInputBorder(),
+                  ), 
+                  validator: (v) => v == null || v.trim().isEmpty ? "Username is required" : null,
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _passCtrl, 
+                  decoration: const InputDecoration(
+                    labelText: "Initial Password *",
+                    prefixIcon: Icon(Icons.lock_outline),
+                    border: OutlineInputBorder(),
+                  ), 
+                  obscureText: true,
+                  validator: (v) => v == null || v.length < 6 ? "Minimum 6 characters" : null,
+                ),
+                const SizedBox(height: 16),
+
+                // Role Selector
+                const Text("ASSIGN ROLE TEMPLATE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 6),
+                rolesAsync.when(
+                  loading: () => const LinearProgressIndicator(),
+                  error: (_, __) => const SizedBox(),
+                  data: (customRoles) {
+                    return DropdownButtonFormField<String>(
+                      value: _selectedRoleId ?? _selectedRoleName,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.admin_panel_settings_outlined, color: Color(0xFF6366F1)),
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      isExpanded: true,
+                      items: [
+                        const DropdownMenuItem(
+                          value: 'Cashier',
+                          child: Text("Cashier (POS Checkout & Credit)"),
+                        ),
+                        const DropdownMenuItem(
+                          value: 'Manager',
+                          child: Text("Store Manager (Full Operations)"),
+                        ),
+                        const DropdownMenuItem(
+                          value: 'Stock Keeper',
+                          child: Text("Stock Keeper (Inventory & GRN)"),
+                        ),
+                        ...customRoles.map((r) => DropdownMenuItem(
+                          value: r.id,
+                          child: Text("${r.name} (Custom Role)"),
+                        )),
+                      ],
+                      onChanged: (val) {
+                        if (val == null) return;
+                        setState(() {
+                          if (val == 'Cashier') {
+                            _selectedRoleId = null;
+                            _selectedRoleName = 'Cashier';
+                            _permissions = Map.from(AppPermissions.defaultCashierPermissions);
+                          } else if (val == 'Manager') {
+                            _selectedRoleId = null;
+                            _selectedRoleName = 'Manager';
+                            _permissions = Map.from(AppPermissions.defaultManagerPermissions);
+                          } else if (val == 'Stock Keeper') {
+                            _selectedRoleId = null;
+                            _selectedRoleName = 'Stock Keeper';
+                            _permissions = Map.from(AppPermissions.defaultStockKeeperPermissions);
+                          } else {
+                            final custom = customRoles.firstWhere((r) => r.id == val);
+                            _selectedRoleId = custom.id;
+                            _selectedRoleName = custom.name;
+                            _permissions = Map.from(custom.permissions);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                // Permissions summary banner
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.shield_outlined, size: 16, color: Color(0xFF818CF8)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Role: $_selectedRoleName • ${_permissions.values.where((v) => v).length} permissions active",
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, size: 14, color: Colors.grey),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          "Login ID: ${_usernameCtrl.text.trim().isEmpty ? 'username' : _usernameCtrl.text.trim().toLowerCase()}@${widget.shopCode}",
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCEL")),
-        ElevatedButton(onPressed: _isLoading ? null : _addEmployee, child: _isLoading ? const CircularProgressIndicator() : const Text("ADD")),
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
+          child: const Text("CANCEL"),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF6366F1),
+            foregroundColor: Colors.white,
+          ),
+          onPressed: _isLoading ? null : _addEmployee,
+          child: _isLoading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Text("ADD EMPLOYEE"),
+        ),
       ],
     );
   }

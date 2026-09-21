@@ -86,21 +86,36 @@ class _AddEditRoleScreenState extends ConsumerState<AddEditRoleScreen> {
               decoration: const InputDecoration(labelText: "Role Name (e.g. Manager)", border: OutlineInputBorder()),
             ),
             const SizedBox(height: 24),
-            const Align(alignment: Alignment.centerLeft, child: Text("Permissions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-            const Text("What can users with this role do?", style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 8),
+            const Align(alignment: Alignment.centerLeft, child: Text("Role Permissions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+            const Text("Define what actions users assigned to this role can perform.", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 12),
 
-            ...AppPermissions.allValues.map((key) {
-               return CheckboxListTile(
-                 title: Text(AppPermissions.getLabel(key)),
-                 value: _permissions[key] ?? false,
-                 onChanged: (val) {
-                    setState(() {
-                       _permissions[key] = val ?? false;
-                    });
-                 },
-               );
-            }).toList(),
+            _buildSection("Sales & POS Operations", [
+              AppPermissions.canCheckout,
+              AppPermissions.canGiveDiscount,
+            ]),
+            _buildSection("Inventory, Cost Privacy & Procurement", [
+              AppPermissions.canManageInventory,
+              AppPermissions.canAddProducts,
+              AppPermissions.canDeleteProducts,
+              AppPermissions.canViewCostPrice,
+              AppPermissions.canManageGRN,
+            ]),
+            _buildSection("Cash Balancing, Shifts & Analytics", [
+              AppPermissions.canManageShifts,
+              AppPermissions.canViewSalesReports,
+            ]),
+            _buildSection("Customer Credit (Potha) & CRM", [
+              AppPermissions.canViewCredit,
+              AppPermissions.canEditCreditors,
+              AppPermissions.canSettleCredit,
+            ]),
+            _buildSection("Staff Management", [
+              AppPermissions.canViewEmployees,
+              AppPermissions.canAddEmployees,
+              AppPermissions.canEditEmployees,
+              AppPermissions.canDeleteEmployees,
+            ]),
 
             const SizedBox(height: 32),
             SizedBox(
@@ -113,6 +128,41 @@ class _AddEditRoleScreenState extends ConsumerState<AddEditRoleScreen> {
             )
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSection(String title, List<String> permissionKeys) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              title.toUpperCase(),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.8, color: Color(0xFF818CF8)),
+            ),
+          ),
+          ...permissionKeys.map((key) {
+            return CheckboxListTile(
+              dense: true,
+              title: Text(AppPermissions.getLabel(key), style: const TextStyle(fontSize: 14)),
+              value: _permissions[key] ?? false,
+              onChanged: (val) {
+                setState(() {
+                  _permissions[key] = val ?? false;
+                });
+              },
+            );
+          }),
+        ],
       ),
     );
   }

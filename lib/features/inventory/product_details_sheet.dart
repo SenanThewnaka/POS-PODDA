@@ -68,6 +68,9 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(userProfileProvider).value;
+    final canViewCost = user == null ? true : (user.isAdmin || user.hasPermission(AppPermissions.canViewCostPrice));
+
     String unitLabel = "Item";
     if (widget.product.baseUnit == 'g') unitLabel = "KG";
     if (widget.product.baseUnit == 'ml') unitLabel = "L";
@@ -149,17 +152,19 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                 ),
                 onTap: () => _priceController.selection = TextSelection(baseOffset: 0, extentOffset: _priceController.text.length),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _costController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                   labelText: "Cost Price",
-                   prefixText: "Rs. ",
-                   border: OutlineInputBorder(),
+              if (canViewCost) ...[
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _costController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                     labelText: "Cost Price",
+                     prefixText: "Rs. ",
+                     border: OutlineInputBorder(),
+                  ),
+                  onTap: () => _costController.selection = TextSelection(baseOffset: 0, extentOffset: _costController.text.length),
                 ),
-                onTap: () => _costController.selection = TextSelection(baseOffset: 0, extentOffset: _costController.text.length),
-              ),
+              ],
               const SizedBox(height: 16),
             ],
 
@@ -251,22 +256,25 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
   }
 
   void _saveChanges() {
+     final user = ref.read(userProfileProvider).value;
+     final canViewCost = user == null ? true : (user.isAdmin || user.hasPermission(AppPermissions.canViewCostPrice));
+
      // Parse Values
      final name = _nameController.text;
      double sellingPrice = double.tryParse(_priceController.text) ?? 0.0;
-     double costPrice = double.tryParse(_costController.text) ?? 0.0;
+     double costPrice = canViewCost ? (double.tryParse(_costController.text) ?? 0.0) : widget.product.costPrice;
      double? lowStock;
 
      // Handle Unit Conversion for Measurables
      if (widget.product.baseUnit == 'g' || widget.product.baseUnit == 'ml') {
         sellingPrice /= 1000;
-        costPrice /= 1000;
+        if (canViewCost) costPrice /= 1000;
         if (_lowStockController.text.isNotEmpty) {
            lowStock = QuantityParser.parse(_lowStockController.text, widget.product.baseUnit!);
         }
      } else if (widget.product.baseUnit == 'cm') {
         sellingPrice /= 100;
-        costPrice /= 100;
+        if (canViewCost) costPrice /= 100;
         if (_lowStockController.text.isNotEmpty) {
            lowStock = QuantityParser.parse(_lowStockController.text, widget.product.baseUnit!);
         }

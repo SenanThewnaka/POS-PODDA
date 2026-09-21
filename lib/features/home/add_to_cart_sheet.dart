@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/home/cart_provider.dart';
 import 'package:sme_buddy/features/inventory/product_model.dart';
+import 'package:sme_buddy/features/users/user_repository.dart';
+import 'package:sme_buddy/features/users/app_permissions.dart';
 import 'package:sme_buddy/utils/quantity_parser.dart';
 import 'package:sme_buddy/utils/unit_formatter.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
@@ -208,6 +210,10 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(userProfileProvider).valueOrNull;
+    final canGiveDiscount = user == null ? true : (user.isAdmin || user.hasPermission(AppPermissions.canGiveDiscount));
+    final canViewCost = user == null ? true : (user.isAdmin || user.hasPermission(AppPermissions.canViewCostPrice));
+
     // Financial Calcs
     
     // 1. Calculate Standard Totals using EFFECTIVE Rate (from batch selection)
@@ -409,7 +415,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                     const SizedBox(height: 16),
                     
                     // DISCOUNT TYPE TOGGLE
-                    if (!widget.product.isVariablePrice)
+                    if (!widget.product.isVariablePrice && canGiveDiscount)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Row(
@@ -447,7 +453,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                       ),
                     
                     // COST FIELD (Variable OR SERVICE)
-                    if (widget.product.isVariablePrice || widget.product.productType == 'SERVICE') ...[
+                    if ((widget.product.isVariablePrice || widget.product.productType == 'SERVICE') && canViewCost) ...[
                        TextField(
                          controller: _manualCostController,
                          focusNode: _costFocusNode,
@@ -476,6 +482,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                     ],
 
                     // DISCOUNT / OVERRIDE / VARIABLE PRICE FIELD
+                    if (widget.product.isVariablePrice || canGiveDiscount)
                     TextField(
                       controller: _overridePriceController,
                       focusNode: _discountFocusNode,
@@ -529,18 +536,15 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                ),
             ],
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
-            // FINANCIALS CARD
-            Container(
+          // Total Preview Container
+          Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark ? Colors.black.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.5),
+              color: Theme.of(context).brightness == Brightness.dark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? Colors.white12 : Colors.black12),
-              boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, spreadRadius: 2)
-              ]
             ),
             child: Column(
               children: [
@@ -551,8 +555,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                     Text("Rs. ${finalTotalSelling.toStringAsFixed(2)}", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
                   ],
                 ),
-                // Show Cost/Profit for ALL items now (including services) if cost logic is satisfied
-                if (true) ...[
+                if (canViewCost) ...[
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,

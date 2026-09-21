@@ -1137,7 +1137,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
           ),
 
-          if (user.hasPermission(AppPermissions.canManageInventory))
+          if (user.hasPermission(AppPermissions.canManageGRN))
           ListTile(
             leading: const Icon(Icons.local_shipping_outlined, color: Colors.cyanAccent),
             title: const Text("Procurement & ERP (GRN)"),
@@ -1157,6 +1157,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
           ),
 
+          if (user.isAdmin || user.hasPermission(AppPermissions.canManageShifts))
           ListTile(
             leading: const Icon(Icons.point_of_sale_rounded, color: Colors.greenAccent),
             title: const Text("Shifts & Cash Balancing"),
@@ -1166,7 +1167,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
           ),
           
-          if (user.isAdmin) 
+          if (user.isAdmin || user.hasPermission(AppPermissions.canViewSalesReports)) 
           ListTile(
             leading: const Icon(Icons.bar_chart),
             title: const Text("Daily Reports"),
