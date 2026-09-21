@@ -91,6 +91,39 @@ class FakeProcurementRepository implements ProcurementRepository {
   }
 }
 
+class FakeProductRepository extends ProductRepository {
+  final List<Product> products;
+  final List<Product> addedProducts = [];
+  final StreamController<List<Product>> _productStreamCtrl =
+      StreamController<List<Product>>.broadcast();
+
+  FakeProductRepository({List<Product>? initialProducts})
+      : products = List.from(initialProducts ?? []),
+        super('test-shop-id') {
+    _productStreamCtrl.add(products);
+  }
+
+  @override
+  Stream<List<Product>> productsStream() async* {
+    yield List.from(products);
+    yield* _productStreamCtrl.stream;
+  }
+
+  @override
+  Future<Product> addProduct(Product product) async {
+    final newId = product.id.isEmpty ? 'prod-${products.length + 1}' : product.id;
+    final saved = product.copyWith(id: newId);
+    products.add(saved);
+    addedProducts.add(saved);
+    _productStreamCtrl.add(List.from(products));
+    return saved;
+  }
+
+  void dispose() {
+    _productStreamCtrl.close();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Test Data & Helpers
 // ---------------------------------------------------------------------------
@@ -157,6 +190,7 @@ final List<Product> _sampleProducts = [
 Widget _wrapWithProviders({
   required Widget child,
   FakeProcurementRepository? procurementRepo,
+  FakeProductRepository? productRepo,
   List<Product>? products,
   List<SupplierModel>? suppliers,
 }) {
@@ -164,14 +198,19 @@ Widget _wrapWithProviders({
       FakeProcurementRepository(
         initialSuppliers: suppliers ?? _sampleSuppliers,
       );
+  final pRepo = productRepo ??
+      FakeProductRepository(
+        initialProducts: products ?? _sampleProducts,
+      );
 
   return ProviderScope(
     overrides: [
       userProfileProvider.overrideWith((ref) => Stream.value(_testUser)),
       procurementRepositoryProvider.overrideWithValue(repo),
+      productRepositoryProvider.overrideWithValue(pRepo),
       suppliersStreamProvider.overrideWith((ref) => repo.getSuppliersStream()),
       grnListStreamProvider.overrideWith((ref) => repo.getGRNListStream()),
-      productsStreamProvider.overrideWith((ref) => Stream.value(products ?? _sampleProducts)),
+      productsStreamProvider.overrideWith((ref) => pRepo.productsStream()),
     ],
     child: MaterialApp(
       home: Scaffold(body: child),
@@ -672,6 +711,133 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Procurement & GRN Inward'), findsOneWidget);
       handle.dispose();
+    });
+  });
+
+  group('Category F: Inline Product Creation from GRN', () {
+    testWidgets('TC-PRC-21: Inline product creation modal allows toggling, margins calculation, and prefilling', (tester) async {
+      final pRepo = FakeProductRepository(initialProducts: _sampleProducts);
+      tester.view.physicalSize = const Size(800 * 2.0, 1200 * 2.0);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(_wrapWithProviders(
+        child: const CreateGRNScreen(),
+        productRepo: pRepo,
+      ));
+      await tester.pumpAndSettle();
+
+      // 1. Open modal via ADD ITEM
+      await tester.tap(find.text('ADD ITEM'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('New Item'), findsOneWidget);
+      expect(find.text('Add Inward Product'), findsOneWidget);
+
+      // 2. Tap 'New Item' to switch to inline creation mode
+      await tester.tap(find.text('New Item'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Create New Item & Inward'), findsOneWidget);
+      expect(find.text('Back to Search'), findsOneWidget);
+
+      // Verify form fields exist
+      final nameField = find.widgetWithText(TextFormField, 'Product Name *');
+      final qtyField = find.widgetWithText(TextFormField, 'Received Qty *');
+      final costField = find.widgetWithText(TextFormField, 'Unit Cost (Rs.) *');
+      final sellingField = find.widgetWithText(TextFormField, 'Batch Selling Price (Rs.) *');
+
+      expect(nameField, findsOneWidget);
+      expect(qtyField, findsOneWidget);
+      expect(costField, findsOneWidget);
+      expect(sellingField, findsOneWidget);
+
+      // 3. Test real-time gross margin calculation
+      await tester.enterText(costField, '200');
+      await tester.enterText(sellingField, '300');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Profit: Rs. 100.00 / unit'), findsOneWidget);
+      expect(find.text('Margin: 33.3%'), findsOneWidget);
+
+      // 4. Test "Back to Search"
+      await tester.tap(find.text('Back to Search'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add Inward Product'), findsOneWidget);
+
+      // 5. Test empty search query creates prefill button
+      final searchField = find.widgetWithText(TextField, 'Search Catalog Item');
+      await tester.enterText(searchField, 'Maliban Ginger Biscuits 200g');
+      await tester.pumpAndSettle();
+
+      final createPrompt = find.text("Create 'maliban ginger biscuits 200g'");
+      expect(createPrompt, findsOneWidget);
+
+      await tester.tap(createPrompt);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Create New Item & Inward'), findsOneWidget);
+      final prefilledNameField = tester.widget<TextFormField>(find.widgetWithText(TextFormField, 'Product Name *'));
+      expect(prefilledNameField.controller?.text, 'maliban ginger biscuits 200g');
+    });
+
+    testWidgets('TC-PRC-22: Submitting inline product creation saves product with 0 stock and adds to GRN items', (tester) async {
+      final pRepo = FakeProductRepository(initialProducts: _sampleProducts);
+      tester.view.physicalSize = const Size(800 * 2.0, 1200 * 2.0);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(_wrapWithProviders(
+        child: const CreateGRNScreen(),
+        productRepo: pRepo,
+      ));
+      await tester.pumpAndSettle();
+
+      // Open Add Item modal
+      await tester.tap(find.text('ADD ITEM'));
+      await tester.pumpAndSettle();
+
+      // Switch to new product form
+      await tester.tap(find.text('New Item'));
+      await tester.pumpAndSettle();
+
+      // Fill in product details
+      await tester.enterText(find.widgetWithText(TextFormField, 'Product Name *'), 'Fresh Orange Juice 500ml');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Barcode (Optional)'), '4799000123456');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Received Qty *'), '25');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Unit Cost (Rs.) *'), '180');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Batch Selling Price (Rs.) *'), '250');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Low Stock Alert'), '8');
+      await tester.pumpAndSettle();
+
+      // Submit
+      final createButton = find.widgetWithText(ElevatedButton, 'Create & Add to GRN');
+      expect(createButton, findsOneWidget);
+      await tester.ensureVisible(createButton);
+      await tester.tap(createButton);
+      await tester.pumpAndSettle();
+
+      // Verify product was created and persisted in repo
+      expect(pRepo.addedProducts.length, 1);
+      final savedProduct = pRepo.addedProducts.first;
+      expect(savedProduct.name, 'Fresh Orange Juice 500ml');
+      expect(savedProduct.barcode, '4799000123456');
+      expect(savedProduct.costPrice, 180.0);
+      expect(savedProduct.sellingPrice, 250.0);
+      expect(savedProduct.currentStock, 0.0); // CRITICAL: initial stock 0.0 so GRN inward increments without duplicating
+      expect(savedProduct.lowStockThreshold, 8.0);
+      expect(savedProduct.isActive, true);
+
+      // Verify GRN line items now list the newly added product
+      expect(find.text('Fresh Orange Juice 500ml'), findsOneWidget);
+      expect(find.text('Rs. 4500.00'), findsNWidgets(2)); // In line item subtotal and totals summary card
     });
   });
 }
