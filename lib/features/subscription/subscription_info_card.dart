@@ -20,7 +20,6 @@ class SubscriptionInfoCard extends ConsumerWidget {
         final daysLeft = expiry.difference(now).inDays;
         final isExpired = now.isAfter(expiry);
         
-        // Trial UI - Updated for Dark/Glass Theme
         final isDark = Theme.of(context).brightness == Brightness.dark;
         
         Color baseColor = isDark ? Colors.blue : Colors.blueAccent;
@@ -49,8 +48,13 @@ class SubscriptionInfoCard extends ConsumerWidget {
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: accentColor.withValues(alpha: 0.3)),
             boxShadow: [
-              BoxShadow(color: baseColor.withValues(alpha: 0.05), blurRadius: 10, spreadRadius: 0, offset: const Offset(0, 4))
-            ]
+              BoxShadow(
+                color: baseColor.withValues(alpha: 0.05),
+                blurRadius: 10,
+                spreadRadius: 0,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -61,10 +65,27 @@ class SubscriptionInfoCard extends ConsumerWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("CURRENT PLAN", style: TextStyle(fontSize: 12, color: accentColor.withValues(alpha: 0.8), fontWeight: FontWeight.bold)),
+                      Text(
+                        "CURRENT PLAN",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: accentColor.withValues(alpha: 0.8),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text(planLabel, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: accentColor)),
-                      Text(cycleLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54)),
+                      Text(
+                        planLabel,
+                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: accentColor),
+                      ),
+                      Text(
+                        cycleLabel,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white70 : Colors.black54,
+                        ),
+                      ),
                     ],
                   ),
                   Container(
@@ -72,13 +93,13 @@ class SubscriptionInfoCard extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color: isExpired ? Colors.red.withValues(alpha: 0.8) : Colors.green.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white24)
+                      border: Border.all(color: Colors.white24),
                     ),
                     child: Text(
                       isExpired ? "EXPIRED" : "ACTIVE",
                       style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                     ),
-                  )
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -87,7 +108,7 @@ class SubscriptionInfoCard extends ConsumerWidget {
                  Row(
                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                    children: [
-                      Text("Expires On:", style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87)),
+                      Text("Expires On:", style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
                       Text(DateFormat('MMM dd, yyyy').format(expiry), style: TextStyle(fontWeight: FontWeight.bold, color: accentColor)),
                    ],
                  ),
@@ -96,7 +117,7 @@ class SubscriptionInfoCard extends ConsumerWidget {
                    borderRadius: BorderRadius.circular(4),
                    child: LinearProgressIndicator(
                      value: (daysLeft / 14).clamp(0.0, 1.0), 
-                     backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.black12,
+                     backgroundColor: isDark ? Colors.white10 : Colors.black12,
                      color: daysLeft < 3 ? Colors.redAccent : accentColor,
                      minHeight: 6,
                    ),
@@ -107,33 +128,36 @@ class SubscriptionInfoCard extends ConsumerWidget {
                    style: TextStyle(color: daysLeft < 3 ? Colors.redAccent : accentColor, fontWeight: FontWeight.bold),
                  ),
               ] else ...[
-                 Text(
+                 const Text(
                    "Your subscription has ended. You are in Read-Only Mode.",
                    style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
                  ),
-                 const SizedBox(height: 8),
-
-                  Text(
-                   "Account management: yourdomain.com",
-                   style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38),
-                 )
+                 const SizedBox(height: 6),
+                 Text(
+                   "Renew now to restore full access via Payments.lk (Cards & LANKAQR)",
+                   style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
+                 ),
               ],
               
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton(
+                child: ElevatedButton(
                   onPressed: () {
                      Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen()));
                   },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: accentColor,
-                    side: BorderSide(color: accentColor.withValues(alpha: 0.5)),
-                    padding: const EdgeInsets.symmetric(vertical: 12)
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ), 
-                  child: const Text("VIEW PLANS & FEATURES", style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text(
+                    isExpired ? "RENEW SUBSCRIPTION NOW" : "EXTEND / MANAGE PLAN",
+                    style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                  ),
                 ),
-              )
+              ),
             ],
           ),
         );
