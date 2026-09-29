@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -63,12 +64,54 @@ class PaymentsLkService {
   final String apiKey;
   final http.Client _client;
   final String baseUrl;
+  final FirebaseFunctions? _functions;
 
   PaymentsLkService({
     this.apiKey = 'sk_test_6mCLo77J9PgL6TFt0HX2ddCVSChgDFNW',
     http.Client? client,
     this.baseUrl = 'https://api.payments.lk/v1',
-  }) : _client = client ?? http.Client();
+    FirebaseFunctions? functions,
+  })  : _client = client ?? http.Client(),
+        _functions = functions;
+
+  FirebaseFunctions get functionsInstance =>
+      _functions ?? FirebaseFunctions.instance;
+
+  /// Secure Cloud Function: Creates checkout session server-to-server.
+  /// Eliminates CORS issues on Web, PWA, Android, and iOS while protecting secret keys.
+  Future<PaymentsLkCheckoutResult> createCheckoutViaCloudFunction({
+    required String tier,
+    required String cycleKey,
+  }) async {
+    final callable = functionsInstance.httpsCallable('createCheckoutSession');
+    final response = await callable.call({
+      'tier': tier,
+      'cycleKey': cycleKey,
+    });
+
+    final data = Map<String, dynamic>.from(response.data as Map);
+    return PaymentsLkCheckoutResult(
+      checkoutId: data['checkoutId'] as String? ?? '',
+      paymentId: data['paymentId'] as String?,
+      url: data['checkoutUrl'] as String? ?? '',
+      status: data['status'] as String? ?? 'open',
+      amountCents: (data['amountCents'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// Secure Cloud Function: Verifies payment on server and updates Firestore.
+  Future<Map<String, dynamic>> verifyPaymentViaCloudFunction({
+    String? paymentId,
+    String? checkoutId,
+  }) async {
+    final callable = functionsInstance.httpsCallable('verifyPaymentSession');
+    final response = await callable.call({
+      if (paymentId != null) 'paymentId': paymentId,
+      if (checkoutId != null) 'checkoutId': checkoutId,
+    });
+
+    return Map<String, dynamic>.from(response.data as Map);
+  }
 
   Map<String, String> get _headers => {
         'Authorization': 'Bearer $apiKey',

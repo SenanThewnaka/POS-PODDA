@@ -73,32 +73,52 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
     try {
       final paymentsService = ref.read(paymentsLkServiceProvider);
-      final refId = 'sub_${user.shopId}_${DateTime.now().millisecondsSinceEpoch}';
-      final tierName = _selectedTier == 'plus' ? 'Plus' : 'Pro';
+      PaymentsLkCheckoutResult? checkout;
 
-      final checkout = await paymentsService.createCheckout(
-        amountCents: _selectedOption.amountCents,
-        description: 'POS Podda $tierName - ${_selectedOption.label} Subscription',
-        reference: refId,
-        customerEmail: user.email,
-        customerName: user.name,
-        customerPhone: user.mobile,
-      );
+      // 1. Prefer secure Cloud Function (Universal: Web, PWA, Android, iOS with no CORS)
+      try {
+        checkout = await paymentsService.createCheckoutViaCloudFunction(
+          tier: _selectedTier,
+          cycleKey: _selectedOption.cycleKey,
+        );
+      } catch (cloudErr) {
+        debugPrint("Cloud function checkout attempt: $cloudErr");
+        // Fallback: If running offline or Cloud Function is not yet deployed,
+        // native platforms can call direct gateway, while Web shows the sandbox dialog
+        if (!kIsWeb) {
+          final refId = 'sub_${user.shopId}_${DateTime.now().millisecondsSinceEpoch}';
+          final tierName = _selectedTier == 'plus' ? 'Plus' : 'Pro';
+          checkout = await paymentsService.createCheckout(
+            amountCents: _selectedOption.amountCents,
+            description: 'POS Podda $tierName - ${_selectedOption.label} Subscription',
+            reference: refId,
+            customerEmail: user.email,
+            customerName: user.name,
+            customerPhone: user.mobile,
+          );
+        } else {
+          rethrow;
+        }
+      }
 
       if (mounted) setState(() => _isLoading = false);
 
-      if (checkout.url.isNotEmpty) {
+      if (checkout != null && checkout.url.isNotEmpty) {
         await launchUrlString(checkout.url, mode: LaunchMode.externalApplication);
 
-        if (mounted && checkout.paymentId != null) {
-          _showVerificationModal(checkout.paymentId!, checkout.url);
+        if (mounted && (checkout.paymentId != null || checkout.checkoutId.isNotEmpty)) {
+          _showVerificationModal(checkout.paymentId ?? '', checkout.url, checkout.checkoutId);
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        final isCorsError = kIsWeb || e.toString().contains('Failed to fetch') || e.toString().contains('ClientException');
-        if (isCorsError) {
+        final isCorsOrFunctionError = kIsWeb ||
+            e.toString().contains('Failed to fetch') ||
+            e.toString().contains('ClientException') ||
+            e.toString().contains('functions') ||
+            e.toString().contains('FirebaseFunctionsException');
+        if (isCorsOrFunctionError) {
           _showWebCorsTestingDialog(_selectedOption);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -194,7 +214,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     );
   }
 
-  void _showVerificationModal(String paymentId, String checkoutUrl) {
+  void _showVerificationModal(String paymentId, String checkoutUrl, [String? checkoutId]) {
     showModalBottomSheet(
       context: context,
       isDismissible: false,
@@ -241,18 +261,37 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                             setModalState(() => isChecking = true);
                             try {
                               final paymentsService = ref.read(paymentsLkServiceProvider);
-                              final payment = await paymentsService.getPayment(paymentId);
+                              bool isSucceeded = false;
 
-                              if (payment.status == 'succeeded') {
+                              // Try Cloud Function verification first
+                              try {
+                                final res = await paymentsService.verifyPaymentViaCloudFunction(
+                                  paymentId: paymentId.isNotEmpty ? paymentId : null,
+                                  checkoutId: checkoutId,
+                                );
+                                if (res['status'] == 'succeeded') {
+                                  isSucceeded = true;
+                                }
+                              } catch (_) {
+                                // Fallback to direct gateway check if available
+                                if (paymentId.isNotEmpty) {
+                                  final payment = await paymentsService.getPayment(paymentId);
+                                  if (payment.status == 'succeeded') {
+                                    isSucceeded = true;
+                                  }
+                                }
+                              }
+
+                              if (isSucceeded) {
                                 if (context.mounted) Navigator.pop(sheetContext);
                                 await _activateSubscription(_selectedOption);
                               } else {
                                 setModalState(() => isChecking = false);
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
+                                    const SnackBar(
                                       content: Text(
-                                        "Payment status: ${payment.status.toUpperCase()}. If you completed checkout, please allow a moment and try again.",
+                                        "Payment is pending or not yet confirmed. If you completed checkout, please allow a moment and tap again.",
                                       ),
                                       backgroundColor: Colors.orangeAccent,
                                     ),
