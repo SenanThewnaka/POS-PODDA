@@ -61,5 +61,7 @@ unnamed-*.jpg
 # Node / Cloud Functions
 functions/node_modules/
 functions/.runtimeconfig.json
+.env
+functions/.env
 firebase-debug.log
 firebase-debug.*.log
