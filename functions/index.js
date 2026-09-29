@@ -89,10 +89,10 @@ exports.createCheckoutSession = onCall({ cors: true }, async (request) => {
     headers: {
       Authorization: `Bearer ${secretKey}`,
       "Content-Type": "application/json",
+      "Idempotency-Key": `chk_${refId}_${Date.now()}`,
     },
     body: JSON.stringify({
       amountCents: planOption.amountCents,
-      currency: "LKR",
       description: description,
       reference: refId,
       customer: {
