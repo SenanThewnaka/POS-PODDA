@@ -5,6 +5,8 @@ import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
 import 'package:sme_buddy/features/auth/verification_service.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:intl/intl.dart';
+import 'package:sme_buddy/features/subscription/plans_screen.dart';
 import 'dart:math';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -224,6 +226,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                      leading: const Icon(Icons.badge),
                      title: Text(user.role.toUpperCase()),
                      subtitle: const Text("Role"),
+                   ),
+                   const SizedBox(height: 24),
+                   _buildSectionHeader("Subscription & Plan"),
+                   ListTile(
+                     leading: const Icon(Icons.workspace_premium_rounded, color: Colors.amberAccent),
+                     title: Text(user.plan.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                     subtitle: Text(
+                       user.expiryDate != null
+                           ? (DateTime.now().isAfter(user.expiryDate!)
+                               ? "Expired on ${DateFormat('MMM dd, yyyy').format(user.expiryDate!)}"
+                               : "Expires on ${DateFormat('MMM dd, yyyy').format(user.expiryDate!)}")
+                           : "No active subscription / Inactive",
+                       style: TextStyle(
+                         color: (user.expiryDate == null || DateTime.now().isAfter(user.expiryDate!))
+                             ? Colors.redAccent
+                             : null,
+                       ),
+                     ),
+                     trailing: ElevatedButton(
+                       style: ElevatedButton.styleFrom(
+                         backgroundColor: Colors.cyanAccent.withValues(alpha: 0.2),
+                         foregroundColor: Colors.cyanAccent,
+                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                       ),
+                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen())),
+                       child: const Text("MANAGE / EXTEND"),
+                     ),
                    ),
                 ],
               ),

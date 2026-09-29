@@ -13,12 +13,12 @@ class SubscriptionInfoCard extends ConsumerWidget {
 
     return userAsync.when(
       data: (user) {
-        if (user == null || user.expiryDate == null) return const SizedBox();
+        if (user == null) return const SizedBox();
 
         final now = DateTime.now();
-        final expiry = user.expiryDate!;
-        final daysLeft = expiry.difference(now).inDays;
-        final isExpired = now.isAfter(expiry);
+        final expiry = user.expiryDate;
+        final isExpired = expiry == null || now.isAfter(expiry);
+        final daysLeft = expiry != null ? expiry.difference(now).inDays : 0;
         
         final isDark = Theme.of(context).brightness == Brightness.dark;
         
@@ -104,7 +104,7 @@ class SubscriptionInfoCard extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               
-              if (!isExpired) ...[
+              if (!isExpired && expiry != null) ...[
                  Row(
                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                    children: [
@@ -116,7 +116,7 @@ class SubscriptionInfoCard extends ConsumerWidget {
                  ClipRRect(
                    borderRadius: BorderRadius.circular(4),
                    child: LinearProgressIndicator(
-                     value: (daysLeft / 14).clamp(0.0, 1.0), 
+                     value: (daysLeft / 30).clamp(0.0, 1.0), 
                      backgroundColor: isDark ? Colors.white10 : Colors.black12,
                      color: daysLeft < 3 ? Colors.redAccent : accentColor,
                      minHeight: 6,
@@ -128,13 +128,17 @@ class SubscriptionInfoCard extends ConsumerWidget {
                    style: TextStyle(color: daysLeft < 3 ? Colors.redAccent : accentColor, fontWeight: FontWeight.bold),
                  ),
               ] else ...[
-                 const Text(
-                   "Your subscription has ended. You are in Read-Only Mode.",
-                   style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                 Text(
+                   isExpired
+                       ? (expiry != null 
+                           ? "Your plan expired on ${DateFormat('MMM dd, yyyy').format(expiry)}."
+                           : "Your subscription is inactive.")
+                       : "No active plan expiry set.",
+                   style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
                  ),
                  const SizedBox(height: 6),
                  Text(
-                   "Renew now to restore full access via Payments.lk (Cards & LANKAQR)",
+                   "Renew or choose a plan to restore full access via Payments.lk (Cards & LANKAQR)",
                    style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
                  ),
               ],
@@ -142,20 +146,21 @@ class SubscriptionInfoCard extends ConsumerWidget {
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
                   onPressed: () {
                      Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen()));
                   },
+                  icon: Icon(isExpired ? Icons.bolt_rounded : Icons.workspace_premium_rounded, size: 20),
+                  label: Text(
+                    isExpired ? "RENEW / EXTEND PLAN" : "EXTEND / MANAGE PLAN",
+                    style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: accentColor,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ), 
-                  child: Text(
-                    isExpired ? "RENEW SUBSCRIPTION NOW" : "EXTEND / MANAGE PLAN",
-                    style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                  ),
                 ),
               ),
             ],

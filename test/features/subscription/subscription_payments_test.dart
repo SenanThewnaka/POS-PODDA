@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:sme_buddy/features/subscription/subscription_plan_model.dart';
 import 'package:sme_buddy/features/subscription/payments_lk_service.dart';
 import 'package:sme_buddy/features/subscription/plans_screen.dart';
+import 'package:sme_buddy/features/subscription/subscription_info_card.dart';
 import 'package:sme_buddy/features/users/user_model.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
 
@@ -209,6 +210,133 @@ void main() {
 
       // Gateway trust assurance
       expect(find.textContaining("Secured by Payments.lk"), findsOneWidget);
+    });
+
+    testWidgets('renders status banner when expiryDate is null', (tester) async {
+      final testUser = UserModel(
+        uid: 'owner-2',
+        email: 'owner2@test.sme',
+        name: 'Kasun Silva',
+        mobile: '0779998888',
+        role: 'owner',
+        shopId: 'shop-002',
+        plan: 'trial',
+        subscriptionStatus: 'expired',
+        billingCycle: 'trial',
+        expiryDate: null,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            userProfileProvider.overrideWith((ref) => Stream.value(testUser)),
+          ],
+          child: const MaterialApp(
+            home: PlansScreen(),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      expect(find.text("Current Plan: TRIAL"), findsOneWidget);
+      expect(find.text("No active subscription / Inactive"), findsOneWidget);
+    });
+  });
+
+  group('SubscriptionInfoCard Widget Tests', () {
+    testWidgets('renders active plan with EXTEND / MANAGE PLAN button', (tester) async {
+      final activeUser = UserModel(
+        uid: 'owner-3',
+        email: 'active@test.sme',
+        name: 'Amal',
+        mobile: '0771112233',
+        role: 'owner',
+        shopId: 'shop-003',
+        plan: 'pro',
+        subscriptionStatus: 'active',
+        billingCycle: 'yearly',
+        expiryDate: DateTime.now().add(const Duration(days: 45)),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            userProfileProvider.overrideWith((ref) => Stream.value(activeUser)),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: SubscriptionInfoCard()),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      expect(find.text("PRO"), findsOneWidget);
+      expect(find.text("ACTIVE"), findsOneWidget);
+      expect(find.textContaining("Days Remaining"), findsOneWidget);
+      expect(find.text("EXTEND / MANAGE PLAN"), findsOneWidget);
+    });
+
+    testWidgets('renders expired plan with RENEW / EXTEND PLAN button', (tester) async {
+      final expiredUser = UserModel(
+        uid: 'owner-4',
+        email: 'expired@test.sme',
+        name: 'Kamal',
+        mobile: '0774445566',
+        role: 'owner',
+        shopId: 'shop-004',
+        plan: 'trial',
+        subscriptionStatus: 'expired',
+        billingCycle: 'monthly',
+        expiryDate: DateTime.now().subtract(const Duration(days: 2)),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            userProfileProvider.overrideWith((ref) => Stream.value(expiredUser)),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: SubscriptionInfoCard()),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      expect(find.text("TRIAL"), findsOneWidget);
+      expect(find.text("EXPIRED"), findsOneWidget);
+      expect(find.text("RENEW / EXTEND PLAN"), findsOneWidget);
+    });
+
+    testWidgets('handles null expiryDate gracefully without throwing', (tester) async {
+      final nullExpiryUser = UserModel(
+        uid: 'owner-5',
+        email: 'nullexpiry@test.sme',
+        name: 'Nimal',
+        mobile: '0777778888',
+        role: 'owner',
+        shopId: 'shop-005',
+        plan: 'trial',
+        subscriptionStatus: 'expired',
+        billingCycle: 'monthly',
+        expiryDate: null,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            userProfileProvider.overrideWith((ref) => Stream.value(nullExpiryUser)),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: SubscriptionInfoCard()),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      expect(find.text("TRIAL"), findsOneWidget);
+      expect(find.text("EXPIRED"), findsOneWidget);
+      expect(find.text("Your subscription is inactive."), findsOneWidget);
+      expect(find.text("RENEW / EXTEND PLAN"), findsOneWidget);
     });
   });
 }

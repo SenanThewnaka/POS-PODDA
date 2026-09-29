@@ -262,7 +262,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Current Plan Status Header
-            if (user?.expiryDate != null) _buildCurrentStatusBanner(user!, isDark),
+            if (user != null) _buildCurrentStatusBanner(user, isDark),
             const SizedBox(height: 20),
 
             Text(
@@ -329,9 +329,9 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
   Widget _buildCurrentStatusBanner(user, bool isDark) {
     final now = DateTime.now();
-    final expiry = user.expiryDate!;
-    final isExpired = now.isAfter(expiry);
-    final daysLeft = expiry.difference(now).inDays;
+    final expiry = user.expiryDate;
+    final isExpired = expiry == null || now.isAfter(expiry);
+    final daysLeft = expiry != null ? expiry.difference(now).inDays : 0;
 
     return GlassCard(
       borderRadius: 16,
@@ -359,8 +359,10 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                 ),
                 Text(
                   isExpired
-                      ? "Expired on ${DateFormat('MMM dd, yyyy').format(expiry)}"
-                      : "$daysLeft days left (Expires ${DateFormat('MMM dd, yyyy').format(expiry)})",
+                      ? (expiry != null
+                          ? "Expired on ${DateFormat('MMM dd, yyyy').format(expiry)}"
+                          : "No active subscription / Inactive")
+                      : "$daysLeft days left (Expires ${DateFormat('MMM dd, yyyy').format(expiry!)})",
                   style: TextStyle(
                     fontSize: 12,
                     color: isExpired ? Colors.redAccent : (isDark ? Colors.white70 : Colors.black54),

@@ -58,4 +58,34 @@ class UserProfileRepository {
               .toList();
         });
   }
+
+  // Cancel or expire a specific user's subscription (for testing or cancellation)
+  Future<void> cancelSubscription(String uid) async {
+    final pastDate = Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 1)));
+    await _collection.doc(uid).update({
+      'plan': 'trial',
+      'subscriptionStatus': 'expired',
+      'expiryDate': pastDate,
+    });
+  }
+
+  // Reset all active user subscriptions to expired (for testing sandbox payments)
+  Future<int> resetAllSubscriptionsForTesting() async {
+    final query = await _collection.get();
+    final batch = FirebaseFirestore.instance.batch();
+    int count = 0;
+    final pastDate = Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 1)));
+    for (final doc in query.docs) {
+      batch.update(doc.reference, {
+        'plan': 'trial',
+        'subscriptionStatus': 'expired',
+        'expiryDate': pastDate,
+      });
+      count++;
+    }
+    if (count > 0) {
+      await batch.commit();
+    }
+    return count;
+  }
 }

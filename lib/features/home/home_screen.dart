@@ -17,6 +17,7 @@ import 'package:sme_buddy/utils/unit_formatter.dart';
 import 'dart:async'; // For Timer hiding
 import 'package:flutter/services.dart'; // For KeyboardListener
 import 'package:sme_buddy/features/settings/settings_screen.dart';
+import 'package:sme_buddy/features/subscription/plans_screen.dart';
 import 'package:sme_buddy/features/users/user_model.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/users/app_permissions.dart';
@@ -689,6 +690,83 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               );
             },
           ),
+          // Subscription & Plan Pill (Prominently visible on Desktop/PC >= 1100px)
+          if (context.isDesktop)
+            Consumer(
+              builder: (context, ref, child) {
+                final user = ref.watch(userProfileProvider).value;
+              if (user == null) return const SizedBox.shrink();
+
+              final now = DateTime.now();
+              final expiry = user.expiryDate;
+              final isExpired = expiry == null || now.isAfter(expiry);
+              final daysLeft = expiry != null ? expiry.difference(now).inDays : 0;
+
+              final Color badgeColor = isExpired
+                  ? Colors.redAccent
+                  : (user.plan == 'pro' ? const Color(0xFFA855F7) : Colors.cyanAccent);
+
+              return Padding(
+                padding: const EdgeInsets.only(left: 10),
+                child: Tooltip(
+                  message: isExpired
+                      ? "Subscription Expired - Click to Renew / Extend Plan"
+                      : "${user.plan.toUpperCase()} Plan ($daysLeft days remaining) - Click to Manage Plan",
+                  child: GlassCard(
+                    borderRadius: 16,
+                    height: 52,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    border: Border.all(
+                      color: badgeColor.withValues(alpha: isExpired ? 0.7 : 0.4),
+                      width: isExpired ? 1.5 : 1,
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PlansScreen()),
+                      );
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isExpired ? Icons.warning_amber_rounded : Icons.workspace_premium_rounded,
+                          color: badgeColor,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 6),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user.plan.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: badgeColor,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            Text(
+                              isExpired ? "EXPIRED • RENEW" : "${daysLeft}d • EXTEND",
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: isExpired
+                                    ? Colors.redAccent
+                                    : (isDark ? Colors.white70 : Colors.black54),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -742,6 +820,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white60 : Colors.black54,
                   ),
+                ),
+                const SizedBox(width: 16),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final user = ref.watch(userProfileProvider).value;
+                    if (user == null) return const SizedBox.shrink();
+
+                    final now = DateTime.now();
+                    final expiry = user.expiryDate;
+                    final isExpired = expiry == null || now.isAfter(expiry);
+                    final daysLeft = expiry != null ? expiry.difference(now).inDays : 0;
+                    final badgeColor = isExpired ? Colors.redAccent : Colors.cyanAccent;
+
+                    return InkWell(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen())),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: badgeColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(isExpired ? Icons.warning_amber_rounded : Icons.workspace_premium_rounded, size: 13, color: badgeColor),
+                            const SizedBox(width: 4),
+                            Text(
+                              "${user.plan.toUpperCase()} • ${isExpired ? 'EXPIRED' : '${daysLeft}d left'} • EXTEND",
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: badgeColor),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -1093,9 +1208,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (user == null) return const SizedBox(); 
     
     // Sub Logic
+    final now = DateTime.now();
     final expiry = user.expiryDate;
-    final daysLeft = expiry != null ? expiry.difference(DateTime.now()).inDays : 0;
-    final isExpired = daysLeft < 0;
+    final isExpired = expiry == null || now.isAfter(expiry);
+    final daysLeft = expiry != null ? expiry.difference(now).inDays : 0;
     
     return Drawer(
       child: ListView(
@@ -1106,24 +1222,85 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             currentAccountPicture: const CircleAvatar(child: Icon(Icons.store)),
           ),
           
-          // SUBSCRIPTION SUMMARY
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isExpired ? Colors.red.withValues(alpha: 0.1) : Colors.blue.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: isExpired ? Colors.redAccent.withValues(alpha: 0.5) : Colors.cyanAccent.withValues(alpha: 0.5)),
-            ),
-            child: Row(
-               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-               children: [
-                 Text(user.plan.toUpperCase(), style: TextStyle(fontWeight: FontWeight.bold, color: isExpired ? Colors.redAccent : Colors.cyanAccent)),
-                 Text(
-                   isExpired ? "EXPIRED" : "$daysLeft Days Left",
-                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isExpired ? Colors.red : Colors.cyan),
-                 )
-               ],
+          // SUBSCRIPTION SUMMARY (Interactive Card with Extend/Manage)
+          InkWell(
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen()));
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isExpired
+                    ? Colors.red.withValues(alpha: 0.12)
+                    : (user.plan == 'pro' ? Colors.purple.withValues(alpha: 0.12) : Colors.cyan.withValues(alpha: 0.12)),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isExpired
+                      ? Colors.redAccent.withValues(alpha: 0.6)
+                      : (user.plan == 'pro' ? Colors.purpleAccent.withValues(alpha: 0.6) : Colors.cyanAccent.withValues(alpha: 0.5)),
+                  width: 1.5,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            isExpired ? Icons.warning_amber_rounded : Icons.workspace_premium_rounded,
+                            color: isExpired ? Colors.redAccent : Colors.cyanAccent,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            user.plan.toUpperCase(),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isExpired ? Colors.redAccent : Colors.cyanAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isExpired ? Colors.red : Colors.green,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          isExpired ? "EXPIRED" : "$daysLeft Days Left",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        isExpired ? "Tap to renew subscription" : "Tap to extend or change plan",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isExpired ? Colors.redAccent : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87),
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.cyanAccent),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           
@@ -1178,6 +1355,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.workspace_premium_rounded, color: Colors.amberAccent),
+            title: const Text("Subscription & Plans"),
+            subtitle: Text(
+              isExpired ? "Plan Expired • Tap to renew" : "${user.plan.toUpperCase()} • $daysLeft days left",
+              style: TextStyle(
+                fontSize: 12,
+                color: isExpired ? Colors.redAccent : Colors.cyanAccent,
+              ),
+            ),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+            onTap: () {
+               Navigator.pop(context);
+               Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen()));
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text("Settings"),
