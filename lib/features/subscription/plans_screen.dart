@@ -113,11 +113,11 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        final isCorsOrFunctionError = kIsWeb ||
+        final isCorsOrFunctionError =
             e.toString().contains('Failed to fetch') ||
             e.toString().contains('ClientException') ||
-            e.toString().contains('functions') ||
-            e.toString().contains('FirebaseFunctionsException');
+            e.toString().contains('UNAVAILABLE') ||
+            e.toString().contains('unavailable');
         if (isCorsOrFunctionError) {
           _showWebCorsTestingDialog(_selectedOption);
         } else {

@@ -100,12 +100,6 @@ exports.createCheckoutSession = onCall({ cors: true }, async (request) => {
         email: customerEmail,
         phone: customerPhone,
       },
-      metadata: {
-        userId: uid,
-        tier: tier.toLowerCase(),
-        cycleKey: cycleKey.toLowerCase(),
-        durationDays: planOption.durationDays,
-      },
     }),
   });
 
@@ -213,19 +207,24 @@ exports.verifyPaymentSession = onCall({ cors: true }, async (request) => {
     const userDoc = await userRef.get();
     const userData = userDoc.exists ? userDoc.data() : {};
 
-    // Get metadata from payment or checkout
-    let metaTier = paymentData.metadata?.tier;
-    let metaCycle = paymentData.metadata?.cycleKey;
-    let durationDays = paymentData.metadata?.durationDays ? parseInt(paymentData.metadata.durationDays) : null;
+    // Get subscription tier and duration from Firestore checkout session
+    let metaTier;
+    let metaCycle;
+    let durationDays;
 
-    if (!durationDays && checkoutId) {
-      const checkoutDoc = await db.collection("subscription_checkouts").doc(checkoutId).get();
-      if (checkoutDoc.exists) {
-        const cData = checkoutDoc.data();
-        metaTier = metaTier || cData.tier;
-        metaCycle = metaCycle || cData.cycleKey;
-        durationDays = durationDays || cData.durationDays;
-      }
+    let checkoutDoc;
+    if (checkoutId) {
+      checkoutDoc = await db.collection("subscription_checkouts").doc(checkoutId).get();
+    } else if (effectivePaymentId) {
+      const snap = await db.collection("subscription_checkouts").where("paymentId", "==", effectivePaymentId).limit(1).get();
+      if (!snap.empty) checkoutDoc = snap.docs[0];
+    }
+
+    if (checkoutDoc && checkoutDoc.exists) {
+      const cData = checkoutDoc.data();
+      metaTier = cData.tier;
+      metaCycle = cData.cycleKey;
+      durationDays = cData.durationDays;
     }
 
     metaTier = metaTier || "pro";
@@ -246,8 +245,8 @@ exports.verifyPaymentSession = onCall({ cors: true }, async (request) => {
     });
 
     // Update checkout audit record
-    if (checkoutId) {
-      await db.collection("subscription_checkouts").doc(checkoutId).update({
+    if (checkoutDoc && checkoutDoc.exists) {
+      await checkoutDoc.ref.update({
         status: "completed",
         paymentStatus: "succeeded",
         activatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -285,10 +284,28 @@ exports.paymentsWebhook = onRequest({ cors: true }, async (req, res) => {
 
     if (event?.type === "payment.succeeded" || (event?.object === "payment" && event?.status === "succeeded")) {
       const payment = event.data?.object || event;
-      const uid = payment.metadata?.userId;
-      const durationDays = payment.metadata?.durationDays ? parseInt(payment.metadata.durationDays) : 30;
-      const tier = payment.metadata?.tier || "pro";
-      const cycleKey = payment.metadata?.cycleKey || "monthly";
+      const checkoutId = payment.checkoutId;
+      const paymentId = payment.id;
+      let uid = null;
+      let durationDays = 30;
+      let tier = "pro";
+      let cycleKey = "monthly";
+
+      let checkoutDoc;
+      if (checkoutId) {
+        checkoutDoc = await db.collection("subscription_checkouts").doc(checkoutId).get();
+      } else if (paymentId) {
+        const snap = await db.collection("subscription_checkouts").where("paymentId", "==", paymentId).limit(1).get();
+        if (!snap.empty) checkoutDoc = snap.docs[0];
+      }
+
+      if (checkoutDoc && checkoutDoc.exists) {
+        const cData = checkoutDoc.data();
+        uid = cData.userId;
+        tier = cData.tier || "pro";
+        cycleKey = cData.cycleKey || "monthly";
+        durationDays = cData.durationDays || 30;
+      }
 
       if (uid) {
         const userRef = db.collection("users").doc(uid);
