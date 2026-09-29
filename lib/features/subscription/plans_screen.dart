@@ -16,21 +16,53 @@ class PlansScreen extends ConsumerStatefulWidget {
 }
 
 class _PlansScreenState extends ConsumerState<PlansScreen> {
-  SubscriptionBillingOption _selectedOption = SubscriptionBillingOption.options[1]; // default 3 Months
+  String _selectedTier = 'pro'; // 'plus' or 'pro'
+  late SubscriptionBillingOption _selectedOption;
   bool _isLoading = false;
 
   final currencyFormatter = NumberFormat('#,##0', 'en_US');
 
+  final List<String> _plusFeatures = const [
+    "Full POS Billing & Fast Barcode Scanning",
+    "Thermal Receipt Printing (58mm / 80mm)",
+    "Inventory Catalog & Low Stock Alerts",
+    "Daily Sales Summary & Cash Shift Balancing",
+    "Single Counter / Single Device Operation",
+    "Automatic Cloud Sync & Local Backup",
+  ];
+
   final List<String> _proFeatures = const [
+    "Everything in Plus Included",
     "Unlimited Inventory Items & Dynamic Batches",
-    "Multi-Cashier Logins & Role Permission Templates",
+    "Multi-Cashier Logins & Custom Role Permissions",
     "Wholesale Purchase Cost & Margin Privacy Masking",
     "Supplier Goods Received Notes (GRN) Management",
     "Customer Credit Book (ණය පොත) & Settlement Receipts",
-    "Shift Management, Cash Reconciliation & Z-Reports",
-    "Barcode Sticker Generation & ESC/POS Printing",
-    "Automatic Cloud Sync & Multi-Device Access",
+    "Custom Thermal Bill Header, Footer & Store Logo",
+    "Advanced Financial Reports & Profit Analytics",
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Default to pro (or user's current tier if plus)
+    _selectedOption = SubscriptionBillingOption.proOptions[1]; // 3 Months default
+  }
+
+  void _switchTier(String tier) {
+    if (_selectedTier == tier) return;
+    setState(() {
+      _selectedTier = tier;
+      final newOptions = SubscriptionBillingOption.optionsForTier(tier);
+      _selectedOption = newOptions.firstWhere(
+        (o) => o.cycleKey == _selectedOption.cycleKey,
+        orElse: () => newOptions[1],
+      );
+    });
+  }
+
+  Color get _tierColor =>
+      _selectedTier == 'plus' ? const Color(0xFF0EA5E9) : const Color(0xFF6366F1);
 
   Future<void> _handlePayment() async {
     final user = ref.read(userProfileProvider).value;
@@ -41,10 +73,11 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     try {
       final paymentsService = ref.read(paymentsLkServiceProvider);
       final refId = 'sub_${user.shopId}_${DateTime.now().millisecondsSinceEpoch}';
+      final tierName = _selectedTier == 'plus' ? 'Plus' : 'Pro';
 
       final checkout = await paymentsService.createCheckout(
         amountCents: _selectedOption.amountCents,
-        description: 'POS Podda Pro - ${_selectedOption.label} Subscription',
+        description: 'POS Podda $tierName - ${_selectedOption.label} Subscription',
         reference: refId,
         customerEmail: user.email,
         customerName: user.name,
@@ -92,8 +125,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Center(
-                    child: Icon(Icons.payment, size: 48, color: Color(0xFF6366F1)),
+                  Center(
+                    child: Icon(Icons.payment, size: 48, color: _tierColor),
                   ),
                   const SizedBox(height: 16),
                   const Text(
@@ -122,8 +155,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                               final paymentsService = ref.read(paymentsLkServiceProvider);
                               final payment = await paymentsService.getPayment(paymentId);
 
-                              if (payment.isSucceeded) {
-                                Navigator.pop(sheetContext); // Close modal
+                              if (payment.status == 'succeeded') {
+                                if (context.mounted) Navigator.pop(sheetContext);
                                 await _activateSubscription(_selectedOption);
                               } else {
                                 setModalState(() => isChecking = false);
@@ -131,19 +164,19 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                        "Status: ${payment.status.toUpperCase()}. If you just paid, please wait a moment and tap verify again.",
+                                        "Payment status: ${payment.status.toUpperCase()}. If you completed checkout, please allow a moment and try again.",
                                       ),
-                                      backgroundColor: Colors.orange,
+                                      backgroundColor: Colors.orangeAccent,
                                     ),
                                   );
                                 }
                               }
-                            } catch (e) {
+                            } catch (err) {
                               setModalState(() => isChecking = false);
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text("Verification error: $e"),
+                                    content: Text("Verification error: $err"),
                                     backgroundColor: Colors.redAccent,
                                   ),
                                 );
@@ -151,10 +184,10 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                             }
                           },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6366F1),
+                      backgroundColor: const Color(0xFF10B981),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
                     child: isChecking
                         ? const SizedBox(
@@ -163,23 +196,20 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
                         : const Text(
-                            "I HAVE PAID • VERIFY & ACTIVATE",
+                            "I HAVE COMPLETED PAYMENT",
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      TextButton(
-                        onPressed: () => launchUrlString(checkoutUrl, mode: LaunchMode.externalApplication),
-                        child: const Text("Re-open Checkout"),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(sheetContext),
-                        child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
-                      ),
-                    ],
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: () async {
+                      await launchUrlString(checkoutUrl, mode: LaunchMode.externalApplication);
+                    },
+                    child: const Text("Re-open Checkout Page"),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
                   ),
                 ],
               ),
@@ -199,9 +229,10 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         ? user.expiryDate!
         : now;
     final newExpiry = baseDate.add(Duration(days: option.durationDays));
+    final tierName = _selectedTier == 'plus' ? 'Plus (+)' : 'Pro';
 
     final updated = user.copyWith(
-      plan: 'pro',
+      plan: _selectedTier,
       subscriptionStatus: 'active',
       billingCycle: option.cycleKey,
       expiryDate: newExpiry,
@@ -218,23 +249,19 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
             children: [
               Icon(Icons.stars, color: Colors.amber, size: 28),
               SizedBox(width: 8),
-              Text("Plan Activated! 🎉"),
+              Text("Plan Activated!"),
             ],
           ),
           content: Text(
-            "Congratulations! Your POS Podda Pro subscription is active until ${DateFormat('MMMM dd, yyyy').format(newExpiry)}.\n\nAll Pro features are fully unlocked.",
+            "Congratulations! Your shop has been upgraded to POS Podda $tierName for ${option.label}.\n\nValid until: ${DateFormat('MMM dd, yyyy').format(newExpiry)}.",
           ),
           actions: [
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6366F1),
-                foregroundColor: Colors.white,
-              ),
               onPressed: () {
-                Navigator.pop(ctx); // Close dialog
-                Navigator.pop(context); // Return to home/settings
+                Navigator.pop(ctx);
+                Navigator.pop(context);
               },
-              child: const Text("CONTINUE TO POS"),
+              child: const Text("OK, LET'S GO"),
             ),
           ],
         ),
@@ -265,6 +292,22 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
             if (user != null) _buildCurrentStatusBanner(user, isDark),
             const SizedBox(height: 20),
 
+            // Tier Selector (Plus vs Pro)
+            Text(
+              "Choose Your Tier",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+                color: isDark ? Colors.white60 : Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildTierSelector(isDark),
+            const SizedBox(height: 24),
+
+            // Billing Cycle Selector (1M, 3M, 6M, 1Y)
             Text(
               "Select Billing Cycle",
               textAlign: TextAlign.center,
@@ -276,12 +319,10 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
               ),
             ),
             const SizedBox(height: 12),
-
-            // 4-Option Duration Tabs (1M, 3M, 6M, 1Y)
             _buildBillingCycleSelector(isDark),
             const SizedBox(height: 24),
 
-            // Pro Plan Card
+            // Plan Details Card
             _buildSelectedPlanCard(isDark),
             const SizedBox(height: 24),
 
@@ -289,7 +330,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
             ElevatedButton(
               onPressed: _isLoading ? null : _handlePayment,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6366F1),
+                backgroundColor: _tierColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -302,7 +343,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                     )
                   : Text(
-                      "PAY RS. ${currencyFormatter.format(_selectedOption.priceLkr)} • ${_selectedOption.label.toUpperCase()}",
+                      "PAY RS. ${currencyFormatter.format(_selectedOption.priceLkr)} • ${_selectedOption.label.toUpperCase()} ${_selectedTier.toUpperCase()}",
                       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                     ),
             ),
@@ -321,6 +362,114 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
               ],
             ),
             const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTierSelector(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildTierTab(
+              title: "Plus (+)",
+              subtitle: "Essential POS",
+              isSelected: _selectedTier == 'plus',
+              accentColor: const Color(0xFF0EA5E9),
+              onTap: () => _switchTier('plus'),
+              isDark: isDark,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: _buildTierTab(
+              title: "Pro",
+              subtitle: "Complete ERP",
+              badge: "POPULAR",
+              isSelected: _selectedTier == 'pro',
+              accentColor: const Color(0xFF6366F1),
+              onTap: () => _switchTier('pro'),
+              isDark: isDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTierTab({
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    required Color accentColor,
+    required VoidCallback onTap,
+    required bool isDark,
+    String? badge,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? accentColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: accentColor.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : (isDark ? Colors.white : Colors.black),
+                  ),
+                ),
+                if (badge != null) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.amber : Colors.amber.shade700,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      badge,
+                      style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.black),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: isSelected ? Colors.white70 : (isDark ? Colors.white54 : Colors.black54),
+              ),
+            ),
           ],
         ),
       ),
@@ -377,6 +526,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   }
 
   Widget _buildBillingCycleSelector(bool isDark) {
+    final currentOptions = SubscriptionBillingOption.optionsForTier(_selectedTier);
+
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -385,7 +536,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08)),
       ),
       child: Row(
-        children: SubscriptionBillingOption.options.map((opt) {
+        children: currentOptions.map((opt) {
           final isSelected = opt.id == _selectedOption.id;
 
           return Expanded(
@@ -395,12 +546,12 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF6366F1) : Colors.transparent,
+                  color: isSelected ? _tierColor : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: isSelected
                       ? [
                           BoxShadow(
-                            color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                            color: _tierColor.withValues(alpha: 0.3),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -441,25 +592,30 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   }
 
   Widget _buildSelectedPlanCard(bool isDark) {
+    final isPlus = _selectedTier == 'plus';
+    final planTitle = isPlus ? "POS PODDA PLUS (+)" : "POS PODDA PRO";
+    final features = isPlus ? _plusFeatures : _proFeatures;
+    final featuresHeader = isPlus ? "INCLUDED PLUS (+) FEATURES" : "INCLUDED PRO FEATURES";
+
     return GlassCard(
       borderRadius: 24,
-      border: Border.all(color: const Color(0xFF6366F1), width: 1.5),
+      border: Border.all(color: _tierColor, width: 1.5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Banner Top
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            decoration: const BoxDecoration(
-              color: Color(0xFF6366F1),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+            decoration: BoxDecoration(
+              color: _tierColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  "POS PODDA PRO",
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1),
+                Text(
+                  planTitle,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1),
                 ),
                 if (_selectedOption.savingsBadge != null)
                   Container(
@@ -505,20 +661,20 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                   const SizedBox(height: 2),
                   Text(
                     "Equivalent to Rs. ${currencyFormatter.format(_selectedOption.monthlyEffectivePrice.round())} / month",
-                    style: const TextStyle(color: Color(0xFF6366F1), fontSize: 13, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: _tierColor, fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ],
                 const SizedBox(height: 16),
                 const Divider(),
                 const SizedBox(height: 12),
 
-                const Text(
-                  "INCLUDED PRO FEATURES",
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1, color: Colors.grey),
+                Text(
+                  featuresHeader,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1, color: Colors.grey),
                 ),
                 const SizedBox(height: 12),
 
-                ..._proFeatures.map((f) => Padding(
+                ...features.map((f) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Row(
                     children: [

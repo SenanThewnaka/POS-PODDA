@@ -13,8 +13,8 @@ import 'package:sme_buddy/features/users/user_repository.dart';
 
 void main() {
   group('SubscriptionBillingOption Model Tests', () {
-    test('contains exactly 4 billing durations: 1M, 3M, 6M, 1Y', () {
-      final options = SubscriptionBillingOption.options;
+    test('contains exactly 4 billing durations for Pro: 1M, 3M, 6M, 1Y', () {
+      final options = SubscriptionBillingOption.proOptions;
       expect(options.length, 4);
 
       final opt1m = options[0];
@@ -50,12 +50,39 @@ void main() {
       expect(opt1y.savingsBadge, contains('6,900'));
     });
 
+    test('contains exactly 4 billing durations for Plus: 1M, 3M, 6M, 1Y', () {
+      final options = SubscriptionBillingOption.plusOptions;
+      expect(options.length, 4);
+
+      expect(options[0].priceLkr, 1500);
+      expect(options[0].months, 1);
+
+      expect(options[1].priceLkr, 4200);
+      expect(options[1].months, 3);
+      expect(options[1].savingsBadge, contains('300'));
+
+      expect(options[2].priceLkr, 7900);
+      expect(options[2].months, 6);
+      expect(options[2].savingsBadge, contains('1,100'));
+
+      expect(options[3].priceLkr, 14900);
+      expect(options[3].months, 12);
+      expect(options[3].savingsBadge, contains('3,100'));
+      expect(options[3].isPopular, isTrue);
+    });
+
     test('monthlyEffectivePrice calculates correct averages', () {
-      final options = SubscriptionBillingOption.options;
-      expect(options[0].monthlyEffectivePrice, 2900.0);
-      expect(options[1].monthlyEffectivePrice, closeTo(2633.33, 0.1));
-      expect(options[2].monthlyEffectivePrice, closeTo(2483.33, 0.1));
-      expect(options[3].monthlyEffectivePrice, 2325.0);
+      final pro = SubscriptionBillingOption.proOptions;
+      expect(pro[0].monthlyEffectivePrice, 2900.0);
+      expect(pro[1].monthlyEffectivePrice, closeTo(2633.33, 0.1));
+      expect(pro[2].monthlyEffectivePrice, closeTo(2483.33, 0.1));
+      expect(pro[3].monthlyEffectivePrice, 2325.0);
+
+      final plus = SubscriptionBillingOption.plusOptions;
+      expect(plus[0].monthlyEffectivePrice, 1500.0);
+      expect(plus[1].monthlyEffectivePrice, 1400.0);
+      expect(plus[2].monthlyEffectivePrice, closeTo(1316.66, 0.1));
+      expect(plus[3].monthlyEffectivePrice, closeTo(1241.66, 0.1));
     });
   });
 
@@ -143,7 +170,7 @@ void main() {
   });
 
   group('PlansScreen Widget Tests', () {
-    testWidgets('renders all 4 billing cycle options and allows toggling', (tester) async {
+    testWidgets('renders both Plus and Pro tiers with 4 billing options each and allows switching', (tester) async {
       final testUser = UserModel(
         uid: 'owner-1',
         email: 'owner@test.sme',
@@ -172,41 +199,60 @@ void main() {
 
       // Check header and status
       expect(find.text("Subscription & Pricing"), findsOneWidget);
+      expect(find.text("Choose Your Tier"), findsOneWidget);
       expect(find.text("Select Billing Cycle"), findsOneWidget);
 
-      // Verify all 4 tabs exist
+      // Verify Tier tabs exist
+      expect(find.text("Plus (+)"), findsOneWidget);
+      expect(find.text("Pro"), findsOneWidget);
+
+      // Verify all 4 billing cycle tabs exist
       expect(find.text("1 Month"), findsOneWidget);
       expect(find.text("3 Months"), findsOneWidget);
       expect(find.text("6 Months"), findsOneWidget);
       expect(find.text("1 Year"), findsOneWidget);
-      expect(find.text("BEST"), findsOneWidget); // Popular badge
+      expect(find.text("POPULAR"), findsOneWidget); // Badge on Pro tier tab
+      expect(find.text("BEST"), findsOneWidget); // Popular badge on 1 Year option
 
-      // Default selected is 3 Months (Rs. 7,900)
+      // Default selected tier is Pro, default cycle is 3 Months (Rs. 7,900)
       expect(find.text("Rs. 7,900"), findsOneWidget);
       expect(find.text("Save Rs. 800"), findsOneWidget);
-      expect(find.text("PAY RS. 7,900 • 3 MONTHS"), findsOneWidget);
+      expect(find.text("PAY RS. 7,900 • 3 MONTHS PRO"), findsOneWidget);
+      expect(find.text("INCLUDED PRO FEATURES"), findsOneWidget);
 
-      // Tap 1 Year tab
+      // Tap 1 Year tab in Pro
       await tester.tap(find.text("1 Year"));
       await tester.pumpAndSettle();
 
-      // Price and button should update to 1 Year (Rs. 27,900)
+      // Price and button should update to 1 Year Pro (Rs. 27,900)
       expect(find.text("Rs. 27,900"), findsOneWidget);
       expect(find.text("Best Value • Save Rs. 6,900"), findsOneWidget);
-      expect(find.text("PAY RS. 27,900 • 1 YEAR"), findsOneWidget);
+      expect(find.text("PAY RS. 27,900 • 1 YEAR PRO"), findsOneWidget);
 
-      // Tap 1 Month tab
+      // Switch to Plus (+) tier
+      await tester.tap(find.text("Plus (+)"));
+      await tester.pumpAndSettle();
+
+      // Should maintain 1 Year duration, but with Plus pricing (Rs. 14,900)
+      expect(find.text("Rs. 14,900"), findsOneWidget);
+      expect(find.text("Best Value • Save Rs. 3,100"), findsOneWidget);
+      expect(find.text("PAY RS. 14,900 • 1 YEAR PLUS"), findsOneWidget);
+      expect(find.text("INCLUDED PLUS (+) FEATURES"), findsOneWidget);
+
+      // Switch to 1 Month in Plus (+)
       await tester.tap(find.text("1 Month"));
       await tester.pumpAndSettle();
 
-      expect(find.text("Rs. 2,900"), findsOneWidget);
-      expect(find.text("PAY RS. 2,900 • 1 MONTH"), findsOneWidget);
+      expect(find.text("Rs. 1,500"), findsOneWidget);
+      expect(find.text("PAY RS. 1,500 • 1 MONTH PLUS"), findsOneWidget);
 
-      // Verify features checklist
-      expect(find.text("INCLUDED PRO FEATURES"), findsOneWidget);
-      expect(find.text("Unlimited Inventory Items & Dynamic Batches"), findsOneWidget);
-      expect(find.text("Wholesale Purchase Cost & Margin Privacy Masking"), findsOneWidget);
-      expect(find.text("Customer Credit Book (ණය පොත) & Settlement Receipts"), findsOneWidget);
+      // Switch to 3 Months in Plus (+)
+      await tester.tap(find.text("3 Months"));
+      await tester.pumpAndSettle();
+
+      expect(find.text("Rs. 4,200"), findsOneWidget);
+      expect(find.text("Save Rs. 300"), findsOneWidget);
+      expect(find.text("PAY RS. 4,200 • 3 MONTHS PLUS"), findsOneWidget);
 
       // Gateway trust assurance
       expect(find.textContaining("Secured by Payments.lk"), findsOneWidget);
