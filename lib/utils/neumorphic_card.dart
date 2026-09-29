@@ -50,11 +50,11 @@ class _NeumorphicCardState extends State<NeumorphicCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isConcave = widget.elevation == NeumorphicElevation.concave || _isPressed;
 
-    // Default base colors
+    // Default base colors (Warm Ceramic & Deep Charcoal Clay)
     final Color surfaceColor = widget.color ??
         (isDark
-            ? (isConcave ? const Color(0xFF0F172A) : const Color(0xFF1E293B))
-            : (isConcave ? const Color(0xFFE2E8F0) : const Color(0xFFF1F5F9)));
+            ? (isConcave ? const Color(0xFF161920) : const Color(0xFF1E222B))
+            : (isConcave ? const Color(0xFFDFE4EA) : const Color(0xFFE8ECEF)));
 
     // Shadow configuration
     List<BoxShadow> shadows = [];
@@ -64,24 +64,24 @@ class _NeumorphicCardState extends State<NeumorphicCard> {
         shadows = isDark
             ? [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.5),
+                  color: Colors.black.withValues(alpha: 0.6),
                   offset: const Offset(2, 2),
                   blurRadius: 4,
                 ),
                 BoxShadow(
-                  color: const Color(0xFF334155).withValues(alpha: 0.2),
+                  color: const Color(0xFF2C323F).withValues(alpha: 0.3),
                   offset: const Offset(-2, -2),
                   blurRadius: 4,
                 ),
               ]
             : [
                 BoxShadow(
-                  color: const Color(0xFF94A3B8).withValues(alpha: 0.4),
+                  color: const Color(0xFFA3B1C2).withValues(alpha: 0.5),
                   offset: const Offset(2, 2),
                   blurRadius: 4,
                 ),
                 BoxShadow(
-                  color: Colors.white.withValues(alpha: 0.8),
+                  color: Colors.white.withValues(alpha: 0.9),
                   offset: const Offset(-2, -2),
                   blurRadius: 4,
                 ),
@@ -90,7 +90,7 @@ class _NeumorphicCardState extends State<NeumorphicCard> {
         // Extruded Outset effect
         final double dist = widget.elevation == NeumorphicElevation.pronounced
             ? 6.0
-            : (widget.elevation == NeumorphicElevation.subtle ? 2.5 : 4.0);
+            : (widget.elevation == NeumorphicElevation.subtle ? 2.5 : 4.5);
         final double blur = widget.elevation == NeumorphicElevation.pronounced
             ? 12.0
             : (widget.elevation == NeumorphicElevation.subtle ? 6.0 : 9.0);
@@ -99,13 +99,13 @@ class _NeumorphicCardState extends State<NeumorphicCard> {
             ? [
                 // Top-left soft highlight
                 BoxShadow(
-                  color: const Color(0xFF334155).withValues(alpha: 0.45),
+                  color: const Color(0xFF2C323F).withValues(alpha: 0.6),
                   offset: Offset(-dist * 0.7, -dist * 0.7),
                   blurRadius: blur,
                 ),
                 // Bottom-right dark drop shadow
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.65),
+                  color: Colors.black.withValues(alpha: 0.75),
                   offset: Offset(dist, dist),
                   blurRadius: blur,
                 ),
@@ -117,9 +117,9 @@ class _NeumorphicCardState extends State<NeumorphicCard> {
                   offset: Offset(-dist, -dist),
                   blurRadius: blur,
                 ),
-                // Bottom-right soft grey shadow
+                // Bottom-right warm ceramic shadow
                 BoxShadow(
-                  color: const Color(0xFF94A3B8).withValues(alpha: 0.35),
+                  color: const Color(0xFFA3B1C2).withValues(alpha: 0.65),
                   offset: Offset(dist, dist),
                   blurRadius: blur,
                 ),

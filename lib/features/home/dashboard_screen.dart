@@ -15,6 +15,7 @@ import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/connectivity_banner.dart';
 import 'package:sme_buddy/utils/responsive_layout.dart';
+import 'package:sme_buddy/features/settings/theme_provider.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -87,38 +88,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       bottomNavigationBar: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         height: 64, // Floating style
-        decoration: BoxDecoration(
-          color: isDark 
-              ? Colors.black.withValues(alpha: 0.5) 
-              : Colors.white.withValues(alpha: 0.8),
-          borderRadius: BorderRadius.circular(32),
-          border: Border.all(
-            color: isDark 
-                ? Colors.white.withValues(alpha: 0.1) 
-                : Colors.white.withValues(alpha: 0.5),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
+        decoration: NeumorphicDecoration.convex(
+          isDark: isDark,
+          borderRadius: 32,
+          depth: 5,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(32),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Row(
-              children: [
-                _buildNavItem(0, Icons.point_of_sale, "POS"),
-                _buildNavItem(1, Icons.inventory_2_outlined, "Stock"),
-                _buildNavItem(2, Icons.account_balance_wallet_outlined, "Credit"),
-                _buildNavItem(3, Icons.grid_view, "Menu"),
-              ],
-            ),
-          ),
+        child: Row(
+          children: [
+            _buildNavItem(0, Icons.point_of_sale, "POS"),
+            _buildNavItem(1, Icons.inventory_2_outlined, "Stock"),
+            _buildNavItem(2, Icons.account_balance_wallet_outlined, "Credit"),
+            _buildNavItem(3, Icons.grid_view, "Menu"),
+          ],
         ),
       ),
     );
@@ -126,8 +107,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Widget _buildDesktopSidebar(BuildContext context, bool isDark, dynamic user) {
     final activeColor = isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5);
-    final sidebarBg = isDark ? const Color(0xFF1E293B).withOpacity(0.9) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
     final isCollapsed = _isCollapsed(context);
 
     return AnimatedContainer(
@@ -135,17 +114,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       curve: Curves.easeInOut,
       width: isCollapsed ? 76 : 230,
       margin: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: sidebarBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
+      decoration: NeumorphicDecoration.convex(
+        isDark: isDark,
+        borderRadius: 20,
+        depth: 4.5,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),

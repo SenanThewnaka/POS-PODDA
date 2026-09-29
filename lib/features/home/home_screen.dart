@@ -17,6 +17,7 @@ import 'package:sme_buddy/utils/unit_formatter.dart';
 import 'dart:async'; // For Timer hiding
 import 'package:flutter/services.dart'; // For KeyboardListener
 import 'package:sme_buddy/features/settings/settings_screen.dart';
+import 'package:sme_buddy/features/settings/theme_provider.dart';
 import 'package:sme_buddy/features/subscription/plans_screen.dart';
 import 'package:sme_buddy/features/users/user_model.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
@@ -157,7 +158,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
         title: const Text(
           "Clear Current Order?",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -221,6 +221,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ref.read(cartProvider.notifier).addToCart(product, quantity: 1);
           HapticFeedback.mediumImpact();
 
+          final isDark = Theme.of(context).brightness == Brightness.dark;
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -236,7 +237,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ],
               ),
-              backgroundColor: const Color(0xFF1E293B),
+              backgroundColor: isDark ? const Color(0xFF1E222B) : const Color(0xFF2D3748),
               duration: const Duration(milliseconds: 900),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -275,7 +276,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final shouldHold = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
         title: const Row(
           children: [
             Icon(Icons.pause_circle_filled, color: Colors.amber),
@@ -612,7 +612,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       );
                     }
                   },
-                  color: const Color(0xFF1E293B),
+                  color: isDark ? const Color(0xFF1E222B) : const Color(0xFFE8ECEF),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   itemBuilder: (ctx) => [
                     PopupMenuItem(
@@ -889,27 +889,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Container(
       width: cartWidth,
       margin: const EdgeInsets.fromLTRB(0, 16, 16, 16),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.6),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
+      decoration: NeumorphicDecoration.convex(
+        isDark: isDark,
+        borderRadius: 24,
+        depth: 5,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Column(
-            children: [
+      child: Column(
+        children: [
               // 1. Cart Header
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -1199,8 +1185,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 
@@ -1420,6 +1404,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildProductGrid(WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final productsAsync = ref.watch(productsStreamProvider);
 
     return productsAsync.when(
@@ -1515,12 +1500,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   CircleAvatar(
-                    backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white.withValues(alpha: 0.1) : Colors.black12,
+                    backgroundColor: isDark ? const Color(0xFF161920) : const Color(0xFFDFE4EA),
                     radius: 18,
                     child: Icon(
                       product.productType == 'SERVICE' ? Icons.cleaning_services 
                       : (product.stockType == 'weight' ? Icons.scale : Icons.shopping_bag),
-                      size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black54
+                      size: 18, color: isDark ? Colors.white70 : const Color(0xFF4A5568),
                     ),
                   ),
                   const SizedBox(height: 5),
@@ -1657,20 +1642,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildFullCartSheet(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DraggableScrollableSheet(
       initialChildSize: 0.8,
       minChildSize: 0.5,
       maxChildSize: 0.95,
       builder: (_, controller) {
-        return ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-            child: Container(
-              color: Theme.of(context).brightness == Brightness.dark 
-                  ? Colors.black.withValues(alpha: 0.85) 
-                  : Colors.white.withValues(alpha: 0.85),
-              child: Column(
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E222B) : const Color(0xFFE8ECEF),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            boxShadow: [
+              BoxShadow(
+                color: isDark ? Colors.black.withValues(alpha: 0.75) : const Color(0xFFA3B1C2).withValues(alpha: 0.65),
+                blurRadius: 16,
+                offset: const Offset(0, -6),
+              ),
+            ],
+          ),
+          child: Column(
                 children: [
                    const SizedBox(height: 12),
                    // Handle
@@ -1975,10 +1965,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               }),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
-  },
- );
 }
 }
