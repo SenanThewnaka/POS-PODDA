@@ -107,6 +107,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Widget _buildDesktopSidebar(BuildContext context, bool isDark, dynamic user) {
     final activeColor = isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5);
+    final borderColor = isDark ? const Color(0xFF282E3A) : const Color(0xFFCBD5E1);
     final isCollapsed = _isCollapsed(context);
 
     return AnimatedContainer(
@@ -264,7 +265,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                            color: isDark ? const Color(0xFF161920) : const Color(0xFFDFE4EA),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(color: borderColor),
                           ),
