@@ -412,22 +412,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Row(
         children: [
-          Builder(
-            builder: (scaffoldContext) => GlassCard(
-              borderRadius: 16,
-              width: 52,
-              height: 52,
-              padding: EdgeInsets.zero,
-              onTap: () => Scaffold.of(scaffoldContext).openDrawer(),
-              child: const Center(
-                child: Tooltip(
-                  message: "Navigation Menu (ERP, Inventory, Reports)",
-                  child: Icon(Icons.menu_rounded, size: 24, color: Colors.cyanAccent),
+          if (!isDesktopOrTablet) ...[
+            Builder(
+              builder: (scaffoldContext) => GlassCard(
+                borderRadius: 16,
+                width: 52,
+                height: 52,
+                padding: EdgeInsets.zero,
+                onTap: () => Scaffold.of(scaffoldContext).openDrawer(),
+                child: const Center(
+                  child: Tooltip(
+                    message: "Navigation Menu (ERP, Inventory, Reports)",
+                    child: Icon(Icons.menu_rounded, size: 24, color: Colors.cyanAccent),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
+            const SizedBox(width: 10),
+          ],
           Expanded(
             child: GlassCard(
               borderRadius: 28,

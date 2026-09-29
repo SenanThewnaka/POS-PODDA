@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher_string.dart';
@@ -96,14 +97,101 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Payment initiation failed: $e"),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
+        final isCorsError = kIsWeb || e.toString().contains('Failed to fetch') || e.toString().contains('ClientException');
+        if (isCorsError) {
+          _showWebCorsTestingDialog(_selectedOption);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Payment initiation failed: $e"),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
       }
     }
+  }
+
+  void _showWebCorsTestingDialog(SubscriptionBillingOption option) {
+    final tierName = _selectedTier == 'plus' ? 'Plus (+)' : 'Pro';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.info_outline, color: Colors.amber, size: 28),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "Web Browser Notice",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "You are testing POS Podda inside a Web Browser (Chrome/Edge/Safari).",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "Web browsers enforce strict CORS (Cross-Origin Resource Sharing) security that blocks direct client-side checkout calls to the Payments.lk API.",
+              style: TextStyle(fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.withOpacity(0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.check_circle_outline, color: Colors.green, size: 22),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "On Android & iPhone (iOS), the payment gateway connects natively with 0 CORS issues!",
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              "To test your subscription upgrade flow right now on Web, you can activate $tierName (${option.label}) in Sandbox Mode:",
+              style: const TextStyle(fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.bolt, color: Colors.white, size: 18),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _tierColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _activateSubscription(option);
+            },
+            label: const Text("Activate Plan (Sandbox)", style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showVerificationModal(String paymentId, String checkoutUrl) {
