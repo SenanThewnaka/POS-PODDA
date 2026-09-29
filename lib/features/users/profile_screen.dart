@@ -5,6 +5,8 @@ import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
 import 'package:sme_buddy/features/auth/verification_service.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:intl/intl.dart';
+import 'package:sme_buddy/features/subscription/plans_screen.dart';
 import 'dart:math';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -77,8 +79,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     
     final newEmail = _emailCtrl.text.trim();
     final emailChanged = newEmail != originalUser.email;
-    String? newCode;
-    
     // 1. Handle Email Change
     if (emailChanged) {
        try {
@@ -86,10 +86,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
          if (user == null) throw "No Auth User";
          
          await user.updateEmail(newEmail);
-         newCode = (100000 + Random().nextInt(900000)).toString();
-         
-         // Send Verification
-         await VerificationService.sendCode(newEmail, newCode);
        } catch (e) {
           String msg = "Email Update Failed: $e";
           if (e.toString().contains("email-already-in-use")) msg = "Email already in use.";
@@ -112,8 +108,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       shopName: originalUser.isAdmin ? _shopNameCtrl.text.trim() : originalUser.shopName,
       shopAddress: originalUser.isAdmin ? _shopAddressCtrl.text.trim() : originalUser.shopAddress,
       // Verification Status Update
-      isVerified: emailChanged ? false : originalUser.isVerified,
-      verificationCode: emailChanged ? newCode : originalUser.verificationCode,
+      isVerified: true,
+      verificationCode: null,
       // Preserve others (Wait, if I use constructor I MUST providing others or defaults?)
       // Ah, UserModel constructor uses defaults for optional fields.
       // But fields like `welcomeSent`, `billingCycle`, etc. might be lost if not passed?
@@ -139,15 +135,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
        mobile: _mobileCtrl.text.trim(),
        shopName: originalUser.isAdmin ? _shopNameCtrl.text.trim() : originalUser.shopName,
        shopAddress: originalUser.isAdmin ? _shopAddressCtrl.text.trim() : originalUser.shopAddress,
-       isVerified: emailChanged ? false : originalUser.isVerified,
-       verificationCode: emailChanged ? newCode : originalUser.verificationCode,
+       isVerified: true,
+       verificationCode: null,
     );
 
     // Save
     await ref.read(userProfileRepositoryProvider).saveUserProfile(finalUser);
     
     setState(() => _isEditing = false);
-    if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(emailChanged ? "Email Updated! Please Verify." : "Profile Updated!")));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile Updated!")));
   }
 
   @override
@@ -230,6 +226,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                      leading: const Icon(Icons.badge),
                      title: Text(user.role.toUpperCase()),
                      subtitle: const Text("Role"),
+                   ),
+                   const SizedBox(height: 24),
+                   _buildSectionHeader("Subscription & Plan"),
+                   ListTile(
+                     leading: const Icon(Icons.workspace_premium_rounded, color: Colors.amberAccent),
+                     title: Text(user.plan.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                     subtitle: Text(
+                       user.expiryDate != null
+                           ? (DateTime.now().isAfter(user.expiryDate!)
+                               ? "Expired on ${DateFormat('MMM dd, yyyy').format(user.expiryDate!)}"
+                               : "Expires on ${DateFormat('MMM dd, yyyy').format(user.expiryDate!)}")
+                           : "No active subscription / Inactive",
+                       style: TextStyle(
+                         color: (user.expiryDate == null || DateTime.now().isAfter(user.expiryDate!))
+                             ? Colors.redAccent
+                             : null,
+                       ),
+                     ),
+                     trailing: ElevatedButton(
+                       style: ElevatedButton.styleFrom(
+                         backgroundColor: Colors.cyanAccent.withValues(alpha: 0.2),
+                         foregroundColor: Colors.cyanAccent,
+                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                       ),
+                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen())),
+                       child: const Text("MANAGE / EXTEND"),
+                     ),
                    ),
                 ],
               ),

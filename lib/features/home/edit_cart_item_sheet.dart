@@ -5,6 +5,7 @@ import 'package:sme_buddy/features/inventory/product_model.dart';
 import 'package:sme_buddy/utils/quantity_parser.dart';
 import 'package:sme_buddy/utils/unit_formatter.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:sme_buddy/utils/text_controller_extensions.dart';
 
 class EditCartItemSheet extends ConsumerStatefulWidget {
   final CartItem cartItem;
@@ -27,6 +28,8 @@ class _EditCartItemSheetState extends ConsumerState<EditCartItemSheet> {
   void initState() {
     super.initState();
     _quantity = widget.cartItem.quantity;
+    _smartInputController.text = _quantity % 1 == 0 ? _quantity.toInt().toString() : _quantity.toString();
+    _smartInputController.selectAll();
     
     // Init Description
     _descriptionController.text = widget.cartItem.description ?? "";
@@ -39,10 +42,11 @@ class _EditCartItemSheetState extends ConsumerState<EditCartItemSheet> {
   void _parseInput(String val) {
     if (widget.cartItem.product.stockType == 'unit') return;
     
-    double qty = QuantityParser.parse(val, widget.cartItem.product.baseUnit!);
+    final bUnit = widget.cartItem.product.baseUnit ?? 'g';
+    double qty = QuantityParser.parse(val, bUnit);
     setState(() {
       _quantity = qty;
-      _parsedFeedback = _quantity > 0 ? "New Qty: ${UnitFormatter.format(_quantity, widget.cartItem.product.baseUnit)}" : "";
+      _parsedFeedback = _quantity > 0 ? "New Qty: ${UnitFormatter.format(_quantity, bUnit)}" : "";
     });
   }
 
@@ -260,14 +264,45 @@ class _EditCartItemSheetState extends ConsumerState<EditCartItemSheet> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         IconButton.filledTonal(
-          onPressed: _quantity > 1 ? () => setState(() => _quantity--) : null,
+          onPressed: _quantity > 1
+              ? () {
+                  setState(() {
+                    _quantity--;
+                    _smartInputController.text = _quantity.toInt().toString();
+                  });
+                }
+              : null,
           icon: const Icon(Icons.remove),
         ),
-        const SizedBox(width: 24),
-        Text("${_quantity.toInt()}", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-        const SizedBox(width: 24),
+        const SizedBox(width: 16),
+        SizedBox(
+          width: 80,
+          child: TextField(
+            controller: _smartInputController,
+            textAlign: TextAlign.center,
+            keyboardType: TextInputType.number,
+            onTap: () => _smartInputController.selectAll(),
+            onChanged: (val) {
+              final parsed = double.tryParse(val);
+              if (parsed != null && parsed > 0) {
+                setState(() => _quantity = parsed);
+              }
+            },
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+            ),
+            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(width: 16),
         IconButton.filledTonal(
-          onPressed: () => setState(() => _quantity++),
+          onPressed: () {
+            setState(() {
+              _quantity++;
+              _smartInputController.text = _quantity.toInt().toString();
+            });
+          },
           icon: const Icon(Icons.add),
         ),
       ],

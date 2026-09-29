@@ -53,3 +53,15 @@ ios/Runner/GoogleService-Info.plist
 macos/Runner/GoogleService-Info.plist
 lib/firebase_options.dart
 android/key.properties
+
+# Local Tools & Temp Assets
+graphify-out/
+unnamed-*.jpg
+
+# Node / Cloud Functions
+functions/node_modules/
+functions/.runtimeconfig.json
+.env
+functions/.env
+firebase-debug.log
+firebase-debug.*.log

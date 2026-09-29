@@ -8,8 +8,11 @@ import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/users/app_permissions.dart';
 import 'package:sme_buddy/features/settings/theme_provider.dart';
 import 'package:sme_buddy/features/settings/invoice_settings_screen.dart';
-import 'package:sme_buddy/features/subscription/subscription_info_card.dart';
+import 'package:sme_buddy/features/settings/printer_settings_screen.dart';
+
 import 'package:sme_buddy/features/subscription/subscription_guard.dart';
+import 'package:sme_buddy/features/subscription/subscription_info_card.dart';
+import 'package:sme_buddy/features/subscription/plans_screen.dart';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/biometric_lock_service.dart';
@@ -32,15 +35,7 @@ class SettingsScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            // SUBSCRIPTION CARD (Check if this needs glass update too)
-            // Ideally SubscriptionInfoCard should be updated separately or wrapped.
-            // For now, let's wrap it in GlassCard if it's not already "glassy".
-            // Since I can't see it, I'll wrap it just in case or leave as is if it's a widget.
-            // Let's assume it's a Card and might need replacement?
-            // Safer to wrap it in a container? Or just let it be.
-            // SUBSCRIPTION CARD
-            const SubscriptionInfoCard(),
-            const SizedBox(height: 24),
+
 
             // THEME SWITCHER
             Builder(
@@ -140,7 +135,11 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
+
+            // SUBSCRIPTION & BILLING
+            const SubscriptionInfoCard(),
+            const SizedBox(height: 24),
             
             // ACTION BUTTONS
             Consumer(
@@ -175,7 +174,7 @@ class SettingsScreen extends ConsumerWidget {
                               ),
                             ),
 
-                         if (profile.isAdmin)
+                          if (profile.isAdmin)
                             GlassCard(
                               margin: const EdgeInsets.only(bottom: 16),
                               padding: EdgeInsets.zero,
@@ -193,6 +192,24 @@ class SettingsScreen extends ConsumerWidget {
                                 },
                               ),
                             ),
+
+                          GlassCard(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            padding: EdgeInsets.zero,
+                            child: ListTile(
+                              title: Text("Printer & Hardware", style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)),
+                              subtitle: Text("Thermal roll (80mm/58mm), Auto-print, USB/BT printers", style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54)),
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(color: Colors.teal.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
+                                child: const Icon(Icons.print, color: Colors.tealAccent),
+                              ),
+                              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.white54),
+                              onTap: () {
+                                 Navigator.push(context, MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()));
+                              },
+                            ),
+                          ),
                          
                          if (profile.isAdmin) // Only Owners can manage Roles
                             GlassCard(
@@ -235,6 +252,40 @@ class SettingsScreen extends ConsumerWidget {
                 },
               ),
             ),
+            
+            // SUBSCRIPTION TESTING & RESET (Admin/Owner only)
+            if (user != null)
+              Consumer(
+                builder: (context, ref, _) {
+                  final profile = ref.watch(userProfileProvider).value;
+                  if (profile == null || !profile.isAdmin) return const SizedBox.shrink();
+
+                  return GlassCard(
+                    margin: const EdgeInsets.only(bottom: 24),
+                    padding: EdgeInsets.zero,
+                    child: ListTile(
+                      title: Text(
+                        "Subscription Testing & Reset",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                        ),
+                      ),
+                      subtitle: const Text("Expire or reset subscriptions for testing payments"),
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.build_circle_outlined, color: Colors.redAccent),
+                      ),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.white54),
+                      onTap: () => _showSubscriptionResetDialog(context, ref, profile.uid),
+                    ),
+                  );
+                },
+              ),
             
             ElevatedButton.icon(
               onPressed: () async {
@@ -326,6 +377,84 @@ class SettingsScreen extends ConsumerWidget {
             },
             child: const Text("UPDATE"),
           )
+        ],
+      ),
+    );
+  }
+
+  void _showSubscriptionResetDialog(BuildContext context, WidgetRef ref, String uid) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.build_circle_outlined, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text("Subscription Reset"),
+          ],
+        ),
+        content: const Text(
+          "Choose an option to test expired subscription state and Payments.lk payment flows:",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("CANCEL"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.withValues(alpha: 0.2),
+              foregroundColor: Colors.orangeAccent,
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await ref.read(userProfileRepositoryProvider).cancelSubscription(uid);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("My Subscription marked as Expired!"),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            child: const Text("EXPIRE MY PLAN"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.withValues(alpha: 0.2),
+              foregroundColor: Colors.redAccent,
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                final count = await ref.read(userProfileRepositoryProvider).resetAllSubscriptionsForTesting();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Expired subscriptions for $count accounts!"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            child: const Text("EXPIRE ALL ACCOUNTS"),
+          ),
         ],
       ),
     );

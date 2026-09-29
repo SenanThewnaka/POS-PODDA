@@ -61,21 +61,16 @@ class SalesRepository {
   CollectionReference get _metadataCollection =>
       FirebaseFirestore.instance.collection('shops').doc(currentUser.shopId).collection('system');
 
-  Future<Sale> recordSale(double amount, String method, String? customerId, Map<String, CartItem> cartItems) async {
+  Future<Sale> recordSale(
+    double amount,
+    String method,
+    String? customerId,
+    Map<String, CartItem> cartItems, {
+    double? amountTendered,
+  }) async {
     final docRef = _collection.doc();
     final todayStr = DateFormat('yyyy_MM_dd').format(DateTime.now());
     final statsRef = _statsCollection.doc(todayStr);
-    
-    // ... (rest of recordSale logic is fine, no changes needed inside)
-    // Actually, I need to preserve the recordSale implementation from previous step, 
-    // but replaced_file_content requires me to provide the content I'm replacing + context.
-    // Since I'm essentially inserting methods or modifying the class structure, 
-    // I should be careful not to overwrite the long recordSale unless I provide it all.
-    // 
-    // Strategy: I will use `performMaintenance` as the anchor to insert the migration logic BEFORE or AFTER it,
-    // Or I can add the migration method at the end of the class.
-    // 
-    // Let's modify `performMaintenance` to INLCUDE the migration check.
     
     // Convert Cart (Map<String, CartItem>) to List<SaleItem>
     final List<SaleItem> lineItems = cartItems.values.map((item) {
@@ -105,6 +100,10 @@ class SalesRepository {
     }).toList();
 
     print("RECORDING SALE: Total=$amount, Method=$method, Customer=$customerId");
+    final double tenderPaid = method == 'CASH'
+        ? (amountTendered != null && amountTendered >= amount ? amountTendered : amount)
+        : (method != 'CREDIT' ? amount : 0.0);
+
     final sale = Sale(
       id: docRef.id,
       timestamp: DateTime.now(),
@@ -112,7 +111,7 @@ class SalesRepository {
       paymentMethod: method,
       customerId: customerId,
       isFullyPaid: method != 'CREDIT', // Cash/Card = Paid. Credit = Not Paid.
-      amountPaid: method != 'CREDIT' ? amount : 0, 
+      amountPaid: tenderPaid, 
       items: lineItems,
       userId: currentUser.uid, // Audit
       userName: currentUser.name, // Audit
@@ -424,5 +423,34 @@ class SalesRepository {
       hoursMap[hour] = (hoursMap[hour] ?? 0) + 1;
     }
     return hoursMap;
+  }
+
+  // 5. Fetch Single Sale by ID (For Receipt Verification & Reprints)
+  Future<Sale?> getSaleById(String saleId) async {
+    try {
+      final doc = await _collection.doc(saleId.trim()).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return Sale.fromMap(doc.data() as Map<String, dynamic>);
+    } catch (e) {
+      print("Error fetching sale $saleId: $e");
+      return null;
+    }
+  }
+
+  // 6. Update Sale Payment Details (Correct Cash Tendered After Checkout)
+  Future<Sale> updateSalePaymentDetails({
+    required String saleId,
+    required double amountPaid,
+  }) async {
+    await _collection.doc(saleId.trim()).update({
+      'amountPaid': amountPaid,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final updated = await getSaleById(saleId.trim());
+    if (updated == null) {
+      throw Exception("Sale $saleId not found after updating payment details");
+    }
+    return updated;
   }
 }

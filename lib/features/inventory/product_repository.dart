@@ -30,7 +30,7 @@ class ProductRepository {
       FirebaseFirestore.instance.collection('users').doc(userId).collection('products');
   
   // NOTE: Original _firestore reference for transactions is fine, but we need updated paths inside transactions.
-  final _firestore = FirebaseFirestore.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   Stream<List<Product>> productsStream() {
     // Fetch ALL and filter client-side to handle legacy data (missing isActive field implies true)

@@ -2,9 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:sme_buddy/features/auth/auth_gate.dart';
-import 'package:sme_buddy/features/home/home_screen.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -19,9 +17,16 @@ import 'package:shorebird_code_push/shorebird_code_push.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Safely initialize Firebase (handles native Android auto-initialization from google-services.json)
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } catch (e) {
+    if (kDebugMode) print('Firebase initializeApp note: $e');
+  }
 
   // Initialize Crashlytics (disable in debug for clean console output)
   const fatalError = true;
@@ -37,19 +42,27 @@ void main() async {
     };
   }
 
-  // Initialize Shorebird OTA
-  final shorebirdUpdater = ShorebirdUpdater();
-  shorebirdUpdater.readCurrentPatch().then(
-    (value) {
-      if (kDebugMode) print('Shorebird patch: ${value?.number ?? "none"}');
-    },
-  );
+  // Initialize Shorebird OTA safely
+  try {
+    final shorebirdUpdater = ShorebirdUpdater();
+    unawaited(
+      shorebirdUpdater.readCurrentPatch().then(
+        (value) {
+          if (kDebugMode) print('Shorebird patch: ${value?.number ?? "none"}');
+        },
+      ).catchError((_) {}),
+    );
+  } catch (_) {}
 
   // OPTIMIZATION: Enable Firestore Offline Persistence
-  FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: true,
-    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-  );
+  try {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+  } catch (e) {
+    if (kDebugMode) print('Firestore settings note: $e');
+  }
 
   runApp(const ProviderScope(child: SmeBuddyApp()));
 }

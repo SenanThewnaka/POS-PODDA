@@ -1,8 +1,6 @@
-import 'dart:ui';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-class GlassCard extends StatelessWidget {
+class GlassCard extends StatefulWidget {
   final Widget child;
   final EdgeInsetsGeometry? margin;
   final EdgeInsetsGeometry? padding;
@@ -29,57 +27,84 @@ class GlassCard extends StatelessWidget {
   });
 
   @override
+  State<GlassCard> createState() => _GlassCardState();
+}
+
+class _GlassCardState extends State<GlassCard> {
+  bool _isPressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    // Glass Config
-    // DEEP GLASS (High Contrast)
-    final defaultColor = isDark ? Colors.black.withValues(alpha: 0.85) : Colors.white.withValues(alpha: 0.9);
-    final cardColor = color ?? defaultColor;
-    final borderColor = isDark ? Colors.white.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.5);
+    // Pronounced Physical Neumorphism (Warm Ceramic & Deep Charcoal Clay)
+    final defaultBaseColor = isDark ? const Color(0xFF1E222B) : const Color(0xFFE8ECEF);
+    final cardColor = widget.color ?? defaultBaseColor;
+    
+    final defaultBorder = isDark
+        ? Border.all(color: Colors.white.withValues(alpha: 0.05), width: 1.0)
+        : Border.all(color: Colors.white.withValues(alpha: 0.75), width: 1.0);
 
-    Widget content = Container(
-      width: width,
-      height: height,
-      margin: margin,
+    // Tactile physical dual shadows
+    final List<BoxShadow> shadows = isDark
+        ? [
+            // Top-left soft specular light source
+            BoxShadow(
+              color: const Color(0xFF2C323F).withValues(alpha: _isPressed ? 0.3 : 0.65),
+              blurRadius: _isPressed ? 4 : 8,
+              offset: _isPressed ? const Offset(-2, -2) : const Offset(-4, -4),
+            ),
+            // Bottom-right deep ambient drop shadow
+            BoxShadow(
+              color: Colors.black.withValues(alpha: _isPressed ? 0.5 : 0.75),
+              blurRadius: _isPressed ? 5 : 10,
+              offset: _isPressed ? const Offset(2, 2) : const Offset(4, 4),
+            ),
+          ]
+        : [
+            // Top-left crisp white light source
+            BoxShadow(
+              color: Colors.white.withValues(alpha: _isPressed ? 0.6 : 0.95),
+              blurRadius: _isPressed ? 5 : 10,
+              offset: _isPressed ? const Offset(-2, -2) : const Offset(-5, -5),
+            ),
+            // Bottom-right rich clay shadow
+            BoxShadow(
+              color: const Color(0xFFA3B1C2).withValues(alpha: _isPressed ? 0.4 : 0.65),
+              blurRadius: _isPressed ? 6 : 10,
+              offset: _isPressed ? const Offset(2, 2) : const Offset(5, 5),
+            ),
+          ];
+
+    Widget content = AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeInOut,
+      width: widget.width,
+      height: widget.height,
+      margin: widget.margin,
+      padding: widget.padding ?? const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(borderRadius),
-        border: border ?? Border.all(color: borderColor, width: 1.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(widget.borderRadius),
+        border: widget.border ?? defaultBorder,
+        boxShadow: shadows,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: Stack(
-          children: [
-            // Blur Layer - Web performance optimization
-            if (!kIsWeb)
-              Positioned.fill(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                  child: Container(color: Colors.transparent),
-                ),
-              ),
-            // Content Layer
-            Padding(
-              padding: padding ?? const EdgeInsets.all(16.0),
-              child: child,
-            ),
-          ],
-        ),
-      ),
+      child: widget.child,
     );
 
-    if (onTap != null || onLongPress != null) {
+    if (widget.onTap != null || widget.onLongPress != null) {
       return GestureDetector(
-        onTap: onTap,
-        onLongPress: onLongPress,
+        onTapDown: (_) {
+          if (mounted) setState(() => _isPressed = true);
+        },
+        onTapUp: (_) {
+          if (mounted) setState(() => _isPressed = false);
+        },
+        onTapCancel: () {
+          if (mounted) setState(() => _isPressed = false);
+        },
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
         child: content,
       );
     }
