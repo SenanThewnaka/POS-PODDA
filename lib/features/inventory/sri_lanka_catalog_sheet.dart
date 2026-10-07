@@ -24,6 +24,7 @@ class SriLankaCatalogSheet extends ConsumerStatefulWidget {
 
 class _SriLankaCatalogSheetState extends ConsumerState<SriLankaCatalogSheet> {
   final TextEditingController _searchController = TextEditingController();
+  String _selectedPresetId = 'all';
   String _selectedCategory = 'All';
   final Set<String> _selectedBarcodes = {};
   bool _isImporting = false;
@@ -42,16 +43,43 @@ class _SriLankaCatalogSheetState extends ConsumerState<SriLankaCatalogSheet> {
     super.dispose();
   }
 
+  void _selectPreset(StorePreset preset) {
+    setState(() {
+      _selectedPresetId = preset.id;
+      _selectedCategory = 'All';
+      final matchingItems = SriLankaProductsCatalog.getByCategories(preset.categories);
+      _selectedBarcodes.clear();
+      _selectedBarcodes.addAll(matchingItems.map((i) => i.barcode));
+    });
+  }
+
+  List<String> get _availableCategories {
+    final activePreset = SriLankaProductsCatalog.storePresets.firstWhere(
+      (p) => p.id == _selectedPresetId,
+      orElse: () => SriLankaProductsCatalog.storePresets.first,
+    );
+    if (activePreset.categories.contains('All')) {
+      return SriLankaProductsCatalog.categories;
+    }
+    return ['All', ...activePreset.categories];
+  }
+
   List<PreloadCatalogItem> get _filteredItems {
     final query = _searchController.text.trim().toLowerCase();
+    final activePreset = SriLankaProductsCatalog.storePresets.firstWhere(
+      (p) => p.id == _selectedPresetId,
+      orElse: () => SriLankaProductsCatalog.storePresets.first,
+    );
+
     return SriLankaProductsCatalog.items.where((item) {
+      final matchesPreset = activePreset.categories.contains('All') || activePreset.categories.contains(item.category);
       final matchesCategory = _selectedCategory == 'All' || item.category == _selectedCategory;
       final matchesQuery = query.isEmpty ||
           item.name.toLowerCase().contains(query) ||
           item.barcode.contains(query) ||
           item.brand.toLowerCase().contains(query) ||
           item.category.toLowerCase().contains(query);
-      return matchesCategory && matchesQuery;
+      return matchesPreset && matchesCategory && matchesQuery;
     }).toList();
   }
 
@@ -179,7 +207,7 @@ class _SriLankaCatalogSheetState extends ConsumerState<SriLankaCatalogSheet> {
                             ),
                           ),
                           Text(
-                            "Preload top Sri Lankan FMCG goods with real barcodes",
+                            "Preload Sri Lankan retail goods (FMCG, Stationery, Hardware)",
                             style: TextStyle(
                               fontSize: 12,
                               color: isDark ? Colors.white60 : Colors.black54,
@@ -197,6 +225,58 @@ class _SriLankaCatalogSheetState extends ConsumerState<SriLankaCatalogSheet> {
               ),
               const SizedBox(height: 12),
 
+              // Store Type Presets Row
+              SizedBox(
+                height: 40,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: SriLankaProductsCatalog.storePresets.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, idx) {
+                    final preset = SriLankaProductsCatalog.storePresets[idx];
+                    final isSelected = _selectedPresetId == preset.id;
+                    return InkWell(
+                      onTap: () => _selectPreset(preset),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Colors.cyanAccent.withValues(alpha: 0.2)
+                              : (isDark ? const Color(0xFF1E293B) : Colors.grey[100]),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? Colors.cyanAccent : Colors.transparent,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              preset.icon,
+                              size: 16,
+                              color: isSelected ? Colors.cyanAccent : (isDark ? Colors.white70 : Colors.black87),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              preset.title,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                color: isSelected ? Colors.cyanAccent : (isDark ? Colors.white : Colors.black87),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+
               // Search Bar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -204,7 +284,7 @@ class _SriLankaCatalogSheetState extends ConsumerState<SriLankaCatalogSheet> {
                   controller: _searchController,
                   onChanged: (val) => setState(() {}),
                   decoration: InputDecoration(
-                    hintText: "Search Munchee, Anchor, Sunlight, barcodes...",
+                    hintText: "Search Atlas, Orange, S-Lon, Munchee, barcodes...",
                     prefixIcon: const Icon(Icons.search, size: 20),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
@@ -233,10 +313,10 @@ class _SriLankaCatalogSheetState extends ConsumerState<SriLankaCatalogSheet> {
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: SriLankaProductsCatalog.categories.length,
+                  itemCount: _availableCategories.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (context, idx) {
-                    final cat = SriLankaProductsCatalog.categories[idx];
+                    final cat = _availableCategories[idx];
                     final isSelected = _selectedCategory == cat;
                     return ChoiceChip(
                       label: Text(cat),

@@ -7,19 +7,27 @@ import 'package:sme_buddy/features/inventory/services/barcode_lookup_service.dar
 
 void main() {
   group('SriLankaProductsCatalog Unit Tests', () {
-    test('contains rich catalog of Sri Lankan retail goods', () {
-      expect(SriLankaProductsCatalog.items.length, greaterThanOrEqualTo(50));
+    test('contains rich catalog of Sri Lankan retail goods across FMCG, Stationery, Hardware', () {
+      expect(SriLankaProductsCatalog.items.length, greaterThanOrEqualTo(100));
       expect(SriLankaProductsCatalog.categories, containsAll([
         'All',
         'Biscuits & Bakery',
         'Dairy & Beverages',
         'Grocery & Cooking',
         'Personal Care & Cleaning',
-        'Health & Stationery',
+        'Stationery & Bookshop',
+        'Hardware & Electrical',
+        'Pharmacy & Health',
       ]));
     });
 
-    test('findByBarcode matches Sri Lankan products faithfully', () {
+    test('storePresets contain distinct presets for retail verticals', () {
+      expect(SriLankaProductsCatalog.storePresets.length, greaterThanOrEqualTo(5));
+      final presetIds = SriLankaProductsCatalog.storePresets.map((p) => p.id).toList();
+      expect(presetIds, containsAll(['all', 'grocery', 'stationery', 'hardware', 'pharmacy']));
+    });
+
+    test('findByBarcode matches Sri Lankan FMCG products faithfully', () {
       final munchee = SriLankaProductsCatalog.findByBarcode('4792022011210');
       expect(munchee, isNotNull);
       expect(munchee!.name, contains('Munchee Super Cream Cracker'));
@@ -40,14 +48,54 @@ void main() {
       expect(nonExistent, isNull);
     });
 
+    test('findByBarcode matches Sri Lankan Stationery products faithfully', () {
+      final atlasCR = SriLankaProductsCatalog.findByBarcode('4792039011012');
+      expect(atlasCR, isNotNull);
+      expect(atlasCR!.name, contains('Atlas CR Single Rule Book'));
+      expect(atlasCR.category, 'Stationery & Bookshop');
+      expect(atlasCR.brand, 'Atlas');
+
+      final chootyPen = SriLankaProductsCatalog.findByBarcode('4792039013016');
+      expect(chootyPen, isNotNull);
+      expect(chootyPen!.name, contains('Atlas Chooty Ballpoint Pen'));
+
+      final doubleAPaper = SriLankaProductsCatalog.findByBarcode('8851234011019');
+      expect(doubleAPaper, isNotNull);
+      expect(doubleAPaper!.name, contains('Double A A4 Copier Paper'));
+    });
+
+    test('findByBarcode matches Sri Lankan Hardware & Electrical products faithfully', () {
+      final orangeBulb = SriLankaProductsCatalog.findByBarcode('4792018011015');
+      expect(orangeBulb, isNotNull);
+      expect(orangeBulb!.name, contains('Orange Electric 9W LED Bulb'));
+      expect(orangeBulb.category, 'Hardware & Electrical');
+      expect(orangeBulb.brand, 'Orange Electric');
+
+      final slonCement = SriLankaProductsCatalog.findByBarcode('4792047011011');
+      expect(slonCement, isNotNull);
+      expect(slonCement!.name, contains('S-Lon PVC Solvent Cement'));
+      expect(slonCement.brand, 'S-Lon');
+
+      final wd40 = SriLankaProductsCatalog.findByBarcode('5032227100018');
+      expect(wd40, isNotNull);
+      expect(wd40!.name, contains('WD-40'));
+
+      final alteco = SriLankaProductsCatalog.findByBarcode('4901234011017');
+      expect(alteco, isNotNull);
+      expect(alteco!.name, contains('Alteco 110 Super Glue'));
+    });
+
     test('search filters items by name, barcode, and brand', () {
       final resultsByName = SriLankaProductsCatalog.search('Cream Cracker');
       expect(resultsByName.isNotEmpty, true);
       expect(resultsByName.any((i) => i.brand == 'Munchee'), true);
       expect(resultsByName.any((i) => i.brand == 'Maliban'), true);
 
-      final resultsByBrand = SriLankaProductsCatalog.search('Elephant House');
-      expect(resultsByBrand.length, greaterThanOrEqualTo(4));
+      final resultsByBrand = SriLankaProductsCatalog.search('Orange Electric');
+      expect(resultsByBrand.length, greaterThanOrEqualTo(5));
+
+      final resultsByStationery = SriLankaProductsCatalog.search('Atlas');
+      expect(resultsByStationery.length, greaterThanOrEqualTo(10));
 
       final resultsByBarcode = SriLankaProductsCatalog.search('4792011011016');
       expect(resultsByBarcode.length, 1);
@@ -59,19 +107,37 @@ void main() {
       expect(biscuits.every((i) => i.category == 'Biscuits & Bakery'), true);
       expect(biscuits.length, greaterThanOrEqualTo(10));
 
+      final stationery = SriLankaProductsCatalog.getByCategory('Stationery & Bookshop');
+      expect(stationery.every((i) => i.category == 'Stationery & Bookshop'), true);
+      expect(stationery.length, greaterThanOrEqualTo(20));
+
+      final hardware = SriLankaProductsCatalog.getByCategory('Hardware & Electrical');
+      expect(hardware.every((i) => i.category == 'Hardware & Electrical'), true);
+      expect(hardware.length, greaterThanOrEqualTo(30));
+
       final all = SriLankaProductsCatalog.getByCategory('All');
       expect(all.length, SriLankaProductsCatalog.items.length);
     });
 
+    test('getByCategories returns items matching multiple categories', () {
+      final combined = SriLankaProductsCatalog.getByCategories([
+        'Stationery & Bookshop',
+        'Hardware & Electrical',
+      ]);
+      expect(combined.any((i) => i.category == 'Stationery & Bookshop'), true);
+      expect(combined.any((i) => i.category == 'Hardware & Electrical'), true);
+      expect(combined.every((i) => i.category == 'Stationery & Bookshop' || i.category == 'Hardware & Electrical'), true);
+    });
+
     test('PreloadCatalogItem.toProduct converts to valid Product with stock', () {
-      final item = SriLankaProductsCatalog.findByBarcode('4792022011210')!;
-      final product = item.toProduct(initialStock: 25.0);
+      final item = SriLankaProductsCatalog.findByBarcode('4792018011015')!;
+      final product = item.toProduct(initialStock: 15.0);
 
       expect(product.name, item.name);
       expect(product.barcode, item.barcode);
       expect(product.sellingPrice, item.sellingPrice);
       expect(product.costPrice, item.costPrice);
-      expect(product.currentStock, 25.0);
+      expect(product.currentStock, 15.0);
       expect(product.productType, 'PHYSICAL');
       expect(product.isActive, true);
     });
@@ -79,19 +145,33 @@ void main() {
 
   group('BarcodeLookupService Unit Tests', () {
     test('instant lookup resolves local Sri Lankan catalog offline without HTTP call', () async {
-      // Mock client that throws if called
       final mockClient = MockClient((request) async {
         throw Exception('Network should not be contacted for local catalog match');
       });
 
       final service = BarcodeLookupService(client: mockClient);
-      final result = await service.lookup('4792022011210');
+      final result = await service.lookup('4792018011015');
 
       expect(result, isNotNull);
-      expect(result!.barcode, '4792022011210');
-      expect(result.name, contains('Munchee Super Cream Cracker'));
-      expect(result.brand, 'Munchee');
-      expect(result.suggestedPrice, 420.0);
+      expect(result!.barcode, '4792018011015');
+      expect(result.name, contains('Orange Electric 9W LED Bulb'));
+      expect(result.brand, 'Orange Electric');
+      expect(result.suggestedPrice, 490.0);
+      expect(result.source, 'Sri Lanka Catalog');
+    });
+
+    test('instant lookup resolves local Sri Lankan stationery offline', () async {
+      final mockClient = MockClient((request) async {
+        throw Exception('Network should not be contacted for local catalog match');
+      });
+
+      final service = BarcodeLookupService(client: mockClient);
+      final result = await service.lookup('4792039011012');
+
+      expect(result, isNotNull);
+      expect(result!.barcode, '4792039011012');
+      expect(result.name, contains('Atlas CR Single Rule Book'));
+      expect(result.brand, 'Atlas');
       expect(result.source, 'Sri Lanka Catalog');
     });
 

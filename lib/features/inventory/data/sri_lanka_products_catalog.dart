@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import '../product_model.dart';
 
 class PreloadCatalogItem {
@@ -42,6 +43,20 @@ class PreloadCatalogItem {
   }
 }
 
+class StorePreset {
+  final String id;
+  final String title;
+  final IconData icon;
+  final List<String> categories;
+
+  const StorePreset({
+    required this.id,
+    required this.title,
+    required this.icon,
+    required this.categories,
+  });
+}
+
 class SriLankaProductsCatalog {
   static const List<String> categories = [
     'All',
@@ -49,11 +64,54 @@ class SriLankaProductsCatalog {
     'Dairy & Beverages',
     'Grocery & Cooking',
     'Personal Care & Cleaning',
-    'Health & Stationery',
+    'Stationery & Bookshop',
+    'Hardware & Electrical',
+    'Pharmacy & Health',
+  ];
+
+  static const List<StorePreset> storePresets = [
+    StorePreset(
+      id: 'all',
+      title: 'All Products',
+      icon: Icons.storefront,
+      categories: ['All'],
+    ),
+    StorePreset(
+      id: 'grocery',
+      title: 'Grocery & Kade',
+      icon: Icons.shopping_basket_outlined,
+      categories: [
+        'Biscuits & Bakery',
+        'Dairy & Beverages',
+        'Grocery & Cooking',
+        'Personal Care & Cleaning',
+        'Pharmacy & Health',
+      ],
+    ),
+    StorePreset(
+      id: 'stationery',
+      title: 'Stationery & Books',
+      icon: Icons.menu_book_outlined,
+      categories: ['Stationery & Bookshop'],
+    ),
+    StorePreset(
+      id: 'hardware',
+      title: 'Hardware & Electric',
+      icon: Icons.build_outlined,
+      categories: ['Hardware & Electrical'],
+    ),
+    StorePreset(
+      id: 'pharmacy',
+      title: 'Pharmacy & OTC',
+      icon: Icons.medical_services_outlined,
+      categories: ['Pharmacy & Health', 'Personal Care & Cleaning'],
+    ),
   ];
 
   static const List<PreloadCatalogItem> items = [
+    // =========================================================================
     // --- 1. BISCUITS & BAKERY ---
+    // =========================================================================
     PreloadCatalogItem(
       name: 'Munchee Super Cream Cracker 500g',
       barcode: '4792022011210',
@@ -175,7 +233,9 @@ class SriLankaProductsCatalog {
       brand: 'Samaposha',
     ),
 
+    // =========================================================================
     // --- 2. DAIRY, BEVERAGES & TEA ---
+    // =========================================================================
     PreloadCatalogItem(
       name: 'Anchor Full Cream Milk Powder 400g',
       barcode: '9414200115014',
@@ -329,7 +389,9 @@ class SriLankaProductsCatalog {
       brand: 'Zesta',
     ),
 
+    // =========================================================================
     // --- 3. GROCERY, STAPLES & COOKING ---
+    // =========================================================================
     PreloadCatalogItem(
       name: 'Maggi 2-Minute Noodles Chicken 73g',
       barcode: '8901058862040',
@@ -475,7 +537,9 @@ class SriLankaProductsCatalog {
       brand: 'Marina',
     ),
 
+    // =========================================================================
     // --- 4. PERSONAL CARE & CLEANING ---
+    // =========================================================================
     PreloadCatalogItem(
       name: 'Sunlight Yellow Laundry Soap 115g',
       barcode: '8901030701015',
@@ -525,6 +589,14 @@ class SriLankaProductsCatalog {
       brand: 'Signal',
     ),
     PreloadCatalogItem(
+      name: 'Signal White System Toothpaste 100g',
+      barcode: '8901030602015',
+      category: 'Personal Care & Cleaning',
+      costPrice: 240.0,
+      sellingPrice: 280.0,
+      brand: 'Signal',
+    ),
+    PreloadCatalogItem(
       name: 'Clogard Fresh Mint Toothpaste 120g',
       barcode: '4792021011013',
       category: 'Personal Care & Cleaning',
@@ -538,6 +610,14 @@ class SriLankaProductsCatalog {
       category: 'Personal Care & Cleaning',
       costPrice: 170.0,
       sellingPrice: 200.0,
+      brand: 'Baby Cheramy',
+    ),
+    PreloadCatalogItem(
+      name: 'Baby Cheramy Regular Baby Cologne 100ml',
+      barcode: '4792020012012',
+      category: 'Personal Care & Cleaning',
+      costPrice: 320.0,
+      sellingPrice: 380.0,
       brand: 'Baby Cheramy',
     ),
     PreloadCatalogItem(
@@ -581,14 +661,6 @@ class SriLankaProductsCatalog {
       brand: 'Harpic',
     ),
     PreloadCatalogItem(
-      name: 'Dettol Antiseptic Liquid 100ml',
-      barcode: '5000158012011',
-      category: 'Personal Care & Cleaning',
-      costPrice: 340.0,
-      sellingPrice: 395.0,
-      brand: 'Dettol',
-    ),
-    PreloadCatalogItem(
       name: 'Dettol Original Bath Soap 100g',
       barcode: '5000158011014',
       category: 'Personal Care & Cleaning',
@@ -597,43 +669,29 @@ class SriLankaProductsCatalog {
       brand: 'Dettol',
     ),
 
-    // --- 5. HEALTH & STATIONERY ---
-    PreloadCatalogItem(
-      name: 'Link Samahan Herbal Infusion Sachet',
-      barcode: '4792028010012',
-      category: 'Health & Stationery',
-      costPrice: 45.0,
-      sellingPrice: 55.0,
-      brand: 'Link Natural',
-    ),
-    PreloadCatalogItem(
-      name: 'Siddhalepa Herbal Balm 10g',
-      barcode: '4792023011011',
-      category: 'Health & Stationery',
-      costPrice: 120.0,
-      sellingPrice: 150.0,
-      brand: 'Siddhalepa',
-    ),
-    PreloadCatalogItem(
-      name: 'Siddhalepa Herbal Balm 25g',
-      barcode: '4792023011028',
-      category: 'Health & Stationery',
-      costPrice: 240.0,
-      sellingPrice: 290.0,
-      brand: 'Siddhalepa',
-    ),
-    PreloadCatalogItem(
-      name: 'Panadol Paracetamol 500mg (10 Tabs)',
-      barcode: '8901067011012',
-      category: 'Health & Stationery',
-      costPrice: 65.0,
-      sellingPrice: 80.0,
-      brand: 'Panadol',
-    ),
+    // =========================================================================
+    // --- 5. STATIONERY & BOOKSHOP ---
+    // =========================================================================
     PreloadCatalogItem(
       name: 'Atlas CR Single Rule Book 120 Pages',
       barcode: '4792039011012',
-      category: 'Health & Stationery',
+      category: 'Stationery & Bookshop',
+      costPrice: 190.0,
+      sellingPrice: 230.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas CR Single Rule Book 200 Pages',
+      barcode: '4792039011029',
+      category: 'Stationery & Bookshop',
+      costPrice: 280.0,
+      sellingPrice: 340.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas CR Square Rule Book 120 Pages',
+      barcode: '4792039011036',
+      category: 'Stationery & Bookshop',
       costPrice: 190.0,
       sellingPrice: 230.0,
       brand: 'Atlas',
@@ -641,18 +699,618 @@ class SriLankaProductsCatalog {
     PreloadCatalogItem(
       name: 'Atlas Exercise Book 80 Pages Single Rule',
       barcode: '4792039012019',
-      category: 'Health & Stationery',
+      category: 'Stationery & Bookshop',
       costPrice: 110.0,
       sellingPrice: 140.0,
       brand: 'Atlas',
     ),
     PreloadCatalogItem(
+      name: 'Atlas Exercise Book 120 Pages Single Rule',
+      barcode: '4792039012026',
+      category: 'Stationery & Bookshop',
+      costPrice: 150.0,
+      sellingPrice: 180.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas Exercise Book 80 Pages Square Rule',
+      barcode: '4792039012033',
+      category: 'Stationery & Bookshop',
+      costPrice: 110.0,
+      sellingPrice: 140.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas Drawing Book 40 Pages',
+      barcode: '4792039012040',
+      category: 'Stationery & Bookshop',
+      costPrice: 130.0,
+      sellingPrice: 160.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
       name: 'Atlas Chooty Ballpoint Pen (Blue)',
       barcode: '4792039013016',
-      category: 'Health & Stationery',
+      category: 'Stationery & Bookshop',
       costPrice: 30.0,
       sellingPrice: 40.0,
       brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas Chooty Ballpoint Pen (Black)',
+      barcode: '4792039013023',
+      category: 'Stationery & Bookshop',
+      costPrice: 30.0,
+      sellingPrice: 40.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas Chooty Ballpoint Pen (Red)',
+      barcode: '4792039013030',
+      category: 'Stationery & Bookshop',
+      costPrice: 30.0,
+      sellingPrice: 40.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas Butter Gel Pen 0.7mm (Blue)',
+      barcode: '4792039013047',
+      category: 'Stationery & Bookshop',
+      costPrice: 45.0,
+      sellingPrice: 60.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas Axill Retractable Ballpoint Pen',
+      barcode: '4792039013054',
+      category: 'Stationery & Bookshop',
+      costPrice: 38.0,
+      sellingPrice: 50.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas 12-Colour Oil Pastels Set',
+      barcode: '4792039014013',
+      category: 'Stationery & Bookshop',
+      costPrice: 260.0,
+      sellingPrice: 320.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas 24-Colour Oil Pastels Set',
+      barcode: '4792039014020',
+      category: 'Stationery & Bookshop',
+      costPrice: 480.0,
+      sellingPrice: 580.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas Modelling Clay Plasticine (6 Colours)',
+      barcode: '4792039014037',
+      category: 'Stationery & Bookshop',
+      costPrice: 180.0,
+      sellingPrice: 230.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas Mathematical Instrument Geometry Box',
+      barcode: '4792039015010',
+      category: 'Stationery & Bookshop',
+      costPrice: 390.0,
+      sellingPrice: 480.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas Clear Plastic Ruler 30cm',
+      barcode: '4792039015027',
+      category: 'Stationery & Bookshop',
+      costPrice: 45.0,
+      sellingPrice: 60.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Atlas Glue Stick 15g',
+      barcode: '4792039016017',
+      category: 'Stationery & Bookshop',
+      costPrice: 110.0,
+      sellingPrice: 140.0,
+      brand: 'Atlas',
+    ),
+    PreloadCatalogItem(
+      name: 'Elephant Liquid Gum Glue 50ml',
+      barcode: '4792039017014',
+      category: 'Stationery & Bookshop',
+      costPrice: 65.0,
+      sellingPrice: 85.0,
+      brand: 'Elephant',
+    ),
+    PreloadCatalogItem(
+      name: 'Richard Exercise Book 80 Pages Single Rule',
+      barcode: '4792041011017',
+      category: 'Stationery & Bookshop',
+      costPrice: 110.0,
+      sellingPrice: 140.0,
+      brand: 'Richard',
+    ),
+    PreloadCatalogItem(
+      name: 'Richard CR Book 120 Pages Single Rule',
+      barcode: '4792041012014',
+      category: 'Stationery & Bookshop',
+      costPrice: 190.0,
+      sellingPrice: 230.0,
+      brand: 'Richard',
+    ),
+    PreloadCatalogItem(
+      name: 'Nataraj 621 Bold Pencils (Pack of 10)',
+      barcode: '8901324011014',
+      category: 'Stationery & Bookshop',
+      costPrice: 180.0,
+      sellingPrice: 220.0,
+      brand: 'Nataraj',
+    ),
+    PreloadCatalogItem(
+      name: 'Nataraj Dust-Free Eraser',
+      barcode: '8901324021013',
+      category: 'Stationery & Bookshop',
+      costPrice: 20.0,
+      sellingPrice: 30.0,
+      brand: 'Nataraj',
+    ),
+    PreloadCatalogItem(
+      name: 'Doms Eraser & Sharpener Combo Pack',
+      barcode: '8901324031012',
+      category: 'Stationery & Bookshop',
+      costPrice: 40.0,
+      sellingPrice: 50.0,
+      brand: 'Doms',
+    ),
+    PreloadCatalogItem(
+      name: 'Double A A4 Copier Paper Ream 70gsm (500 Sheets)',
+      barcode: '8851234011019',
+      category: 'Stationery & Bookshop',
+      costPrice: 1350.0,
+      sellingPrice: 1550.0,
+      brand: 'Double A',
+    ),
+    PreloadCatalogItem(
+      name: 'Paperline A4 Copier Paper Ream 80gsm (500 Sheets)',
+      barcode: '8991234012018',
+      category: 'Stationery & Bookshop',
+      costPrice: 1450.0,
+      sellingPrice: 1650.0,
+      brand: 'Paperline',
+    ),
+    PreloadCatalogItem(
+      name: 'Kangaro Stapler No. 10',
+      barcode: '8901324041011',
+      category: 'Stationery & Bookshop',
+      costPrice: 280.0,
+      sellingPrice: 350.0,
+      brand: 'Kangaro',
+    ),
+    PreloadCatalogItem(
+      name: 'Kangaro Staple Pins No. 10 Box',
+      barcode: '8901324042018',
+      category: 'Stationery & Bookshop',
+      costPrice: 55.0,
+      sellingPrice: 75.0,
+      brand: 'Kangaro',
+    ),
+    PreloadCatalogItem(
+      name: 'SDI Correction Tape Whitener 5mm',
+      barcode: '4711234011012',
+      category: 'Stationery & Bookshop',
+      costPrice: 180.0,
+      sellingPrice: 230.0,
+      brand: 'SDI',
+    ),
+
+    // =========================================================================
+    // --- 6. HARDWARE & ELECTRICAL ---
+    // =========================================================================
+    PreloadCatalogItem(
+      name: 'Orange Electric 9W LED Bulb (B22 Pin)',
+      barcode: '4792018011015',
+      category: 'Hardware & Electrical',
+      costPrice: 420.0,
+      sellingPrice: 490.0,
+      brand: 'Orange Electric',
+    ),
+    PreloadCatalogItem(
+      name: 'Orange Electric 12W LED Bulb (B22 Pin)',
+      barcode: '4792018011022',
+      category: 'Hardware & Electrical',
+      costPrice: 520.0,
+      sellingPrice: 610.0,
+      brand: 'Orange Electric',
+    ),
+    PreloadCatalogItem(
+      name: 'Orange Electric 9W LED Bulb (E27 Screw)',
+      barcode: '4792018011039',
+      category: 'Hardware & Electrical',
+      costPrice: 420.0,
+      sellingPrice: 490.0,
+      brand: 'Orange Electric',
+    ),
+    PreloadCatalogItem(
+      name: 'Orange Electric 13A 3-Pin Plug Top',
+      barcode: '4792018012012',
+      category: 'Hardware & Electrical',
+      costPrice: 190.0,
+      sellingPrice: 240.0,
+      brand: 'Orange Electric',
+    ),
+    PreloadCatalogItem(
+      name: 'Orange Electric 1-Gang 1-Way Switch',
+      barcode: '4792018013019',
+      category: 'Hardware & Electrical',
+      costPrice: 220.0,
+      sellingPrice: 270.0,
+      brand: 'Orange Electric',
+    ),
+    PreloadCatalogItem(
+      name: 'Orange Electric 1-Gang 2-Way Switch',
+      barcode: '4792018013026',
+      category: 'Hardware & Electrical',
+      costPrice: 260.0,
+      sellingPrice: 320.0,
+      brand: 'Orange Electric',
+    ),
+    PreloadCatalogItem(
+      name: 'Orange Electric 13A Switched Socket',
+      barcode: '4792018014016',
+      category: 'Hardware & Electrical',
+      costPrice: 580.0,
+      sellingPrice: 690.0,
+      brand: 'Orange Electric',
+    ),
+    PreloadCatalogItem(
+      name: 'Orange Electric Batten Lamp Holder B22',
+      barcode: '4792018015013',
+      category: 'Hardware & Electrical',
+      costPrice: 140.0,
+      sellingPrice: 180.0,
+      brand: 'Orange Electric',
+    ),
+    PreloadCatalogItem(
+      name: 'Kelani Cables 1/1.13 Single Core Wire 100m (Red)',
+      barcode: '4792045011013',
+      category: 'Hardware & Electrical',
+      costPrice: 6200.0,
+      sellingPrice: 6900.0,
+      brand: 'Kelani Cables',
+    ),
+    PreloadCatalogItem(
+      name: 'Kelani Cables 1/1.13 Single Core Wire 100m (Black)',
+      barcode: '4792045011020',
+      category: 'Hardware & Electrical',
+      costPrice: 6200.0,
+      sellingPrice: 6900.0,
+      brand: 'Kelani Cables',
+    ),
+    PreloadCatalogItem(
+      name: 'S-Lon PVC Solvent Cement Tin 100ml',
+      barcode: '4792047011011',
+      category: 'Hardware & Electrical',
+      costPrice: 280.0,
+      sellingPrice: 340.0,
+      brand: 'S-Lon',
+    ),
+    PreloadCatalogItem(
+      name: 'S-Lon PVC Solvent Cement Tube 50ml',
+      barcode: '4792047011028',
+      category: 'Hardware & Electrical',
+      costPrice: 160.0,
+      sellingPrice: 200.0,
+      brand: 'S-Lon',
+    ),
+    PreloadCatalogItem(
+      name: 'S-Lon PVC 1/2" Socket',
+      barcode: '4792047012018',
+      category: 'Hardware & Electrical',
+      costPrice: 35.0,
+      sellingPrice: 50.0,
+      brand: 'S-Lon',
+    ),
+    PreloadCatalogItem(
+      name: 'S-Lon PVC 1/2" 90 Degree Bend',
+      barcode: '4792047012025',
+      category: 'Hardware & Electrical',
+      costPrice: 45.0,
+      sellingPrice: 65.0,
+      brand: 'S-Lon',
+    ),
+    PreloadCatalogItem(
+      name: 'S-Lon PVC 1/2" Elbow',
+      barcode: '4792047012032',
+      category: 'Hardware & Electrical',
+      costPrice: 40.0,
+      sellingPrice: 60.0,
+      brand: 'S-Lon',
+    ),
+    PreloadCatalogItem(
+      name: 'S-Lon PVC 1/2" Tee',
+      barcode: '4792047012049',
+      category: 'Hardware & Electrical',
+      costPrice: 50.0,
+      sellingPrice: 75.0,
+      brand: 'S-Lon',
+    ),
+    PreloadCatalogItem(
+      name: 'S-Lon PVC 1/2" Ball Valve',
+      barcode: '4792047013015',
+      category: 'Hardware & Electrical',
+      costPrice: 260.0,
+      sellingPrice: 330.0,
+      brand: 'S-Lon',
+    ),
+    PreloadCatalogItem(
+      name: 'S-Lon PVC 1/2" Plastic Bib Tap',
+      barcode: '4792047013022',
+      category: 'Hardware & Electrical',
+      costPrice: 180.0,
+      sellingPrice: 240.0,
+      brand: 'S-Lon',
+    ),
+    PreloadCatalogItem(
+      name: 'S-Lon Teflon Thread Seal Tape 12mm',
+      barcode: '4792047014012',
+      category: 'Hardware & Electrical',
+      costPrice: 40.0,
+      sellingPrice: 60.0,
+      brand: 'S-Lon',
+    ),
+    PreloadCatalogItem(
+      name: 'Alteco 110 Super Glue 3g',
+      barcode: '4901234011017',
+      category: 'Hardware & Electrical',
+      costPrice: 85.0,
+      sellingPrice: 110.0,
+      brand: 'Alteco',
+    ),
+    PreloadCatalogItem(
+      name: 'Elephant Super Glue 3g',
+      barcode: '4792039018011',
+      category: 'Hardware & Electrical',
+      costPrice: 75.0,
+      sellingPrice: 100.0,
+      brand: 'Elephant',
+    ),
+    PreloadCatalogItem(
+      name: 'Araldite Standard 5-Minute Epoxy Adhesive',
+      barcode: '5011234011018',
+      category: 'Hardware & Electrical',
+      costPrice: 380.0,
+      sellingPrice: 460.0,
+      brand: 'Araldite',
+    ),
+    PreloadCatalogItem(
+      name: 'WD-40 Multi-Use Lubricant Spray 100ml',
+      barcode: '5032227100018',
+      category: 'Hardware & Electrical',
+      costPrice: 750.0,
+      sellingPrice: 890.0,
+      brand: 'WD-40',
+    ),
+    PreloadCatalogItem(
+      name: 'National PVC Electrical Insulating Tape (Black)',
+      barcode: '4792049011019',
+      category: 'Hardware & Electrical',
+      costPrice: 65.0,
+      sellingPrice: 90.0,
+      brand: 'National',
+    ),
+    PreloadCatalogItem(
+      name: 'Abro Masking Tape 1-Inch',
+      barcode: '0791234011014',
+      category: 'Hardware & Electrical',
+      costPrice: 120.0,
+      sellingPrice: 160.0,
+      brand: 'Abro',
+    ),
+    PreloadCatalogItem(
+      name: 'Abro Masking Tape 2-Inch',
+      barcode: '0791234011021',
+      category: 'Hardware & Electrical',
+      costPrice: 230.0,
+      sellingPrice: 290.0,
+      brand: 'Abro',
+    ),
+    PreloadCatalogItem(
+      name: 'Clear Packaging Box Tape 2-Inch (45m)',
+      barcode: '4792049012016',
+      category: 'Hardware & Electrical',
+      costPrice: 160.0,
+      sellingPrice: 220.0,
+      brand: 'General',
+    ),
+    PreloadCatalogItem(
+      name: 'Bosch 4" Metal Cutting Disc (100x1.2mm)',
+      barcode: '3165140110118',
+      category: 'Hardware & Electrical',
+      costPrice: 130.0,
+      sellingPrice: 170.0,
+      brand: 'Bosch',
+    ),
+    PreloadCatalogItem(
+      name: 'Norton 4" Masonry / Marble Cutting Wheel',
+      barcode: '5412340110119',
+      category: 'Hardware & Electrical',
+      costPrice: 220.0,
+      sellingPrice: 280.0,
+      brand: 'Norton',
+    ),
+    PreloadCatalogItem(
+      name: 'Sandpaper Sheet No. 120 (Medium Grit)',
+      barcode: '4792049013013',
+      category: 'Hardware & Electrical',
+      costPrice: 45.0,
+      sellingPrice: 65.0,
+      brand: 'Deerfos',
+    ),
+    PreloadCatalogItem(
+      name: 'Sandpaper Sheet No. 80 (Coarse Grit)',
+      barcode: '4792049013020',
+      category: 'Hardware & Electrical',
+      costPrice: 50.0,
+      sellingPrice: 70.0,
+      brand: 'Deerfos',
+    ),
+    PreloadCatalogItem(
+      name: 'Sandpaper Waterproof No. 220 (Fine)',
+      barcode: '4792049013037',
+      category: 'Hardware & Electrical',
+      costPrice: 55.0,
+      sellingPrice: 75.0,
+      brand: 'Deerfos',
+    ),
+    PreloadCatalogItem(
+      name: 'Steel Wire Nails 2-Inch (100g Pack)',
+      barcode: '4792049014010',
+      category: 'Hardware & Electrical',
+      costPrice: 50.0,
+      sellingPrice: 70.0,
+      brand: 'General',
+    ),
+    PreloadCatalogItem(
+      name: 'Steel Wire Nails 3-Inch (100g Pack)',
+      barcode: '4792049014027',
+      category: 'Hardware & Electrical',
+      costPrice: 50.0,
+      sellingPrice: 70.0,
+      brand: 'General',
+    ),
+    PreloadCatalogItem(
+      name: 'Hardened Concrete Nails 2-Inch (Box of 100)',
+      barcode: '4792049014034',
+      category: 'Hardware & Electrical',
+      costPrice: 280.0,
+      sellingPrice: 360.0,
+      brand: 'General',
+    ),
+    PreloadCatalogItem(
+      name: 'Drywall Gypsum Screws 1-Inch (Pack of 100)',
+      barcode: '4792049014041',
+      category: 'Hardware & Electrical',
+      costPrice: 240.0,
+      sellingPrice: 310.0,
+      brand: 'General',
+    ),
+    PreloadCatalogItem(
+      name: 'Fischer Wall Plugs No. 8 with Screws (Pack of 20)',
+      barcode: '4006209110113',
+      category: 'Hardware & Electrical',
+      costPrice: 180.0,
+      sellingPrice: 240.0,
+      brand: 'Fischer',
+    ),
+    PreloadCatalogItem(
+      name: 'Stanley / Freeman Measuring Tape 5m',
+      barcode: '0761743011019',
+      category: 'Hardware & Electrical',
+      costPrice: 550.0,
+      sellingPrice: 680.0,
+      brand: 'Stanley',
+    ),
+    PreloadCatalogItem(
+      name: 'Tri-Circle Solid Brass Padlock 38mm',
+      barcode: '6901234011016',
+      category: 'Hardware & Electrical',
+      costPrice: 620.0,
+      sellingPrice: 760.0,
+      brand: 'Tri-Circle',
+    ),
+    PreloadCatalogItem(
+      name: 'Tri-Circle Solid Brass Padlock 50mm',
+      barcode: '6901234011023',
+      category: 'Hardware & Electrical',
+      costPrice: 890.0,
+      sellingPrice: 1080.0,
+      brand: 'Tri-Circle',
+    ),
+    PreloadCatalogItem(
+      name: 'Total Claw Hammer 500g Rubber Grip',
+      barcode: '4792049015017',
+      category: 'Hardware & Electrical',
+      costPrice: 1150.0,
+      sellingPrice: 1400.0,
+      brand: 'Total Tools',
+    ),
+    PreloadCatalogItem(
+      name: 'Total Combination Pliers 8-Inch Heavy Duty',
+      barcode: '6925582110115',
+      category: 'Hardware & Electrical',
+      costPrice: 880.0,
+      sellingPrice: 1100.0,
+      brand: 'Total Tools',
+    ),
+
+    // =========================================================================
+    // --- 7. PHARMACY & HEALTH ---
+    // =========================================================================
+    PreloadCatalogItem(
+      name: 'Link Samahan Herbal Infusion Sachet',
+      barcode: '4792028010012',
+      category: 'Pharmacy & Health',
+      costPrice: 45.0,
+      sellingPrice: 55.0,
+      brand: 'Link Natural',
+    ),
+    PreloadCatalogItem(
+      name: 'Siddhalepa Herbal Balm 10g',
+      barcode: '4792023011011',
+      category: 'Pharmacy & Health',
+      costPrice: 120.0,
+      sellingPrice: 150.0,
+      brand: 'Siddhalepa',
+    ),
+    PreloadCatalogItem(
+      name: 'Siddhalepa Herbal Balm 25g',
+      barcode: '4792023011028',
+      category: 'Pharmacy & Health',
+      costPrice: 240.0,
+      sellingPrice: 290.0,
+      brand: 'Siddhalepa',
+    ),
+    PreloadCatalogItem(
+      name: 'Panadol Paracetamol 500mg (10 Tabs)',
+      barcode: '8901067011012',
+      category: 'Pharmacy & Health',
+      costPrice: 65.0,
+      sellingPrice: 80.0,
+      brand: 'Panadol',
+    ),
+    PreloadCatalogItem(
+      name: 'Dettol Antiseptic Liquid 100ml',
+      barcode: '5000158012011',
+      category: 'Pharmacy & Health',
+      costPrice: 340.0,
+      sellingPrice: 395.0,
+      brand: 'Dettol',
+    ),
+    PreloadCatalogItem(
+      name: 'Lion Plaster Adhesive Bandage Strips (Pack of 10)',
+      barcode: '4792051011014',
+      category: 'Pharmacy & Health',
+      costPrice: 70.0,
+      sellingPrice: 95.0,
+      brand: 'Lion',
+    ),
+    PreloadCatalogItem(
+      name: 'Moov Pain Relief Ointment 25g',
+      barcode: '8901030015013',
+      category: 'Pharmacy & Health',
+      costPrice: 290.0,
+      sellingPrice: 360.0,
+      brand: 'Moov',
+    ),
+    PreloadCatalogItem(
+      name: 'Axe Brand Universal Medicated Oil 3ml',
+      barcode: '8888012011015',
+      category: 'Pharmacy & Health',
+      costPrice: 180.0,
+      sellingPrice: 230.0,
+      brand: 'Axe Brand',
     ),
   ];
 
@@ -668,6 +1326,11 @@ class SriLankaProductsCatalog {
   static List<PreloadCatalogItem> getByCategory(String category) {
     if (category == 'All') return items;
     return items.where((i) => i.category == category).toList();
+  }
+
+  static List<PreloadCatalogItem> getByCategories(List<String> cats) {
+    if (cats.contains('All')) return items;
+    return items.where((i) => cats.contains(i.category)).toList();
   }
 
   static List<PreloadCatalogItem> search(String query) {
