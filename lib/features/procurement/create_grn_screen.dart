@@ -483,21 +483,24 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
                               itemCount: filteredProducts.length,
                               itemBuilder: (ctx, idx) {
                                 final p = filteredProducts[idx];
-                                return ListTile(
-                                  dense: true,
-                                  title: Text(p.name,
-                                      style: const TextStyle(color: Colors.white, fontSize: 14)),
-                                  subtitle: Text(
-                                    "Stock: ${p.currentStock} | Cost: Rs. ${p.costPrice.toStringAsFixed(2)} | Sell: Rs. ${p.sellingPrice.toStringAsFixed(2)}",
-                                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                                return Material(
+                                  color: Colors.transparent,
+                                  child: ListTile(
+                                    dense: true,
+                                    title: Text(p.name,
+                                        style: const TextStyle(color: Colors.white, fontSize: 14)),
+                                    subtitle: Text(
+                                      "Stock: ${p.currentStock} | Cost: Rs. ${p.costPrice.toStringAsFixed(2)} | Sell: Rs. ${p.sellingPrice.toStringAsFixed(2)}",
+                                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                                    ),
+                                    onTap: () {
+                                      setModalState(() {
+                                        selectedProduct = p;
+                                        costCtrl.text = p.costPrice > 0 ? p.costPrice.toStringAsFixed(2) : '';
+                                        sellingCtrl.text = p.sellingPrice > 0 ? p.sellingPrice.toStringAsFixed(2) : '';
+                                      });
+                                    },
                                   ),
-                                  onTap: () {
-                                    setModalState(() {
-                                      selectedProduct = p;
-                                      costCtrl.text = p.costPrice > 0 ? p.costPrice.toStringAsFixed(2) : '';
-                                      sellingCtrl.text = p.sellingPrice > 0 ? p.sellingPrice.toStringAsFixed(2) : '';
-                                    });
-                                  },
                                 );
                               },
                             ),
@@ -1496,35 +1499,38 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
               ? ((item.sellingPrice - item.unitCostPrice) / item.sellingPrice) * 100
               : 0.0;
 
-          return ListTile(
-            dense: true,
-            onTap: () => _editItemDialog(idx),
-            title: Text(
-              item.productName,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            subtitle: Text(
-              "Qty: ${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity}  ×  Cost: Rs. ${item.unitCostPrice.toStringAsFixed(2)}  •  Selling: Rs. ${item.sellingPrice.toStringAsFixed(2)}  (Margin: ${margin.toStringAsFixed(1)}%)",
-              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  "Rs. ${item.subTotal.toStringAsFixed(2)}",
-                  style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, color: Colors.cyanAccent, size: 20),
-                  tooltip: "Edit Item",
-                  onPressed: () => _editItemDialog(idx),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                  tooltip: "Remove Item",
-                  onPressed: () => _removeItem(idx),
-                ),
-              ],
+          return Material(
+            color: Colors.transparent,
+            child: ListTile(
+              dense: true,
+              onTap: () => _editItemDialog(idx),
+              title: Text(
+                item.productName,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              subtitle: Text(
+                "Qty: ${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity}  ×  Cost: Rs. ${item.unitCostPrice.toStringAsFixed(2)}  •  Selling: Rs. ${item.sellingPrice.toStringAsFixed(2)}  (Margin: ${margin.toStringAsFixed(1)}%)",
+                style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "Rs. ${item.subTotal.toStringAsFixed(2)}",
+                    style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, color: Colors.cyanAccent, size: 20),
+                    tooltip: "Edit Item",
+                    onPressed: () => _editItemDialog(idx),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                    tooltip: "Remove Item",
+                    onPressed: () => _removeItem(idx),
+                  ),
+                ],
+              ),
             ),
           );
         },

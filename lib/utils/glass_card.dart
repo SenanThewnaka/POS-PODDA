@@ -89,7 +89,11 @@ class _GlassCardState extends State<GlassCard> {
         border: widget.border ?? defaultBorder,
         boxShadow: shadows,
       ),
-      child: widget.child,
+      child: Material(
+        type: MaterialType.transparency,
+        borderRadius: BorderRadius.circular(widget.borderRadius),
+        child: widget.child,
+      ),
     );
 
     if (widget.onTap != null || widget.onLongPress != null) {
