@@ -437,7 +437,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                         ),
                                         alignment: Alignment.center,
                                         child: Text(
-                                          product.productType == 'SERVICE' ? "SERVICE" : UnitFormatter.format(product.currentStock, product.baseUnit),
+                                          product.isService ? "SERVICE" : UnitFormatter.format(product.currentStock < 0 ? 0.0 : product.currentStock, product.baseUnit),
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold, 
                                             fontSize: 16,

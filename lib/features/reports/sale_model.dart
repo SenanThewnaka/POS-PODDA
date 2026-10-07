@@ -63,6 +63,9 @@ class Sale {
   final String? userId; // Who made the sale
   final String? userName;
 
+  // Split Tender breakdown (e.g. {'CASH': 200, 'CREDIT': 100, 'CARD': 0, 'CASH_TENDERED': 500})
+  final Map<String, double>? splitPayments;
+
   Sale({
     required this.id, 
     required this.timestamp, 
@@ -75,6 +78,7 @@ class Sale {
     List<String>? productIds,
     this.userId,
     this.userName,
+    this.splitPayments,
   }) : productIds = productIds ?? items.map((e) => e.productId).toList();
 
   Map<String, dynamic> toMap() {
@@ -90,6 +94,7 @@ class Sale {
       'productIds': productIds,
       'userId': userId,
       'userName': userName,
+      if (splitPayments != null) 'splitPayments': splitPayments,
     };
   }
 
@@ -117,11 +122,31 @@ class Sale {
       productIds: List<String>.from(map['productIds'] ?? []),
       userId: map['userId'],
       userName: map['userName'],
+      splitPayments: (map['splitPayments'] as Map<dynamic, dynamic>?)?.map(
+        (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
+      ),
     );
   }
 
-  double get cashTendered => paymentMethod == 'CASH' ? amountPaid : totalAmount;
-  double get changeDue => (amountPaid - totalAmount).clamp(0.0, double.infinity);
+  double get cashTendered {
+    if (paymentMethod == 'CASH') return amountPaid;
+    if (paymentMethod == 'SPLIT' && splitPayments != null) {
+      return splitPayments!['CASH_TENDERED'] ?? splitPayments!['CASH'] ?? 0.0;
+    }
+    return totalAmount;
+  }
+
+  double get changeDue {
+    if (paymentMethod == 'CASH') {
+      return (amountPaid - totalAmount).clamp(0.0, double.infinity);
+    }
+    if (paymentMethod == 'SPLIT' && splitPayments != null) {
+      final cashPortion = splitPayments!['CASH'] ?? 0.0;
+      final tendered = splitPayments!['CASH_TENDERED'] ?? cashPortion;
+      return (tendered - cashPortion).clamp(0.0, double.infinity);
+    }
+    return 0.0;
+  }
 
   Sale copyWith({
     String? id,
@@ -135,6 +160,7 @@ class Sale {
     List<String>? productIds,
     String? userId,
     String? userName,
+    Map<String, double>? splitPayments,
   }) {
     return Sale(
       id: id ?? this.id,
@@ -148,6 +174,7 @@ class Sale {
       productIds: productIds ?? this.productIds,
       userId: userId ?? this.userId,
       userName: userName ?? this.userName,
+      splitPayments: splitPayments ?? this.splitPayments,
     );
   }
 }

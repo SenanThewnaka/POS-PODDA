@@ -34,6 +34,7 @@ class FakeSalesRepository implements SalesRepository {
     String? customerId,
     Map<String, CartItem> cartItems, {
     double? amountTendered,
+    Map<String, double>? splitPayments,
   }) async {
     final double tenderPaid = method == 'CASH'
         ? (amountTendered != null && amountTendered >= amount ? amountTendered : amount)
@@ -97,6 +98,7 @@ class FakeShiftRepository implements ShiftRepository {
   Future<void> recordSaleInActiveShift({
     required double amount,
     required String paymentMethod,
+    Map<String, double>? splitPayments,
   }) async {
     shiftSalesRecords.add({'amount': amount, 'method': paymentMethod});
   }

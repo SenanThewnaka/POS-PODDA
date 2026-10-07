@@ -594,6 +594,139 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                                     ),
                                   ),
                                 ],
+
+                              if (sale.paymentMethod == 'SPLIT' && sale.splitPayments != null) ...[
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Text(
+                                            "Split Breakdown",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                              color: Colors.purpleAccent,
+                                            ),
+                                          ),
+                                          if ((sale.splitPayments!['CREDIT'] ?? 0) > 0)
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.redAccent.withValues(alpha: 0.15),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: const Text(
+                                                "Credit Due",
+                                                style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 10),
+                                      if ((sale.splitPayments!['CASH'] ?? 0) > 0)
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 6.0),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Row(
+                                                children: const [
+                                                  Icon(Icons.money, size: 16, color: Colors.greenAccent),
+                                                  SizedBox(width: 6),
+                                                  Text("Cash Paid:"),
+                                                ],
+                                              ),
+                                              Text(
+                                                "Rs. ${sale.splitPayments!['CASH']!.toStringAsFixed(2)}",
+                                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      if ((sale.splitPayments!['CARD'] ?? 0) > 0)
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 6.0),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Row(
+                                                children: const [
+                                                  Icon(Icons.credit_card, size: 16, color: Colors.blueAccent),
+                                                  SizedBox(width: 6),
+                                                  Text("Card / Digital:"),
+                                                ],
+                                              ),
+                                              Text(
+                                                "Rs. ${sale.splitPayments!['CARD']!.toStringAsFixed(2)}",
+                                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      if ((sale.splitPayments!['CREDIT'] ?? 0) > 0)
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 6.0),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Row(
+                                                children: const [
+                                                  Icon(Icons.person, size: 16, color: Colors.redAccent),
+                                                  SizedBox(width: 6),
+                                                  Text("Credit (Potha):", style: TextStyle(color: Colors.redAccent)),
+                                                ],
+                                              ),
+                                              Text(
+                                                "Rs. ${sale.splitPayments!['CREDIT']!.toStringAsFixed(2)}",
+                                                style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      if (sale.changeDue > 0) ...[
+                                        const Divider(height: 12),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              "Cash Handed:",
+                                              style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
+                                            ),
+                                            Text(
+                                              "Rs. ${sale.cashTendered.toStringAsFixed(2)}",
+                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            const Text(
+                                              "Change Due:",
+                                              style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
+                                            ),
+                                            Text(
+                                              "Rs. ${sale.changeDue.toStringAsFixed(2)}",
+                                              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF10B981), fontSize: 15),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
                                 const SizedBox(height: 16),
                               ],
 
@@ -881,6 +1014,16 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     if (_currentSale.paymentMethod == 'CASH') {
       sb.writeln("Cash Tendered: Rs. ${_currentSale.cashTendered.toStringAsFixed(2)}");
       sb.writeln("Change Due: Rs. ${_currentSale.changeDue.toStringAsFixed(2)}");
+    } else if (_currentSale.paymentMethod == 'SPLIT' && _currentSale.splitPayments != null) {
+      sb.writeln("Payment: SPLIT BILL");
+      final splits = _currentSale.splitPayments!;
+      if ((splits['CASH'] ?? 0) > 0) sb.writeln("  Cash: Rs. ${splits['CASH']!.toStringAsFixed(2)}");
+      if ((splits['CARD'] ?? 0) > 0) sb.writeln("  Card: Rs. ${splits['CARD']!.toStringAsFixed(2)}");
+      if ((splits['CREDIT'] ?? 0) > 0) sb.writeln("  Credit: Rs. ${splits['CREDIT']!.toStringAsFixed(2)}");
+      if (_currentSale.changeDue > 0) {
+        sb.writeln("  Cash Tendered: Rs. ${_currentSale.cashTendered.toStringAsFixed(2)}");
+        sb.writeln("  Change Due: Rs. ${_currentSale.changeDue.toStringAsFixed(2)}");
+      }
     }
     if (user?.invoiceFooterMessage != null) sb.writeln("\n${user!.invoiceFooterMessage}");
     return sb.toString();
@@ -1140,6 +1283,50 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                     pw.Text("Rs. ${_currentSale.changeDue.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodySize)),
                   ],
                 ),
+              ],
+
+              if (_currentSale.paymentMethod == 'SPLIT' && _currentSale.splitPayments != null) ...[
+                pw.SizedBox(height: 2),
+                if ((_currentSale.splitPayments!['CASH'] ?? 0) > 0)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text("  • Cash:", style: pw.TextStyle(fontSize: bodySize - 2)),
+                      pw.Text("Rs. ${_currentSale.splitPayments!['CASH']!.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: bodySize - 2)),
+                    ],
+                  ),
+                if ((_currentSale.splitPayments!['CARD'] ?? 0) > 0)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text("  • Card:", style: pw.TextStyle(fontSize: bodySize - 2)),
+                      pw.Text("Rs. ${_currentSale.splitPayments!['CARD']!.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: bodySize - 2)),
+                    ],
+                  ),
+                if ((_currentSale.splitPayments!['CREDIT'] ?? 0) > 0)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text("  • Credit:", style: pw.TextStyle(fontSize: bodySize - 2)),
+                      pw.Text("Rs. ${_currentSale.splitPayments!['CREDIT']!.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: bodySize - 2)),
+                    ],
+                  ),
+                if (_currentSale.changeDue > 0) ...[
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text("Cash Handed:", style: pw.TextStyle(fontSize: bodySize - 2)),
+                      pw.Text("Rs. ${_currentSale.cashTendered.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: bodySize - 2)),
+                    ],
+                  ),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text("Change Due:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodySize)),
+                      pw.Text("Rs. ${_currentSale.changeDue.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: bodySize)),
+                    ],
+                  ),
+                ],
               ],
 
               if (_currentSale.paymentMethod == 'CREDIT')

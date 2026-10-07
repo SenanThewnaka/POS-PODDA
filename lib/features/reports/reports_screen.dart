@@ -433,12 +433,19 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                                leading: Container( // Nice icon container
                                  padding: const EdgeInsets.all(8),
                                  decoration: BoxDecoration(
-                                   color: (sale.paymentMethod == 'CREDIT' ? Colors.redAccent : Colors.greenAccent).withValues(alpha: 0.2),
+                                   color: (sale.paymentMethod == 'CREDIT'
+                                           ? Colors.redAccent
+                                           : (sale.paymentMethod == 'SPLIT' ? Colors.purpleAccent : Colors.greenAccent))
+                                       .withValues(alpha: 0.2),
                                    shape: BoxShape.circle,
                                  ),
                                  child: Icon(
-                                   Icons.receipt, 
-                                   color: sale.paymentMethod == 'CREDIT' ? Colors.redAccent : Colors.greenAccent,
+                                   sale.paymentMethod == 'SPLIT'
+                                       ? Icons.call_split
+                                       : (sale.paymentMethod == 'CREDIT' ? Icons.person : Icons.receipt),
+                                   color: sale.paymentMethod == 'CREDIT'
+                                       ? Colors.redAccent
+                                       : (sale.paymentMethod == 'SPLIT' ? Colors.purpleAccent : Colors.greenAccent),
                                    size: 20,
                                  ),
                                ),

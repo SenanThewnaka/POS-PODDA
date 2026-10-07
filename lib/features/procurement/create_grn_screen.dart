@@ -103,6 +103,7 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
         builder: (ctx, setModalState) {
           final filteredProducts = products.where((p) {
             if (!p.isActive) return false;
+            if (p.isService) return false;
             if (searchProductQuery.isEmpty) return true;
             return p.name.toLowerCase().contains(searchProductQuery) ||
                 (p.barcode != null && p.barcode!.toLowerCase().contains(searchProductQuery));
@@ -490,7 +491,7 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
                                     title: Text(p.name,
                                         style: const TextStyle(color: Colors.white, fontSize: 14)),
                                     subtitle: Text(
-                                      "Stock: ${p.currentStock} | Cost: Rs. ${p.costPrice.toStringAsFixed(2)} | Sell: Rs. ${p.sellingPrice.toStringAsFixed(2)}",
+                                      "${p.isService ? 'Service (No Inventory)' : 'Stock: ${p.currentStock < 0 ? 0 : p.currentStock}'} | Cost: Rs. ${p.costPrice.toStringAsFixed(2)} | Sell: Rs. ${p.sellingPrice.toStringAsFixed(2)}",
                                       style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
                                     ),
                                     onTap: () {
@@ -529,7 +530,9 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
                                           color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                                     ),
                                     Text(
-                                      "Current Stock: ${selectedProduct!.currentStock} (${selectedProduct!.stockType})",
+                                      selectedProduct!.isService
+                                          ? "Service Item (No Physical Stock)"
+                                          : "Current Stock: ${selectedProduct!.currentStock < 0 ? 0 : selectedProduct!.currentStock} (${selectedProduct!.stockType})",
                                       style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
                                     ),
                                   ],

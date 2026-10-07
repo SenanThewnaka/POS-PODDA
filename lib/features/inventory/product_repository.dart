@@ -343,6 +343,11 @@ class ProductRepository {
        if (!productMap.containsKey(item.productId)) continue;
        Product product = productMap[item.productId]!;
        
+       // Non-inventory / Service items do not track physical stock and should never go negative
+       if (product.isService) {
+         continue;
+       }
+       
        // A. Deduct Aggregate
        // We can use FieldValue.increment for safety, no need to calc manually from 'product' snapshot 
        // (unless we want to validate < 0, but increment(-qty) allows negative which is fine for audit or we can block).

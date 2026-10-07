@@ -67,6 +67,7 @@ class SalesRepository {
     String? customerId,
     Map<String, CartItem> cartItems, {
     double? amountTendered,
+    Map<String, double>? splitPayments,
   }) async {
     final docRef = _collection.doc();
     final todayStr = DateFormat('yyyy_MM_dd').format(DateTime.now());
@@ -100,10 +101,32 @@ class SalesRepository {
       );
     }).toList();
 
-    print("RECORDING SALE: Total=$amount, Method=$method, Customer=$customerId");
-    final double tenderPaid = method == 'CASH'
-        ? (amountTendered != null && amountTendered >= amount ? amountTendered : amount)
-        : (method != 'CREDIT' ? amount : 0.0);
+    print("RECORDING SALE: Total=$amount, Method=$method, Customer=$customerId, Split=$splitPayments");
+    
+    final double cashPortion = method == 'CASH'
+        ? amount
+        : (method == 'SPLIT' ? (splitPayments?['CASH'] ?? 0.0) : 0.0);
+    final double cardPortion = method == 'CARD'
+        ? amount
+        : (method == 'SPLIT' ? (splitPayments?['CARD'] ?? 0.0) : 0.0);
+    final double creditPortion = method == 'CREDIT'
+        ? amount
+        : (method == 'SPLIT' ? (splitPayments?['CREDIT'] ?? 0.0) : 0.0);
+
+    double tenderPaid;
+    if (method == 'CASH') {
+      tenderPaid = (amountTendered != null && amountTendered >= amount ? amountTendered : amount);
+    } else if (method == 'SPLIT') {
+      tenderPaid = cashPortion + cardPortion;
+    } else if (method == 'CARD') {
+      tenderPaid = amount;
+    } else {
+      tenderPaid = 0.0;
+    }
+
+    final bool isFullyPaid = method == 'CREDIT'
+        ? false
+        : (method == 'SPLIT' ? creditPortion <= 0.0 : true);
 
     final sale = Sale(
       id: docRef.id,
@@ -111,11 +134,12 @@ class SalesRepository {
       totalAmount: amount,
       paymentMethod: method,
       customerId: customerId,
-      isFullyPaid: method != 'CREDIT', // Cash/Card = Paid. Credit = Not Paid.
+      isFullyPaid: isFullyPaid,
       amountPaid: tenderPaid, 
       items: lineItems,
       userId: currentUser.uid, // Audit
       userName: currentUser.name, // Audit
+      splitPayments: splitPayments,
     );
     
     // ATOMIC WRITE: Sale Doc + Stats Increment + Customer Balance (all or nothing).
@@ -128,17 +152,17 @@ class SalesRepository {
        // 2. Increment Stats (Blind Write / SetMerge)
        transaction.set(statsRef, {
          'totalSales': FieldValue.increment(amount),
-         'cashInHand': method == 'CASH' ? FieldValue.increment(amount) : FieldValue.increment(0),
-         'creditGiven': method == 'CREDIT' ? FieldValue.increment(amount) : FieldValue.increment(0),
+         'cashInHand': FieldValue.increment(cashPortion),
+         'creditGiven': FieldValue.increment(creditPortion),
          'updatedAt': FieldValue.serverTimestamp(),
        }, SetOptions(merge: true));
 
-       // 3. ATOMIC: Update customer balance for credit sales in the same transaction.
+       // 3. ATOMIC: Update customer balance for credit portion in the same transaction.
        // This ensures the sale record and the outstanding balance ALWAYS stay in sync.
-       if (method == 'CREDIT' && customerId != null && customerId.isNotEmpty) {
+       if (creditPortion > 0 && customerId != null && customerId.isNotEmpty) {
          final customerRef = _customerCollection.doc(customerId);
          transaction.update(customerRef, {
-           'currentBalance': FieldValue.increment(amount),
+           'currentBalance': FieldValue.increment(creditPortion),
          });
        }
     });
@@ -393,7 +417,15 @@ class SalesRepository {
     final Map<String, double> breakdown = {};
     
     for (var sale in sales) {
-      breakdown[sale.paymentMethod] = (breakdown[sale.paymentMethod] ?? 0) + sale.totalAmount;
+      if (sale.paymentMethod == 'SPLIT' && sale.splitPayments != null) {
+        sale.splitPayments!.forEach((key, val) {
+          if (key != 'CASH_TENDERED' && val > 0) {
+            breakdown[key] = (breakdown[key] ?? 0) + val;
+          }
+        });
+      } else {
+        breakdown[sale.paymentMethod] = (breakdown[sale.paymentMethod] ?? 0) + sale.totalAmount;
+      }
     }
     return breakdown;
   }

@@ -347,7 +347,7 @@ class _VerifyReceiptDialogState extends ConsumerState<VerifyReceiptDialog> {
                                   style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
                                 ),
                               Text(
-                                "Payment: ${sale.paymentMethod}${sale.paymentMethod == 'CASH' ? ' (Tender: Rs. ${sale.cashTendered.toStringAsFixed(0)} | Change: Rs. ${sale.changeDue.toStringAsFixed(0)})' : ''}",
+                                "Payment: ${sale.paymentMethod}${sale.paymentMethod == 'CASH' ? ' (Tender: Rs. ${sale.cashTendered.toStringAsFixed(0)} | Change: Rs. ${sale.changeDue.toStringAsFixed(0)})' : (sale.paymentMethod == 'SPLIT' && sale.splitPayments != null ? ' (Cash: Rs. ${sale.splitPayments!['CASH']?.toStringAsFixed(0) ?? '0'} | Card: Rs. ${sale.splitPayments!['CARD']?.toStringAsFixed(0) ?? '0'} | Credit: Rs. ${sale.splitPayments!['CREDIT']?.toStringAsFixed(0) ?? '0'})' : '')}",
                                 style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
                               ),
                             ],

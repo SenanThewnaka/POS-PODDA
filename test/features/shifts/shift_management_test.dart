@@ -103,6 +103,7 @@ class FakeShiftRepository implements ShiftRepository {
   Future<void> recordSaleInActiveShift({
     required double amount,
     required String paymentMethod,
+    Map<String, double>? splitPayments,
   }) async {
     if (activeShift == null) return;
     final isCash = paymentMethod == 'CASH';

@@ -38,6 +38,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final FocusNode _keyboardFocusNode = FocusNode();
   final FocusNode _customAmountFocusNode = FocusNode();
 
+  // Split Tender Controllers
+  final TextEditingController _splitCashController = TextEditingController();
+  final TextEditingController _splitCardController = TextEditingController();
+  final TextEditingController _splitCreditController = TextEditingController();
+  final TextEditingController _splitCashGivenController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +55,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     HardwareKeyboard.instance.removeHandler(_handleGlobalKey);
     _keyboardFocusNode.dispose();
     _customAmountFocusNode.dispose();
+    _splitCashController.dispose();
+    _splitCardController.dispose();
+    _splitCreditController.dispose();
+    _splitCashGivenController.dispose();
     super.dispose();
   }
 
@@ -77,7 +87,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
 
     if (!isCustomAmountFocused) {
-      // Payment method hotkeys: strictly F1, F2, F3
+      // Payment method hotkeys: strictly F1, F2, F3, F4
       if (key == LogicalKeyboardKey.f1) {
         _selectPaymentMethod('CASH', total);
         return true;
@@ -86,6 +96,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         return true;
       } else if (key == LogicalKeyboardKey.f3) {
         _selectPaymentMethod('CREDIT', total);
+        return true;
+      } else if (key == LogicalKeyboardKey.f4) {
+        _selectPaymentMethod('SPLIT', total);
         return true;
       }
 
@@ -167,12 +180,69 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       _cashGiven = label == 'CASH' ? total : 0;
       _selectedCustomer = null;
       _hasCustomCashInput = false;
+      if (label == 'SPLIT') {
+        if (_splitCashController.text.isEmpty &&
+            _splitCardController.text.isEmpty &&
+            _splitCreditController.text.isEmpty) {
+          _splitCashController.clear();
+          _splitCardController.clear();
+          _splitCreditController.clear();
+          _splitCashGivenController.clear();
+        }
+      }
     });
     HapticFeedback.mediumImpact();
   }
 
   void _onCompletePressed(double total) {
     if (_isLoading) return;
+
+    if (_paymentMethod == 'SPLIT') {
+      final cash = double.tryParse(_splitCashController.text.trim()) ?? 0.0;
+      final card = double.tryParse(_splitCardController.text.trim()) ?? 0.0;
+      final credit = double.tryParse(_splitCreditController.text.trim()) ?? 0.0;
+      final allocated = cash + card + credit;
+      final remaining = total - allocated;
+
+      if (remaining.abs() > 0.01) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              remaining > 0
+                  ? "Please allocate remaining Rs. ${remaining.toStringAsFixed(2)} to complete split."
+                  : "Split allocations exceed total by Rs. ${(-remaining).toStringAsFixed(2)}.",
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+
+      if (credit > 0 && _selectedCustomer == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Please select a customer for the credit portion."),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        _selectCustomer();
+        return;
+      }
+
+      final cashGiven = double.tryParse(_splitCashGivenController.text.trim()) ?? cash;
+      if (cash > 0 && cashGiven < cash) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Cash handed (Rs. ${cashGiven.toStringAsFixed(2)}) is less than cash split portion (Rs. ${cash.toStringAsFixed(2)})."),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+
+      _processSale(total);
+      return;
+    }
 
     if (_paymentMethod == 'CREDIT' && _selectedCustomer == null) {
       _selectCustomer();
@@ -550,6 +620,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             Colors.redAccent,
             total,
             hotkeyHint: "F3",
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _buildPaymentToggle(
+            "SPLIT",
+            Icons.call_split,
+            Colors.purpleAccent,
+            total,
+            hotkeyHint: "F4",
           ),
         ),
       ],
@@ -1027,8 +1107,420 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           ),
         ),
       );
+    } else if (_paymentMethod == 'SPLIT') {
+      return _buildSplitPaymentUI(total, isDark);
     }
     return const SizedBox.shrink();
+  }
+
+  Widget _buildSplitPaymentUI(double total, bool isDark) {
+    final cash = double.tryParse(_splitCashController.text.trim()) ?? 0.0;
+    final card = double.tryParse(_splitCardController.text.trim()) ?? 0.0;
+    final credit = double.tryParse(_splitCreditController.text.trim()) ?? 0.0;
+    final allocated = cash + card + credit;
+    final remaining = total - allocated;
+    final isBalanced = remaining.abs() < 0.01;
+    final isOver = remaining < -0.01;
+
+    final cashGiven = double.tryParse(_splitCashGivenController.text.trim()) ?? cash;
+    final cashChangeDue = (cashGiven - cash).clamp(0.0, double.infinity);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Status Card: Total vs Allocated
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isBalanced
+                ? Colors.greenAccent.withValues(alpha: 0.12)
+                : (isOver ? Colors.redAccent.withValues(alpha: 0.12) : Colors.amberAccent.withValues(alpha: 0.12)),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isBalanced
+                  ? Colors.greenAccent.withValues(alpha: 0.5)
+                  : (isOver ? Colors.redAccent.withValues(alpha: 0.5) : Colors.amberAccent.withValues(alpha: 0.5)),
+            ),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        isBalanced ? Icons.check_circle : (isOver ? Icons.error_outline : Icons.pending_outlined),
+                        color: isBalanced ? Colors.greenAccent : (isOver ? Colors.redAccent : Colors.amberAccent),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        isBalanced
+                            ? "Split Balanced"
+                            : (isOver ? "Over-allocated" : "Allocation Needed"),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isBalanced ? Colors.greenAccent : (isOver ? Colors.redAccent : Colors.amberAccent),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    isBalanced
+                        ? "Rs. ${total.toStringAsFixed(2)} / Rs. ${total.toStringAsFixed(2)}"
+                        : (isOver
+                            ? "+Rs. ${(-remaining).toStringAsFixed(2)}"
+                            : "Rs. ${remaining.toStringAsFixed(2)} left"),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: isBalanced ? Colors.greenAccent : (isOver ? Colors.redAccent : Colors.amberAccent),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: total > 0 ? (allocated / total).clamp(0.0, 1.0) : 0.0,
+                  backgroundColor: isDark ? Colors.white12 : Colors.black12,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    isBalanced ? Colors.greenAccent : (isOver ? Colors.redAccent : Colors.amberAccent),
+                  ),
+                  minHeight: 6,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Quick Split Helpers
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildSplitQuickChip(
+                "50/50 Cash & Card",
+                Icons.swap_horiz,
+                () {
+                  final half = (total / 2);
+                  setState(() {
+                    _splitCashController.text = half.toStringAsFixed(2);
+                    _splitCardController.text = (total - half).toStringAsFixed(2);
+                    _splitCreditController.clear();
+                    _splitCashGivenController.clear();
+                  });
+                },
+              ),
+              const SizedBox(width: 8),
+              _buildSplitQuickChip(
+                "50/50 Cash & Credit",
+                Icons.people_alt_outlined,
+                () {
+                  final half = (total / 2);
+                  setState(() {
+                    _splitCashController.text = half.toStringAsFixed(2);
+                    _splitCreditController.text = (total - half).toStringAsFixed(2);
+                    _splitCardController.clear();
+                    _splitCashGivenController.clear();
+                  });
+                  if (_selectedCustomer == null) _selectCustomer();
+                },
+              ),
+              const SizedBox(width: 8),
+              _buildSplitQuickChip(
+                "Clear Split",
+                Icons.clear_all,
+                () {
+                  setState(() {
+                    _splitCashController.clear();
+                    _splitCardController.clear();
+                    _splitCreditController.clear();
+                    _splitCashGivenController.clear();
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // 1. CASH CHANNEL
+        _buildSplitChannelCard(
+          title: "Cash Portion",
+          icon: Icons.money,
+          color: Colors.greenAccent,
+          controller: _splitCashController,
+          total: total,
+          remaining: remaining,
+          isDark: isDark,
+          extraContent: cash > 0
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _splitCashGivenController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black,
+                            fontSize: 13,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: "Cash Handed (Optional)",
+                            hintText: "e.g. 500",
+                            hintStyle: TextStyle(color: isDark ? Colors.white30 : Colors.black26),
+                            labelStyle: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            prefixText: "Rs. ",
+                            prefixStyle: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                      if (cashChangeDue > 0) ...[
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.greenAccent.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.5)),
+                          ),
+                          child: Text(
+                            "Change: Rs. ${cashChangeDue.toStringAsFixed(2)}",
+                            style: const TextStyle(
+                              color: Colors.greenAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                )
+              : null,
+        ),
+        const SizedBox(height: 10),
+
+        // 2. CARD CHANNEL
+        _buildSplitChannelCard(
+          title: "Card / Digital Portion",
+          icon: Icons.credit_card,
+          color: Colors.blueAccent,
+          controller: _splitCardController,
+          total: total,
+          remaining: remaining,
+          isDark: isDark,
+        ),
+        const SizedBox(height: 10),
+
+        // 3. CREDIT CHANNEL
+        _buildSplitChannelCard(
+          title: "Credit (Potha) Portion",
+          icon: Icons.person,
+          color: Colors.redAccent,
+          controller: _splitCreditController,
+          total: total,
+          remaining: remaining,
+          isDark: isDark,
+          extraContent: credit > 0
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: _selectedCustomer == null
+                      ? InkWell(
+                          onTap: _selectCustomer,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+                            ),
+                            child: Row(
+                              children: const [
+                                Icon(Icons.person_add_alt_1, color: Colors.redAccent, size: 18),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    "Tap to select customer for credit",
+                                    style: TextStyle(
+                                      color: Colors.redAccent,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                Icon(Icons.arrow_forward_ios, color: Colors.redAccent, size: 12),
+                              ],
+                            ),
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _selectedCustomer!.name,
+                                    style: TextStyle(
+                                      color: isDark ? Colors.white : Colors.black,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  Text(
+                                    "Due: Rs. ${_selectedCustomer!.currentBalance.toStringAsFixed(2)}  ➔  New: Rs. ${(_selectedCustomer!.currentBalance + credit).toStringAsFixed(2)}",
+                                    style: TextStyle(
+                                      color: isDark ? Colors.white60 : Colors.black54,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              TextButton(
+                                onPressed: _selectCustomer,
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                child: const Text("Change", style: TextStyle(fontSize: 12, color: Colors.cyanAccent)),
+                              ),
+                            ],
+                          ),
+                        ),
+                )
+              : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSplitChannelCard({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required TextEditingController controller,
+    required double total,
+    required double remaining,
+    required bool isDark,
+    Widget? extraContent,
+  }) {
+    final currentVal = double.tryParse(controller.text.trim()) ?? 0.0;
+    final canFillRemaining = remaining > 0.01;
+
+    return GlassCard(
+      borderRadius: 12,
+      padding: const EdgeInsets.all(12),
+      border: Border.all(
+        color: currentVal > 0 ? color.withValues(alpha: 0.5) : (isDark ? Colors.white10 : Colors.black12),
+        width: currentVal > 0 ? 1.5 : 1,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              if (canFillRemaining)
+                TextButton.icon(
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    final newAmount = currentVal + remaining;
+                    setState(() {
+                      controller.text = newAmount > 0 ? newAmount.toStringAsFixed(2) : '';
+                    });
+                  },
+                  icon: const Icon(Icons.add_task, size: 14, color: Colors.cyanAccent),
+                  label: Text(
+                    "+ Rs. ${remaining.toStringAsFixed(2)}",
+                    style: const TextStyle(fontSize: 11, color: Colors.cyanAccent, fontWeight: FontWeight.bold),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                )
+              else if (currentVal > 0)
+                IconButton(
+                  icon: const Icon(Icons.clear, size: 16, color: Colors.white54),
+                  tooltip: "Clear",
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () {
+                    setState(() => controller.clear());
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          TextFormField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black,
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
+            decoration: InputDecoration(
+              hintText: "0.00",
+              hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+              prefixText: "Rs. ",
+              prefixStyle: TextStyle(
+                color: isDark ? Colors.white70 : Colors.black54,
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          if (extraContent != null) extraContent,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSplitQuickChip(String label, IconData icon, VoidCallback onTap) {
+    return ActionChip(
+      avatar: Icon(icon, size: 14, color: Colors.cyanAccent),
+      label: Text(label, style: const TextStyle(fontSize: 11, color: Colors.white)),
+      backgroundColor: Colors.white.withValues(alpha: 0.08),
+      side: const BorderSide(color: Colors.white12),
+      onPressed: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+    );
   }
 
   Widget _buildCompleteButton(double total, bool isDesktopOrTablet) {
@@ -1038,7 +1530,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         onPressed: _isLoading ? null : () => _onCompletePressed(total),
         style: ElevatedButton.styleFrom(
           backgroundColor:
-              _paymentMethod == 'CREDIT' ? Colors.redAccent : Colors.greenAccent,
+              _paymentMethod == 'CREDIT'
+                  ? Colors.redAccent
+                  : (_paymentMethod == 'SPLIT' ? Colors.purpleAccent : Colors.greenAccent),
           foregroundColor: Colors.black,
           padding: const EdgeInsets.symmetric(vertical: 18),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1054,7 +1548,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     ? (_selectedCustomer == null
                         ? "SELECT CUSTOMER"
                         : "ADD TO POTHA (CREDIT)${isDesktopOrTablet ? ' [Enter]' : ''}")
-                    : "COMPLETE SALE${isDesktopOrTablet ? ' [Enter]' : ''}",
+                    : (_paymentMethod == 'SPLIT'
+                        ? "COMPLETE SPLIT BILL${isDesktopOrTablet ? ' [Enter]' : ''}"
+                        : "COMPLETE SALE${isDesktopOrTablet ? ' [Enter]' : ''}"),
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
       ),
@@ -1072,6 +1568,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           _buildHotkeyTag("[F2] Card"),
           const SizedBox(width: 8),
           _buildHotkeyTag("[F3] Credit"),
+          const SizedBox(width: 8),
+          _buildHotkeyTag("[F4] Split"),
           const SizedBox(width: 8),
           _buildHotkeyTag("[Enter] Pay"),
           const SizedBox(width: 8),
@@ -1500,12 +1998,39 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       // Do NOT call updateBalance separately — it caused a desync (overdue shows but no record).
       final cart = ref.read(cartProvider);
 
+      Map<String, double>? splitMap;
+      double? tenderAmount;
+      String? creditCustomerId;
+
+      if (_paymentMethod == 'SPLIT') {
+        final cash = double.tryParse(_splitCashController.text.trim()) ?? 0.0;
+        final card = double.tryParse(_splitCardController.text.trim()) ?? 0.0;
+        final credit = double.tryParse(_splitCreditController.text.trim()) ?? 0.0;
+        final cashGiven = double.tryParse(_splitCashGivenController.text.trim()) ?? cash;
+
+        splitMap = {
+          'CASH': cash,
+          'CARD': card,
+          'CREDIT': credit,
+          'CASH_TENDERED': cashGiven,
+        };
+        tenderAmount = cashGiven;
+        if (credit > 0) {
+          creditCustomerId = _selectedCustomer?.id;
+        }
+      } else if (_paymentMethod == 'CASH') {
+        tenderAmount = _cashGiven;
+      } else if (_paymentMethod == 'CREDIT') {
+        creditCustomerId = _selectedCustomer?.id;
+      }
+
       final sale = await ref.read(salesRepositoryProvider).recordSale(
             total,
             _paymentMethod,
-            _paymentMethod == 'CREDIT' ? _selectedCustomer?.id : null,
+            creditCustomerId,
             cart,
-            amountTendered: _paymentMethod == 'CASH' ? _cashGiven : null,
+            amountTendered: tenderAmount,
+            splitPayments: splitMap,
           );
 
       // Record in active shift if one is open
@@ -1513,6 +2038,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         await ref.read(shiftRepositoryProvider).recordSaleInActiveShift(
               amount: total,
               paymentMethod: _paymentMethod,
+              splitPayments: splitMap,
             );
       } catch (e) {
         if (kDebugMode) print('Shift recording note: $e');
@@ -1553,6 +2079,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       );
       if (_paymentMethod == 'CREDIT') {
         AnalyticsService.logCreditSale(amount: total);
+      } else if (_paymentMethod == 'SPLIT' && (splitMap?['CREDIT'] ?? 0) > 0) {
+        AnalyticsService.logCreditSale(amount: splitMap!['CREDIT']!);
       }
 
       // Rating

@@ -36,6 +36,8 @@ class Product {
     required this.createdAt,
   });
 
+  bool get isService => productType == 'SERVICE' || stockType == 'service';
+
   Product copyWith({
     String? id,
     String? name,

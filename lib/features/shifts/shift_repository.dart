@@ -165,6 +165,7 @@ class ShiftRepository {
   Future<void> recordSaleInActiveShift({
     required double amount,
     required String paymentMethod,
+    Map<String, double>? splitPayments,
   }) async {
     try {
       DocumentReference? docRef;
@@ -190,13 +191,28 @@ class ShiftRepository {
       final isCash = paymentMethod == 'CASH';
       final isCard = paymentMethod == 'CARD';
       final isCredit = paymentMethod == 'CREDIT';
+      final isSplit = paymentMethod == 'SPLIT';
 
       final Map<String, dynamic> updates = {
         'totalSales': FieldValue.increment(amount),
         'transactionCount': FieldValue.increment(1),
       };
 
-      if (isCash) {
+      if (isSplit && splitPayments != null) {
+        final cash = splitPayments['CASH'] ?? 0.0;
+        final card = splitPayments['CARD'] ?? 0.0;
+        final credit = splitPayments['CREDIT'] ?? 0.0;
+        if (cash > 0) {
+          updates['cashSales'] = FieldValue.increment(cash);
+          updates['expectedCash'] = FieldValue.increment(cash);
+        }
+        if (card > 0) {
+          updates['cardSales'] = FieldValue.increment(card);
+        }
+        if (credit > 0) {
+          updates['creditSales'] = FieldValue.increment(credit);
+        }
+      } else if (isCash) {
         updates['cashSales'] = FieldValue.increment(amount);
         updates['expectedCash'] = FieldValue.increment(amount);
       } else if (isCard) {
