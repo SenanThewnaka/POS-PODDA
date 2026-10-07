@@ -13,8 +13,11 @@ import 'package:sme_buddy/utils/text_controller_extensions.dart';
 
 class CreateGRNScreen extends ConsumerStatefulWidget {
   final GRNModel? existingGRN;
+  /// When true, existingGRN is used only to pre-populate items/data for a NEW GRN.
+  /// This is used when navigating from a product's "Receive Stock" button.
+  final bool isPreFilled;
 
-  const CreateGRNScreen({super.key, this.existingGRN});
+  const CreateGRNScreen({super.key, this.existingGRN, this.isPreFilled = false});
 
   @override
   ConsumerState<CreateGRNScreen> createState() => _CreateGRNScreenState();
@@ -46,7 +49,8 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
           : grn.amountPaid.toString();
       _paymentStatus = grn.paymentStatus;
       _receivedDate = grn.receivedAt;
-      if (grn.supplierId != null || grn.supplierName != null) {
+      // Only load supplier if this is a real existing GRN (not pre-filled)
+      if (!widget.isPreFilled && (grn.supplierId != null || grn.supplierName != null)) {
         _selectedSupplier = SupplierModel(
           id: grn.supplierId ?? '',
           name: grn.supplierName ?? '',
@@ -1066,7 +1070,8 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      if (widget.existingGRN != null) {
+      // isEditing is only true when editing a real saved GRN (not a pre-filled new one)
+      if (widget.existingGRN != null && !widget.isPreFilled) {
         final updatedGrn = widget.existingGRN!.copyWith(
           supplierId: _selectedSupplier?.id,
           supplierName: _selectedSupplier?.name,
@@ -1138,7 +1143,8 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
     final productsAsync = ref.watch(productsStreamProvider);
     final isDesktop = ResponsiveLayout.isDesktop(context);
 
-    final isEditing = widget.existingGRN != null;
+    // isEditing = true only when editing a real saved GRN, not a pre-filled new GRN
+    final isEditing = widget.existingGRN != null && !widget.isPreFilled;
 
     return GlassScaffold(
       appBar: AppBar(

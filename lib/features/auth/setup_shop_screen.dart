@@ -25,24 +25,32 @@ class _SetupShopScreenState extends ConsumerState<SetupShopScreen> {
       final user = ref.read(authRepositoryProvider).currentUser;
       if (user == null) return; // Should not happen
 
-      final userModel = UserModel(
-        uid: user.uid,
-        email: user.email ?? "",
-        name: _nameCtrl.text.trim(),
-        mobile: "", // Optional update later
-        role: 'owner', // First setup is always owner
-        shopId: user.uid,
-        shopName: _shopNameCtrl.text.trim(),
-        
-        // Subscription Initialization (Completely Free Lifetime)
-        plan: 'free',
-        subscriptionStatus: 'active',
-        billingCycle: 'lifetime',
-        expiryDate: null,
-        isVerified: true,
-      );
+      final userProfileRepo = ref.read(userProfileRepositoryProvider);
+        final email = user.email ?? "";
+        final hasUsedTrial = email.isNotEmpty ? await userProfileRepo.checkEmailHasUsedTrial(email) : false;
+        final now = DateTime.now();
+        final trialExpiry = hasUsedTrial ? now.subtract(const Duration(days: 1)) : now.add(const Duration(days: 14));
+        final subscriptionStatus = hasUsedTrial ? 'expired' : 'active';
 
-      await ref.read(userProfileRepositoryProvider).saveUserProfile(userModel);
+        final userModel = UserModel(
+          uid: user.uid,
+          email: email,
+          name: _nameCtrl.text.trim(),
+          mobile: "", // Optional update later
+          role: 'owner', // First setup is always owner
+          shopId: user.uid,
+          shopName: _shopNameCtrl.text.trim(),
+          plan: 'trial',
+          subscriptionStatus: subscriptionStatus,
+          billingCycle: 'trial',
+          expiryDate: trialExpiry,
+          isVerified: true,
+        );
+
+        await userProfileRepo.saveUserProfile(userModel);
+        if (!hasUsedTrial && email.isNotEmpty) {
+          await userProfileRepo.recordTrialGranted(email, uid: user.uid, expiryDate: trialExpiry);
+        }
       // AuthGate will react to stream update and redirect to Home
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));

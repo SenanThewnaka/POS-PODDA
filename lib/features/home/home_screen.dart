@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:sme_buddy/features/subscription/subscription_guard.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/home/cart_provider.dart'; // import cart provider
 import 'package:sme_buddy/features/inventory/product_repository.dart';
@@ -41,6 +43,7 @@ import 'package:sme_buddy/features/home/held_bills_provider.dart';
 import 'package:sme_buddy/features/home/held_bills_dialog.dart';
 import 'package:sme_buddy/features/reports/verify_receipt_dialog.dart';
 import 'package:sme_buddy/features/reports/sales_repository.dart';
+import 'package:sme_buddy/utils/sound_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -157,34 +160,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text(
-          "Clear Current Order?",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-          "Are you sure you want to remove all items from the current cart?",
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancel [Esc]", style: TextStyle(color: Colors.white54)),
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final textColor = isDark ? Colors.white : const Color(0xFF1E293B);
+        final subtextColor = isDark ? Colors.white70 : const Color(0xFF64748B);
+        return AlertDialog(
+          title: Text(
+            "Clear Current Order?",
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
           ),
-          ElevatedButton(
-            onPressed: () {
-              ref.read(cartProvider.notifier).clearCart();
-              Navigator.pop(ctx);
-              HapticFeedback.mediumImpact();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
+          content: Text(
+            "Are you sure you want to remove all items from the current cart?",
+            style: TextStyle(color: subtextColor),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text("Cancel [Esc]", style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
             ),
-            child: const Text("Clear Cart [Enter]"),
-          ),
-        ],
-      ),
+            ElevatedButton(
+              onPressed: () {
+                ref.read(cartProvider.notifier).clearCart();
+                Navigator.pop(ctx);
+                HapticFeedback.mediumImpact();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text("Clear Cart [Enter]"),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -198,6 +206,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     if (product != null) {
       if (product.isActive) {
+        SoundService.playScanSuccess();
         final bool needsCustomInput = product.stockType != 'unit' || product.isVariablePrice;
 
         bool hasMultiplePrices = false;
@@ -219,7 +228,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         } else {
           // Fast counter scanning: directly add or increment in cart
           ref.read(cartProvider.notifier).addToCart(product, quantity: 1);
-          HapticFeedback.mediumImpact();
 
           final isDark = Theme.of(context).brightness == Brightness.dark;
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -245,6 +253,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           );
         }
       } else {
+        SoundService.playScanError();
         _showError("Product is inactive");
       }
     } else {
@@ -252,10 +261,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       try {
         final sale = await ref.read(salesRepositoryProvider).getSaleById(cleanBarcode);
         if (sale != null && mounted) {
+          SoundService.playScanSuccess();
           VerifyReceiptDialog.show(context, initialBillId: cleanBarcode);
           return;
         }
       } catch (_) {}
+      SoundService.playScanError();
       _showError("Product not found: $cleanBarcode");
     }
   }
@@ -275,58 +286,72 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final shouldHold = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.pause_circle_filled, color: Colors.amber),
-            SizedBox(width: 8),
-            Text("Hold Current Order", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "Park this order so you can serve other customers. You can resume it anytime.",
-              style: TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: nameController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: "Customer Name (optional)",
-                labelStyle: TextStyle(color: Colors.white60),
-                prefixIcon: Icon(Icons.person_outline, color: Colors.white60),
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final textColor = isDark ? Colors.white : const Color(0xFF1E293B);
+        final subtextColor = isDark ? Colors.white70 : const Color(0xFF64748B);
+        final hintColor = isDark ? Colors.white60 : const Color(0xFF94A3B8);
+
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.pause_circle_filled, color: Colors.amber),
+              const SizedBox(width: 8),
+              Text(
+                "Hold Current Order",
+                style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Park this order so you can serve other customers. You can resume it anytime.",
+                style: TextStyle(color: subtextColor, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameController,
+                style: TextStyle(color: textColor),
+                decoration: InputDecoration(
+                  labelText: "Customer Name (optional)",
+                  labelStyle: TextStyle(color: hintColor),
+                  prefixIcon: Icon(Icons.person_outline, color: hintColor),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: noteController,
+                style: TextStyle(color: textColor),
+                decoration: InputDecoration(
+                  labelText: "Note (e.g. Counter 2, customer went to car)",
+                  labelStyle: TextStyle(color: hintColor),
+                  prefixIcon: Icon(Icons.notes, color: hintColor),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(
+                "Cancel",
+                style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
               ),
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: noteController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: "Note (e.g. Counter 2, customer went to car)",
-                labelStyle: TextStyle(color: Colors.white60),
-                prefixIcon: Icon(Icons.notes, color: Colors.white60),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
               ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text("Hold Order", style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Cancel", style: TextStyle(color: Colors.white54)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber,
-              foregroundColor: Colors.black,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("Hold Order", style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
     if (shouldHold == true && mounted) {
@@ -620,30 +645,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     PopupMenuItem(
                       value: 'cash_action',
                       child: Row(
-                        children: const [
-                          Icon(Icons.swap_vert, color: Colors.cyanAccent, size: 20),
-                          SizedBox(width: 10),
-                          Text("Cash In / Payout", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        children: [
+                          const Icon(Icons.swap_vert, color: Colors.cyanAccent, size: 20),
+                          const SizedBox(width: 10),
+                          Text("Cash In / Payout", style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
                     PopupMenuItem(
                       value: 'close_shift',
                       child: Row(
-                        children: const [
-                          Icon(Icons.lock_clock, color: Colors.redAccent, size: 20),
-                          SizedBox(width: 10),
-                          Text("Close Shift & Z-Report", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        children: [
+                          const Icon(Icons.lock_clock, color: Colors.redAccent, size: 20),
+                          const SizedBox(width: 10),
+                          Text("Close Shift & Z-Report", style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
                     PopupMenuItem(
                       value: 'history',
                       child: Row(
-                        children: const [
-                          Icon(Icons.history, color: Colors.amberAccent, size: 20),
-                          SizedBox(width: 10),
-                          Text("Shift History & Z-Reports", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        children: [
+                          const Icon(Icons.history, color: Colors.amberAccent, size: 20),
+                          const SizedBox(width: 10),
+                          Text("Shift History & Z-Reports", style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
@@ -984,6 +1009,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   color: isDark ? Colors.white38 : Colors.black38,
                                 ),
                               ),
+                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildCartShortcutBadge("F1", "Search", isDark),
+                                    const SizedBox(height: 6),
+                                    _buildCartShortcutBadge("F4", "Park / Hold", isDark),
+                                    const SizedBox(height: 6),
+                                    _buildCartShortcutBadge("F12", "Checkout", isDark),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -1069,12 +1115,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                           },
                                           borderRadius: BorderRadius.circular(6),
                                           child: Container(
-                                            padding: const EdgeInsets.all(3),
+                                            padding: const EdgeInsets.all(8),
+                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                                             decoration: BoxDecoration(
                                               color: isDark ? Colors.white10 : Colors.grey.shade200,
-                                              borderRadius: BorderRadius.circular(6),
+                                              borderRadius: BorderRadius.circular(8),
                                             ),
-                                            child: Icon(Icons.remove, size: 14, color: isDark ? Colors.white : Colors.black87),
+                                            alignment: Alignment.center,
+                                            child: Icon(Icons.remove, size: 16, color: isDark ? Colors.white : Colors.black87),
                                           ),
                                         ),
                                         Padding(
@@ -1094,12 +1142,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                           },
                                           borderRadius: BorderRadius.circular(6),
                                           child: Container(
-                                            padding: const EdgeInsets.all(3),
+                                            padding: const EdgeInsets.all(8),
+                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                                             decoration: BoxDecoration(
                                               color: isDark ? Colors.white10 : Colors.grey.shade200,
-                                              borderRadius: BorderRadius.circular(6),
+                                              borderRadius: BorderRadius.circular(8),
                                             ),
-                                            child: Icon(Icons.add, size: 14, color: isDark ? Colors.white : Colors.black87),
+                                            alignment: Alignment.center,
+                                            child: Icon(Icons.add, size: 16, color: isDark ? Colors.white : Colors.black87),
                                           ),
                                         ),
                                         const SizedBox(width: 4),
@@ -1304,9 +1354,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ListTile(
             leading: const Icon(Icons.local_shipping_outlined, color: Colors.cyanAccent),
             title: const Text("Procurement & ERP (GRN)"),
-            onTap: () {
+            onTap: () async {
                Navigator.pop(context); 
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const GRNHistoryScreen()));
+               if (await SubscriptionGuard.check(context, ref, SubscriptionAction.useGRN)) {
+                 if (context.mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => const GRNHistoryScreen()));
+               }
             },
           ),
           
@@ -1314,9 +1366,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ListTile(
             leading: const Icon(Icons.book),
             title: const Text("Credit Book (Potha)"),
-            onTap: () {
+            onTap: () async {
               Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerListScreen()));
+              if (await SubscriptionGuard.check(context, ref, SubscriptionAction.accessCreditBook)) {
+                if (context.mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerListScreen()));
+              }
             },
           ),
 
@@ -1970,5 +2024,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         );
       },
     );
-}
+  }
+
+  Widget _buildCartShortcutBadge(String keyText, String desc, bool isDark) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: isDark ? Colors.white24 : Colors.black12),
+          ),
+          child: Text(
+            keyText,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            desc,
+            style: TextStyle(
+              fontSize: 11,
+              color: isDark ? Colors.white60 : const Color(0xFF64748B),
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
 }

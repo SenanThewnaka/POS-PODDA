@@ -13,6 +13,8 @@ import 'package:printing/printing.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/users/app_permissions.dart';
 import 'package:sme_buddy/features/reports/sales_repository.dart';
+import 'package:sme_buddy/features/procurement/create_grn_screen.dart';
+import 'package:sme_buddy/features/procurement/grn_model.dart';
 import 'dart:math';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
@@ -33,6 +35,7 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
   
   // Batch Editing State
   bool _isEditingBatch = false;
+  late bool _isTaxable;
 
   @override
   late TextEditingController _lowStockController;
@@ -40,6 +43,7 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
   @override
   void initState() {
     super.initState();
+    _isTaxable = widget.product.isTaxable;
     _tabController = TabController(length: 2, vsync: this);
     _nameController = TextEditingController(text: widget.product.name);
     _barcodeController = TextEditingController(text: widget.product.barcode ?? "");
@@ -107,11 +111,11 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
               ),
           floatingActionButton: (!isService && _tabController.index == 0) 
             ? FloatingActionButton.extended(
-                onPressed: () => _showRestockDialog(product), 
+                onPressed: () => _openGRNForProduct(product), 
                 backgroundColor: Colors.cyanAccent,
                 foregroundColor: Colors.black,
-                icon: const Icon(Icons.add), 
-                label: const Text("Receive Stock", style: TextStyle(fontWeight: FontWeight.bold))
+                icon: const Icon(Icons.add_shopping_cart), 
+                label: const Text("Receive Stock (GRN)", style: TextStyle(fontWeight: FontWeight.bold))
               )
             : null,
         );
@@ -312,230 +316,37 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
     return val.toStringAsFixed(2);
   }
 
-  void _showRestockDialog(Product product) {
-    try {
-      final user = ref.read(userProfileProvider).value;
-      final canViewCost = user == null ? true : (user.isAdmin || user.hasPermission(AppPermissions.canViewCostPrice));
-
-      final qtyController = TextEditingController();
-      // Default to last known price or product price
-      double initialPrice = product.sellingPrice;
-      double initialCost = product.costPrice;
-      
-      // Convert to display unit
-      if (product.baseUnit == 'g' || product.baseUnit == 'ml') {
-         initialPrice *= 1000;
-         initialCost *= 1000;
-      }
-      
-      final priceController = TextEditingController(text: initialPrice.toStringAsFixed(2));
-      final costController = TextEditingController(text: initialCost.toStringAsFixed(2));
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        String? error;
-        bool isLoading = false;
-
-        return StatefulBuilder(
-          builder: (context, setStateSB) {
-            return AlertDialog(
-              title: const Text("Receive New Stock"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text("Enter details for the new batch/shipment."),
-                  const SizedBox(height: 16),
-                  if (error != null)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.1),
-                        border: Border.all(color: Colors.red),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.error_outline, color: Colors.red[700], size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(error!, style: TextStyle(color: Colors.red[900], fontSize: 13))),
-                        ],
-                      ),
-                    ),
-                  TextField(
-                    controller: qtyController,
-                    decoration: InputDecoration(
-                      labelText: "Quantity Received", 
-                      hintText: product.stockType == 'unit' ? "e.g. 10" : "e.g. 50kg",
-                      border: const OutlineInputBorder(),
-                    ),
-                    onChanged: (_) {
-                       if (error != null) setStateSB(() => error = null);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  if (canViewCost)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: priceController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: "Selling Price", border: OutlineInputBorder()),
-                            onTap: () {
-                               if (priceController.text == '0.00' || priceController.text == '0') priceController.clear();
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: costController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: "Cost Price", border: OutlineInputBorder()),
-                            onTap: () {
-                              if (costController.text == '0.00' || costController.text == '0') costController.clear();
-                            },
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    TextField(
-                      controller: priceController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: "Selling Price", border: OutlineInputBorder()),
-                      onTap: () {
-                         if (priceController.text == '0.00' || priceController.text == '0') priceController.clear();
-                      },
-                    ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isLoading ? null : () => Navigator.pop(ctx),
-                  child: const Text("CANCEL")
-                ),
-                  ElevatedButton(
-                  onPressed: () {
-                    final pVal = double.tryParse(priceController.text) ?? 0;
-                    final cVal = canViewCost ? (double.tryParse(costController.text) ?? 0) : initialCost;
-
-                    void executeSave() {
-                      // 1. Close Dialog
-                      Navigator.of(ctx).pop();
-                      
-                      // 2. Run Background Task
-                      Future(() async {
-                        try {
-                          // Parse Logic
-                          String baseUnit = product.baseUnit ?? 'unit';
-                          
-                          // Validate Unit
-                          if (product.stockType != 'unit' && !_validateUnitCompatibility(qtyController.text, baseUnit)) {
-                             throw "Invalid Unit! Do not mix Volume (L) with Weight (Kg).";
-                          }
-                          
-                          double qty = 0.0;
-                          if (product.stockType == 'unit') {
-                             qty = double.tryParse(qtyController.text) ?? 0;
-                          } else {
-                             qty = QuantityParser.parse(qtyController.text, baseUnit);
-                          }
-  
-                          if (qty <= 0) throw "Invalid Quantity.";
-                          
-                          double price = double.tryParse(priceController.text) ?? 0;
-                          double cost = canViewCost ? (double.tryParse(costController.text) ?? 0) : initialCost;
-  
-                           // Convert Price/Cost
-                          if (baseUnit == 'g' || baseUnit == 'ml') {
-                             price /= 1000;
-                             cost /= 1000;
-                          } else if (baseUnit == 'cm') {
-                             price /= 100;
-                             cost /= 100;
-                          }
-  
-                          final batch = StockBatch(
-                            id: '', 
-                            productId: product.id,
-                            costPrice: cost,
-                            sellingPrice: price,
-                            currentStock: qty,
-                            createdAt: DateTime.now(),
-                          );
-  
-                          await ref.read(productRepositoryProvider).addStockBatch(product.id, batch);
-                          
-                          // Auto-Activate Check (Manual)
-                          // If product was inactive and new stock > 0, activate it
-                          if (!product.isActive && qty > 0) {
-                             await ref.read(productRepositoryProvider).activateProduct(product.id);
-                          }
-  
-                          if (mounted) {
-                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Stock Added Successfully!"), backgroundColor: Colors.green));
-                             setState(() {}); // Refresh HUD & Batches
-                          }
-                        } catch (e) {
-                          if (mounted) {
-                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Restock Failed: $e"), backgroundColor: Colors.red));
-                          }
-                        }
-                      });
-                    }
-
-                    // Strict Zero-Cost Enforcement
-                    if (canViewCost && cVal == 0 && pVal > 0) {
-                      showDialog(
-                        context: context,
-                        builder: (alertCtx) => AlertDialog(
-                          title: const Row(
-                            children: [
-                              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
-                              SizedBox(width: 8),
-                              Text("Zero Cost Warning"),
-                            ],
-                          ),
-                          content: const Text(
-                            "You are receiving this stock with a Cost Price of Rs. 0.00.\n\n"
-                            "This will record 100% gross profit for all future sales from this batch. "
-                            "Are you sure this stock was obtained for free?",
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(alertCtx).pop(),
-                              child: const Text("GO BACK & EDIT"),
-                            ),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
-                              onPressed: () {
-                                Navigator.of(alertCtx).pop(); // Close confirmation
-                                executeSave();                // Proceed with save
-                              },
-                              child: const Text("CONFIRM ZERO COST"),
-                            ),
-                          ],
-                        ),
-                      );
-                    } else {
-                      executeSave();
-                    }
-                  },
-                  child: const Text("RECEIVE")
-                )
-              ],
-            );
-          }
-        );
-      }
+  /// Opens the GRN creation screen pre-populated with this product, ensuring all
+  /// stock inward is tracked and traceable via a GRN record.
+  void _openGRNForProduct(Product product) {
+    // Build a pre-filled GRN item for this product to give a quick-start UX.
+    final preFilledItem = GRNItem(
+      productId: product.id,
+      productName: product.name,
+      quantity: 1,
+      unitCostPrice: product.costPrice,
+      sellingPrice: product.sellingPrice,
+      subTotal: product.costPrice,
     );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
-    }
+
+    final preFilledGRN = GRNModel(
+      id: '',
+      shopId: '',
+      grnNumber: '',
+      receivedAt: DateTime.now(),
+      items: [preFilledItem],
+      totalCost: product.costPrice,
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreateGRNScreen(existingGRN: preFilledGRN, isPreFilled: true),
+      ),
+    );
   }
+
+
 
   void _showEditBatchDialog(StockBatch batch, Product product) {
     final user = ref.read(userProfileProvider).value;
@@ -766,6 +577,38 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
                  ),
                ),
              ],
+           ),
+           const SizedBox(height: 24),
+
+           // TAX & VAT CONFIGURATION
+           GlassCard(
+             padding: const EdgeInsets.all(16),
+             border: Border.all(color: Colors.white12),
+             child: Column(
+               crossAxisAlignment: CrossAxisAlignment.start,
+               children: [
+                 Row(
+                   children: [
+                     Icon(
+                       Icons.receipt_long,
+                       color: Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : Colors.blueAccent,
+                       size: 20,
+                     ),
+                     const SizedBox(width: 8),
+                     const Text("Tax & VAT Settings", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                   ],
+                 ),
+                 const SizedBox(height: 8),
+                 SwitchListTile(
+                   title: const Text("Taxable Item (VAT Applicable)"),
+                   subtitle: const Text("Turn OFF for VAT-exempt goods (e.g. Dhal, Milk, Rice)"),
+                   value: _isTaxable,
+                   activeColor: Colors.cyanAccent,
+                   contentPadding: EdgeInsets.zero,
+                   onChanged: (val) => setState(() => _isTaxable = val),
+                 ),
+               ],
+             ),
            ),
            const SizedBox(height: 24),
            
@@ -1001,6 +844,7 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
        name: _nameController.text,
        barcode: _barcodeController.text.isEmpty ? null : _barcodeController.text,
        lowStockThreshold: lowStock,
+       isTaxable: _isTaxable,
      );
      await ref.read(productRepositoryProvider).updateProduct(updated);
      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Details Updated")));

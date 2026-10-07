@@ -556,6 +556,44 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                                       color: isDark ? Colors.white54 : Colors.black54,
                                     ),
                                   ),
+                                if (user.isVatRegistered) ...[
+                                  const SizedBox(height: 8),
+                                  Center(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.cyanAccent.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.5)),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          const Text(
+                                            "TAX INVOICE",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                              letterSpacing: 1.5,
+                                              color: Colors.cyanAccent,
+                                            ),
+                                          ),
+                                          if (user.vatNumber != null && user.vatNumber!.isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(top: 2),
+                                              child: Text(
+                                                "VAT Reg No: ${user.vatNumber}",
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: isDark ? Colors.white70 : Colors.black87,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                                 const SizedBox(height: 16),
                               ],
 
@@ -587,9 +625,10 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                                               ),
                                             ),
                                             Text(
-                                              item.subTotal.toStringAsFixed(2),
+                                              "Rs. ${item.subTotal.toStringAsFixed(2)}",
                                               style: TextStyle(
                                                 fontSize: 15,
+                                                fontWeight: FontWeight.w500,
                                                 color: isDark ? Colors.white : Colors.black87,
                                               ),
                                             ),
@@ -611,8 +650,80 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                                     ),
                                   )),
 
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 12),
                               Divider(color: isDark ? Colors.white12 : Colors.black12),
+
+                              // --- VAT & TOTAL SUMMARY ON SCREEN ---
+                              if (user != null && user.isVatRegistered) ...[
+                                () {
+                                  final vatRate = user.vatPercentage;
+                                  double taxableTotalInc = 0;
+                                  double exemptTotal = 0;
+                                  for (var item in sale.items) {
+                                    if (item.isTaxable) {
+                                      taxableTotalInc += item.subTotal;
+                                    } else {
+                                      exemptTotal += item.subTotal;
+                                    }
+                                  }
+                                  final taxableBase = taxableTotalInc / (1 + (vatRate / 100));
+                                  final vatAmount = taxableTotalInc - taxableBase;
+
+                                  return Column(
+                                    children: [
+                                      if (exemptTotal > 0)
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 2),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text("Exempt Items Total:", style: TextStyle(fontSize: 13, color: isDark ? Colors.white60 : Colors.black54)),
+                                              Text("Rs. ${exemptTotal.toStringAsFixed(2)}", style: TextStyle(fontSize: 13, color: isDark ? Colors.white60 : Colors.black54)),
+                                            ],
+                                          ),
+                                        ),
+                                      if (taxableTotalInc > 0) ...[
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 2),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text("Subtotal (Exc. VAT):", style: TextStyle(fontSize: 13, color: isDark ? Colors.white60 : Colors.black54)),
+                                              Text("Rs. ${taxableBase.toStringAsFixed(2)}", style: TextStyle(fontSize: 13, color: isDark ? Colors.white60 : Colors.black54)),
+                                            ],
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 2),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text("VAT (${vatRate.toStringAsFixed(0)}%):", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.cyanAccent)),
+                                              Text("Rs. ${vatAmount.toStringAsFixed(2)}", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.cyanAccent)),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text("TOTAL (Inc. VAT):", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? Colors.white : Colors.black)),
+                                          Text("Rs. ${sale.totalAmount.toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? Colors.cyanAccent : Colors.blueAccent)),
+                                        ],
+                                      ),
+                                    ],
+                                  );
+                                }(),
+                              ] else ...[
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text("TOTAL:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? Colors.white : Colors.black)),
+                                    Text("Rs. ${sale.totalAmount.toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? Colors.cyanAccent : Colors.blueAccent)),
+                                  ],
+                                ),
+                              ],
                               if (user?.invoiceFooterMessage != null)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 16),
@@ -742,7 +853,31 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
       }
     }
     sb.writeln("----------------");
-    sb.writeln("*TOTAL: Rs. ${_currentSale.totalAmount}*");
+    if (user != null && user.isVatRegistered) {
+      final vatRate = user.vatPercentage;
+      
+      double taxableTotalInc = 0;
+      double exemptTotal = 0;
+      for (var item in _currentSale.items) {
+        if (item.isTaxable) {
+          taxableTotalInc += item.subTotal;
+        } else {
+          exemptTotal += item.subTotal;
+        }
+      }
+      
+      final taxableBase = taxableTotalInc / (1 + (vatRate / 100));
+      final vatAmount = taxableTotalInc - taxableBase;
+      
+      if (exemptTotal > 0) sb.writeln("Exempt Items Total: Rs. ${exemptTotal.toStringAsFixed(2)}");
+      if (taxableTotalInc > 0) {
+        sb.writeln("Taxable Base: Rs. ${taxableBase.toStringAsFixed(2)}");
+        sb.writeln("VAT (${vatRate.toStringAsFixed(0)}%): Rs. ${vatAmount.toStringAsFixed(2)}");
+      }
+      sb.writeln("*TOTAL (Inc. VAT): Rs. ${_currentSale.totalAmount.toStringAsFixed(2)}*");
+    } else {
+      sb.writeln("*TOTAL: Rs. ${_currentSale.totalAmount.toStringAsFixed(2)}*");
+    }
     if (_currentSale.paymentMethod == 'CASH') {
       sb.writeln("Cash Tendered: Rs. ${_currentSale.cashTendered.toStringAsFixed(2)}");
       sb.writeln("Change Due: Rs. ${_currentSale.changeDue.toStringAsFixed(2)}");
@@ -841,6 +976,23 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                   ),
                 ),
 
+              if (user != null && user.isVatRegistered) ...[
+                pw.SizedBox(height: 4),
+                pw.Center(
+                  child: pw.Text(
+                    "TAX INVOICE",
+                    style: pw.TextStyle(fontSize: titleSize - 2, fontWeight: pw.FontWeight.bold),
+                  ),
+                ),
+                if (user.vatNumber != null && user.vatNumber!.isNotEmpty)
+                  pw.Center(
+                    child: pw.Text(
+                      "VAT Reg No: ${user.vatNumber}",
+                      style: pw.TextStyle(fontSize: bodySize - 1, fontWeight: pw.FontWeight.bold),
+                    ),
+                  ),
+                pw.SizedBox(height: 2),
+              ],
               pw.SizedBox(height: 3),
               pw.Center(
                 child: pw.Text(
@@ -897,19 +1049,70 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
               pw.Divider(thickness: 0.5),
 
               // --- TOTALS ---
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text(
-                    "TOTAL",
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: totalSize - 2),
-                  ),
-                  pw.Text(
-                    "Rs. ${_currentSale.totalAmount.toStringAsFixed(2)}",
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: totalSize),
-                  ),
-                ],
-              ),
+              if (user != null && user.isVatRegistered) ...[
+                // IIFE to calculate variables inside the list literal
+                () {
+                  final vatRate = user.vatPercentage;
+                  
+                  double taxableTotalInc = 0;
+                  double exemptTotal = 0;
+                  for (var item in _currentSale.items) {
+                    if (item.isTaxable) {
+                      taxableTotalInc += item.subTotal;
+                    } else {
+                      exemptTotal += item.subTotal;
+                    }
+                  }
+                  
+                  final taxableBase = taxableTotalInc / (1 + (vatRate / 100));
+                  final vatAmount = taxableTotalInc - taxableBase;
+                  
+                  return pw.Column(
+                    children: [
+                      if (exemptTotal > 0)
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text("Exempt Items Total:", style: pw.TextStyle(fontSize: bodySize - 1)),
+                            pw.Text("Rs. ${exemptTotal.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: bodySize - 1)),
+                          ],
+                        ),
+                      if (taxableTotalInc > 0) ...[
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text("Taxable Base:", style: pw.TextStyle(fontSize: bodySize - 1)),
+                            pw.Text("Rs. ${taxableBase.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: bodySize - 1)),
+                          ],
+                        ),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text("VAT (${vatRate.toStringAsFixed(0)}%):", style: pw.TextStyle(fontSize: bodySize - 1)),
+                            pw.Text("Rs. ${vatAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: bodySize - 1)),
+                          ],
+                        ),
+                      ],
+                      pw.Divider(thickness: 0.5),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text("TOTAL (Inc. VAT)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: totalSize - 2)),
+                          pw.Text("Rs. ${_currentSale.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: totalSize)),
+                        ],
+                      ),
+                    ]
+                  );
+                }(),
+              ] else ...[
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text("TOTAL", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: totalSize - 2)),
+                    pw.Text("Rs. ${_currentSale.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: totalSize)),
+                  ],
+                ),
+              ],
 
               // Payment Method Info
               pw.SizedBox(height: 3),

@@ -73,7 +73,7 @@ final profitRepositoryProvider = Provider<ProfitRepository>((ref) {
 });
 
 final profitSummaryProvider =
-    FutureProvider.family<ProfitSummary, DateTimeRange>((ref, range) {
+    FutureProvider.family.autoDispose<ProfitSummary, DateTimeRange>((ref, range) {
   return ref.watch(profitRepositoryProvider).getProfitSummary(range.start, range.end);
 });
 

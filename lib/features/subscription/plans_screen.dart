@@ -27,6 +27,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     "Full POS Billing & Fast Barcode Scanning",
     "Thermal Receipt Printing (58mm / 80mm)",
     "Inventory Catalog & Low Stock Alerts",
+    "Supplier Goods Received Notes (GRN) Management",
     "Daily Sales Summary & Cash Shift Balancing",
     "Single Counter / Single Device Operation",
     "Automatic Cloud Sync & Local Backup",
@@ -37,7 +38,6 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     "Unlimited Inventory Items & Dynamic Batches",
     "Multi-Cashier Logins & Custom Role Permissions",
     "Wholesale Purchase Cost & Margin Privacy Masking",
-    "Supplier Goods Received Notes (GRN) Management",
     "Customer Credit Book (ණය පොත) & Settlement Receipts",
     "Custom Thermal Bill Header, Footer & Store Logo",
     "Advanced Financial Reports & Profit Analytics",
@@ -46,8 +46,14 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   @override
   void initState() {
     super.initState();
-    // Default to pro (or user's current tier if plus)
-    _selectedOption = SubscriptionBillingOption.proOptions[1]; // 3 Months default
+    final user = ref.read(userProfileProvider).value;
+    if (user != null && user.plan.toLowerCase() == 'plus') {
+      _selectedTier = 'plus';
+      _selectedOption = SubscriptionBillingOption.plusOptions[1];
+    } else {
+      _selectedTier = 'pro';
+      _selectedOption = SubscriptionBillingOption.proOptions[1]; // 3 Months default
+    }
   }
 
   void _switchTier(String tier) {
@@ -271,6 +277,10 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                                 );
                                 if (res['status'] == 'succeeded') {
                                   isSucceeded = true;
+                                  final verifiedTier = res['tier'] as String?;
+                                  if (verifiedTier != null && verifiedTier.isNotEmpty) {
+                                    _selectedTier = verifiedTier.toLowerCase();
+                                  }
                                 }
                               } catch (_) {
                                 // Fallback to direct gateway check if available
@@ -476,18 +486,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Gateway & Trust Assurance
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.lock, size: 14, color: Colors.grey),
-                const SizedBox(width: 6),
-                Text(
-                  "Secured by Payments.lk • Cards & LANKAQR Supported",
-                  style: TextStyle(fontSize: 12, color: isDark ? Colors.white38 : Colors.black45),
-                ),
-              ],
-            ),
+            // Compliance Footer (Payments.lk Requirements)
+            _buildComplianceFooter(isDark),
             const SizedBox(height: 24),
           ],
         ),
@@ -822,6 +822,56 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildComplianceFooter(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.shield_outlined, size: 16, color: Colors.green),
+              const SizedBox(width: 6),
+              const Text("Secured by Payments.lk • 128-bit SSL", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Transaction Security: Your payment is processed securely via Payments.lk using 128-bit SSL encryption. Card details are never stored on our servers. This ensures your data is protected against interception during transmission.",
+            style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.black54),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Billing Terms: By proceeding, you authorize a recurring charge of LKR (Sri Lankan Rupee) ${_selectedOption.priceLkr.toStringAsFixed(2)} every ${_selectedOption.label.toLowerCase()} for the POS Podda ${_selectedTier.toUpperCase()} plan. You may cancel at any time via the 'Settings' menu.",
+            style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.black54),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Merchant Location: Synthora Software, Colombo, Sri Lanka.",
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isDark ? Colors.white70 : Colors.black87),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: TextButton(
+              onPressed: () async {
+                final url = 'https://pos-podda.web.app/legal.html';
+                if (await canLaunchUrlString(url)) {
+                  await launchUrlString(url);
+                }
+              },
+              child: const Text("View Terms, Privacy, and Refund Policies", style: TextStyle(fontSize: 11, decoration: TextDecoration.underline)),
+            ),
+          )
         ],
       ),
     );

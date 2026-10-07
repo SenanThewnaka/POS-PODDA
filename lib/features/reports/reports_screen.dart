@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:sme_buddy/features/subscription/subscription_guard.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/reports/sales_repository.dart';
 import 'package:sme_buddy/features/reports/sale_model.dart';
@@ -28,17 +30,19 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   final ScrollController _scrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+        ref.read(pagedSalesProvider(_getDateRange()).notifier).loadNextPage();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
-  }
-
-  void _setupScrollListener(DateTimeRange range) {
-    _scrollController.addListener(() {
-      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-        ref.read(pagedSalesProvider(range).notifier).loadNextPage();
-      }
-    });
   }
 
   DateTimeRange _getDateRange() {
@@ -87,7 +91,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     final summaryAsync = ref.watch(salesSummaryProvider(range));
     final salesState = ref.watch(pagedSalesProvider(range));
     
-    if (!_scrollController.hasListeners) _setupScrollListener(range);
+
 
     final dateStr = _filterType == 'Daily' 
         ? DateFormat('MMM d, yyyy').format(range.start)
@@ -99,11 +103,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         backgroundColor: Colors.transparent,
         actions: [
           IconButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfitLossScreen()),
-              );
+            onPressed: () async {
+              if (await SubscriptionGuard.check(context, ref, SubscriptionAction.viewAdvancedStats)) {
+                if (context.mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfitLossScreen()));
+              }
             },
             icon: const Icon(Icons.analytics_outlined),
             tooltip: "P&L & Net Profit",
@@ -242,11 +245,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             const SizedBox(height: 10),
 
             InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfitLossScreen()),
-                );
+              onTap: () async {
+                if (await SubscriptionGuard.check(context, ref, SubscriptionAction.viewAdvancedStats)) {
+                  if (context.mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfitLossScreen()));
+                }
               },
               borderRadius: BorderRadius.circular(16),
               child: GlassCard(
@@ -404,11 +406,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                          padding: const EdgeInsets.symmetric(vertical: 40),
                          child: Column(
                            children: [
-                             const Icon(Icons.receipt_long_outlined, size: 72, color: Colors.white24),
+                             Icon(Icons.receipt_long_outlined, size: 72, color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.black26),
                              const SizedBox(height: 16),
-                             const Text('No Sales Found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white54)),
+                             Text('No Sales Found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black54)),
                              const SizedBox(height: 6),
-                             const Text('Complete a sale to see it here.', style: TextStyle(color: Colors.white30)),
+                             Text('Complete a sale to see it here.', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white30 : Colors.black38)),
                            ],
                          ),
                        )
@@ -471,13 +473,16 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
      // style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)
      // ... (Implement in logic below, I can't selectively replace inside method easily with find/replace unless I provide full method, so I'll leave as is, inherited style might be fine if Theme is dark)
      final topItemAsync = ref.watch(topItemNameProvider(range));
+     final isDark = Theme.of(context).brightness == Brightness.dark;
+     final primaryTextColor = isDark ? Colors.white : const Color(0xFF0F172A);
+     final secondaryTextColor = isDark ? Colors.white54 : const Color(0xFF64748B);
      if (_filterType == 'Daily' || summaryItem != "Multiple Days") {
-        return Text(summaryItem, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white));
+        return Text(summaryItem, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primaryTextColor));
      }
      return topItemAsync.when(
-       loading: () => const Text("Analyzing...", style: TextStyle(fontSize: 16, color: Colors.white54)),
-       error: (_,__) => const Text("View Details", style: TextStyle(fontSize: 16, color: Colors.white70)),
-       data: (name) => Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+       loading: () => Text("Analyzing...", style: TextStyle(fontSize: 16, color: secondaryTextColor)),
+       error: (_,__) => Text("View Details", style: TextStyle(fontSize: 16, color: secondaryTextColor)),
+       data: (name) => Text(name, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primaryTextColor)),
      );
   }
 

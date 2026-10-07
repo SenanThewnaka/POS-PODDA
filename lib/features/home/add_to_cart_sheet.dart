@@ -426,11 +426,27 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                   decoration: BoxDecoration(
-                                    color: !_isFixedDiscount ? Colors.cyan.withValues(alpha: 0.2) : Colors.white10,
+                                    color: !_isFixedDiscount 
+                                        ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyan.withValues(alpha: 0.2) : const Color(0xFF6366F1).withValues(alpha: 0.15)) 
+                                        : (Theme.of(context).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFDFE4EA)),
                                     borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
-                                    border: Border.all(color: !_isFixedDiscount ? Colors.cyanAccent : Colors.white24)
+                                    border: Border.all(
+                                      color: !_isFixedDiscount 
+                                          ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : const Color(0xFF6366F1)) 
+                                          : (Theme.of(context).brightness == Brightness.dark ? Colors.white24 : const Color(0xFFCBD5E1)),
+                                    ),
                                   ),
-                                  child: Center(child: Text("Percentage (%)", style: TextStyle(color: !_isFixedDiscount ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : Colors.blueAccent) : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54), fontWeight: FontWeight.bold))),
+                                  child: Center(
+                                    child: Text(
+                                      "Percentage (%)", 
+                                      style: TextStyle(
+                                        color: !_isFixedDiscount 
+                                            ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : const Color(0xFF4F46E5)) 
+                                            : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : const Color(0xFF64748B)), 
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -440,11 +456,27 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                   decoration: BoxDecoration(
-                                    color: _isFixedDiscount ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyan.withValues(alpha: 0.2) : Colors.blue.withValues(alpha: 0.1)) : (Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.black12),
+                                    color: _isFixedDiscount 
+                                        ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyan.withValues(alpha: 0.2) : const Color(0xFF6366F1).withValues(alpha: 0.15)) 
+                                        : (Theme.of(context).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFDFE4EA)),
                                     borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
-                                    border: Border.all(color: _isFixedDiscount ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : Colors.blueAccent) : Colors.transparent)
+                                    border: Border.all(
+                                      color: _isFixedDiscount 
+                                          ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : const Color(0xFF6366F1)) 
+                                          : (Theme.of(context).brightness == Brightness.dark ? Colors.white24 : const Color(0xFFCBD5E1)),
+                                    ),
                                   ),
-                                  child: Center(child: Text("Fixed Amount (Rs)", style: TextStyle(color: _isFixedDiscount ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : Colors.blueAccent) : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54), fontWeight: FontWeight.bold))),
+                                  child: Center(
+                                    child: Text(
+                                      "Fixed Amount (Rs)", 
+                                      style: TextStyle(
+                                        color: _isFixedDiscount 
+                                            ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : const Color(0xFF4F46E5)) 
+                                            : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : const Color(0xFF64748B)), 
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),

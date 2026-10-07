@@ -67,7 +67,7 @@ class PaymentsLkService {
   final FirebaseFunctions? _functions;
 
   PaymentsLkService({
-    this.apiKey = 'sk_test_6mCLo77J9PgL6TFt0HX2ddCVSChgDFNW',
+    this.apiKey = '',
     http.Client? client,
     this.baseUrl = 'https://api.payments.lk/v1',
     FirebaseFunctions? functions,
@@ -129,6 +129,12 @@ class PaymentsLkService {
     String? successUrl,
     String? cancelUrl,
   }) async {
+    if (apiKey.isEmpty) {
+      throw StateError(
+        'Direct client checkout disabled: No client API key provided. '
+        'Subscriptions must be initiated via createCheckoutViaCloudFunction for security.',
+      );
+    }
     final url = Uri.parse('$baseUrl/checkouts');
 
     final body = {

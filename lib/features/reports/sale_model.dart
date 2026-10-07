@@ -8,6 +8,7 @@ class SaleItem {
   final double quantity;
   final double subTotal;
   final String? description;
+  final bool isTaxable;
 
   SaleItem({
     required this.productId,
@@ -17,6 +18,7 @@ class SaleItem {
     required this.quantity,
     required this.subTotal,
     this.description,
+    this.isTaxable = true,
   });
 
   Map<String, dynamic> toMap() {
@@ -28,6 +30,7 @@ class SaleItem {
       'quantity': quantity,
       'subTotal': subTotal,
       'description': description,
+      'isTaxable': isTaxable,
     };
   }
 
@@ -40,6 +43,7 @@ class SaleItem {
       quantity: (map['quantity'] ?? 0.0).toDouble(),
       subTotal: (map['subTotal'] ?? 0.0).toDouble(),
       description: map['description'],
+      isTaxable: map['isTaxable'] ?? true,
     );
   }
 }

@@ -243,14 +243,14 @@ class _GRNHistoryScreenState extends ConsumerState<GRNHistoryScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: TextField(
                       controller: _searchCtrl,
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF0F172A)),
                       decoration: InputDecoration(
                         hintText: "Search by GRN #, Supplier, or Invoice #...",
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
-                        prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                        hintStyle: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black38),
+                        prefixIcon: Icon(Icons.search, color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black45),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
-                                icon: const Icon(Icons.clear, color: Colors.white54),
+                                icon: Icon(Icons.clear, color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black45),
                                 onPressed: () {
                                   _searchCtrl.clear();
                                   setState(() => _searchQuery = '');
@@ -386,12 +386,12 @@ class _GRNHistoryScreenState extends ConsumerState<GRNHistoryScreen> {
                           children: [
                             Text(
                               grn.grnNumber,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                              style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 15),
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               DateFormat('MMM dd, yyyy').format(grn.receivedAt),
-                              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
+                              style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : const Color(0xFF64748B), fontSize: 12),
                             ),
                           ],
                         ),
@@ -403,7 +403,7 @@ class _GRNHistoryScreenState extends ConsumerState<GRNHistoryScreen> {
                 _buildStatusChip(grn.paymentStatus),
                 const SizedBox(width: 4),
                 IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.white70),
+                  icon: Icon(Icons.edit_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54),
                   tooltip: "Edit GRN",
                   constraints: const BoxConstraints(),
                   padding: const EdgeInsets.all(4),

@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
 import 'package:sme_buddy/features/auth/login_screen.dart';
-import 'package:sme_buddy/features/auth/verify_email_screen.dart';
 import 'package:sme_buddy/features/home/dashboard_screen.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/auth/setup_shop_screen.dart';
 import 'package:sme_buddy/utils/shimmer_skeletons.dart';
 import 'package:sme_buddy/utils/biometric_lock_service.dart';
 import 'package:sme_buddy/utils/analytics_service.dart';
+import 'package:sme_buddy/utils/device_session_service.dart';
+import 'package:sme_buddy/features/auth/session_conflict_screen.dart';
 
 class AuthGate extends ConsumerStatefulWidget {
   const AuthGate({super.key});
@@ -19,11 +20,24 @@ class AuthGate extends ConsumerStatefulWidget {
 
 class _AuthGateState extends ConsumerState<AuthGate> with WidgetsBindingObserver {
   bool _isLocked = false;
+  String? _localSessionId;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _checkInitialLockState();
+    DeviceSessionService.getLocalSessionId().then((id) {
+      if (mounted) setState(() => _localSessionId = id);
+    });
+  }
+
+  Future<void> _checkInitialLockState() async {
+    final enabled = await BiometricLockService.isEnabled();
+    if (enabled && mounted) {
+      setState(() => _isLocked = true);
+      _unlock();
+    }
   }
 
   @override
@@ -117,6 +131,21 @@ class _AuthGateState extends ConsumerState<AuthGate> with WidgetsBindingObserver
               plan: profile.plan,
               role: profile.role,
             );
+
+            // Enforce Single-Device Session Lock for Plus & non-Pro accounts
+            // Pro tier accounts have unlimited concurrent devices
+            final effectivePlan = (ref.watch(shopOwnerProfileProvider).value?.plan ?? profile.plan).toLowerCase();
+            if (_localSessionId != null && effectivePlan != 'pro') {
+              if (profile.activeSessionId == null || profile.activeSessionId!.isEmpty) {
+                // Automatically register this device as the active counter
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  DeviceSessionService.claimActiveSession(user: profile, ref: ref);
+                });
+              } else if (profile.activeSessionId != _localSessionId) {
+                // Another device holds the active session lock
+                return SessionConflictScreen(user: profile);
+              }
+            }
 
             return const DashboardScreen();
           },

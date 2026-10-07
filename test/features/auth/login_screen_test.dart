@@ -8,6 +8,7 @@ import 'package:sme_buddy/features/auth/auth_repository.dart';
 import 'package:sme_buddy/features/auth/employee_login_screen.dart';
 import 'package:sme_buddy/features/auth/login_screen.dart';
 import 'package:sme_buddy/features/auth/signup_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Fake AuthRepository for testing without Firebase dependencies
 class FakeAuthRepository implements AuthRepository {
@@ -33,8 +34,13 @@ class FakeAuthRepository implements AuthRepository {
     return null;
   }
 
+  Object? resetPasswordErrorToThrow;
+
   @override
   Future<void> resetPassword(String email) async {
+    if (resetPasswordErrorToThrow != null) {
+      throw resetPasswordErrorToThrow!;
+    }
     resetPasswordCalled = true;
     lastResetEmail = email;
   }
@@ -62,6 +68,28 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   Future<void> updateEmployeePassword(String email, String oldPassword, String newPassword) async {}
+
+  bool signInWithGoogleCalled = false;
+  UserCredential? googleCredentialToReturn;
+  Object? googleErrorToThrow;
+
+  @override
+  Future<UserCredential?> signInWithGoogle() async {
+    signInWithGoogleCalled = true;
+    if (googleErrorToThrow != null) {
+      throw googleErrorToThrow!;
+    }
+    return googleCredentialToReturn;
+  }
+
+  bool deleteAccountCalled = false;
+  String? lastDeletePassword;
+
+  @override
+  Future<void> deleteCurrentUserAccount({String? currentPassword}) async {
+    deleteAccountCalled = true;
+    lastDeletePassword = currentPassword;
+  }
 }
 
 Widget _createTestWidget({
@@ -93,6 +121,7 @@ void main() {
   late FakeAuthRepository fakeAuth;
 
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     fakeAuth = FakeAuthRepository();
   });
 
@@ -214,6 +243,60 @@ void main() {
       expect(fakeAuth.lastResetEmail, 'owner@shop.com');
       expect(find.text('Password Reset Email Sent!'), findsOneWidget);
     });
+
+    testWidgets('TC-AUTH-07B: Forgot password with invalid email format displays format error', (tester) async {
+      await tester.pumpWidget(_createTestWidget(fakeAuth: fakeAuth));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextFormField).at(0), 'notanemail');
+      await tester.tap(find.text('Forgot Password?'));
+      await tester.pumpAndSettle();
+
+      expect(fakeAuth.resetPasswordCalled, isFalse);
+      expect(find.text('Please enter a valid email address.'), findsOneWidget);
+    });
+
+    testWidgets('TC-AUTH-07C: Forgot password with non-existent user displays user-not-found error', (tester) async {
+      fakeAuth.resetPasswordErrorToThrow = FirebaseAuthException(
+        code: 'user-not-found',
+        message: 'No user record found',
+      );
+
+      await tester.pumpWidget(_createTestWidget(fakeAuth: fakeAuth));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextFormField).at(0), 'unknown@shop.com');
+      await tester.tap(find.text('Forgot Password?'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No account found with this email address.'), findsOneWidget);
+    });
+
+    testWidgets('TC-AUTH-07D: Employee login screen displays Forgot Password button and guidance modal', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authRepositoryProvider.overrideWithValue(fakeAuth),
+          ],
+          child: const MaterialApp(
+            home: EmployeeLoginScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Forgot Password?'), findsOneWidget);
+      await tester.tap(find.text('Forgot Password?'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Staff Password Reset'), findsOneWidget);
+      expect(find.textContaining('Employee Management'), findsOneWidget);
+
+      await tester.tap(find.text('OK, Got It'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Staff Password Reset'), findsNothing);
+    });
   });
 
   group('Category B: Authentication States & Error Handling', () {
@@ -323,6 +406,7 @@ void main() {
 
       final signUpBtn = find.text('Sign Up');
       expect(signUpBtn, findsOneWidget);
+      await tester.ensureVisible(signUpBtn);
       await tester.tap(signUpBtn);
       await tester.pumpAndSettle();
 
@@ -408,6 +492,41 @@ void main() {
       await tester.pumpWidget(_createTestWidget(fakeAuth: fakeAuth, brightness: Brightness.light));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('TC-AUTH-19: Google Sign-In button renders on screen with label and separator', (tester) async {
+      await tester.pumpWidget(_createTestWidget(fakeAuth: fakeAuth));
+      await tester.pumpAndSettle();
+
+      expect(find.text('OR'), findsOneWidget);
+      final googleBtn = find.text('Continue with Google');
+      expect(googleBtn, findsOneWidget);
+    });
+
+    testWidgets('TC-AUTH-20: Tapping Google Sign-In button triggers signInWithGoogle()', (tester) async {
+      await tester.pumpWidget(_createTestWidget(fakeAuth: fakeAuth));
+      await tester.pumpAndSettle();
+
+      final googleBtn = find.text('Continue with Google');
+      await tester.ensureVisible(googleBtn);
+      await tester.tap(googleBtn);
+      await tester.pumpAndSettle();
+
+      expect(fakeAuth.signInWithGoogleCalled, isTrue);
+    });
+
+    testWidgets('TC-AUTH-21: Google Sign-In network failure displays informative error SnackBar', (tester) async {
+      fakeAuth.googleErrorToThrow = Exception('network-request-failed: connection refused');
+
+      await tester.pumpWidget(_createTestWidget(fakeAuth: fakeAuth));
+      await tester.pumpAndSettle();
+
+      final googleBtn = find.text('Continue with Google');
+      await tester.ensureVisible(googleBtn);
+      await tester.tap(googleBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Network error. Please check your internet connection.'), findsOneWidget);
     });
   });
 }

@@ -11,9 +11,7 @@ final productRepositoryProvider = Provider((ref) {
   if (userProfile == null) {
      throw Exception("ProductRepository accessed without user profile");
   }
-  final repo = ProductRepository(userProfile.shopId);
-  repo.performIntegrityCheck(); // Self-healing
-  return repo;
+  return ProductRepository(userProfile.shopId);
 });
 
 final productsStreamProvider = StreamProvider<List<Product>>((ref) {
@@ -317,30 +315,26 @@ class ProductRepository {
   }
 
   Future<void> processSale(List<BatchSaleItem> items) async {
-    // 1. PRE-FETCH: Get all active batches for involved products
+    // 1. PRE-FETCH: Get all active batches and product states concurrently
     Map<String, List<StockBatch>> productBatches = {};
-    
-    // We need to fetch batches AND products to do logic
-    // Let's fetch them now.
-    
-    for (var item in items) {
-       // Get active batches sorted by date (FIFO)
-       final batches = await getPosBatches(item.productId);
-       // FIX: Do NOT filter by price. Stock is physical. Deduct from oldest batch.
-       productBatches[item.productId] = batches;
-    }
-
-    // 2. READ CURRENT PRODUCT STATES (Aggregates)
-    // We need this to update the total 'currentStock'
     Map<String, Product> productMap = {};
-    for (var item in items) {
-       final doc = await _collection.doc(item.productId).get();
+
+    // Deduplicate in case multiple cart items point to the same product
+    final uniqueProductIds = items.map((e) => e.productId).toSet();
+
+    await Future.wait(uniqueProductIds.map((productId) async {
+       // A. Fetch active batches sorted by date (FIFO)
+       final batches = await getPosBatches(productId);
+       productBatches[productId] = batches;
+
+       // B. Fetch product state (Aggregate)
+       final doc = await _collection.doc(productId).get();
        if (doc.exists) {
           final data = doc.data() as Map<String, dynamic>;
           data['id'] = doc.id;
-          productMap[item.productId] = Product.fromMap(data);
+          productMap[productId] = Product.fromMap(data);
        }
-    }
+    }));
 
     // 3. PREPARE WRITE BATCH
     final writeBatch = _firestore.batch();

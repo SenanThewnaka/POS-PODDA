@@ -37,6 +37,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _shopAddressCtrl = TextEditingController();
   }
 
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _mobileCtrl.dispose();
+    _emailCtrl.dispose();
+    _shopNameCtrl.dispose();
+    _shopAddressCtrl.dispose();
+    super.dispose();
+  }
+
   void _initData(UserModel user) {
     if (_nameCtrl.text.isEmpty) {
         _nameCtrl.text = user.name;
@@ -254,6 +264,45 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                        child: const Text("MANAGE / EXTEND"),
                      ),
                    ),
+                   const SizedBox(height: 32),
+                   _buildSectionHeader("Danger Zone", isDestructive: true),
+                   Container(
+                     padding: const EdgeInsets.all(16),
+                     decoration: BoxDecoration(
+                       color: Colors.redAccent.withValues(alpha: 0.08),
+                       borderRadius: BorderRadius.circular(12),
+                       border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+                     ),
+                     child: Column(
+                       crossAxisAlignment: CrossAxisAlignment.start,
+                       children: [
+                         const Text(
+                           "Delete Account",
+                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.redAccent),
+                         ),
+                         const SizedBox(height: 6),
+                         Text(
+                           "Permanently remove your account and all associated shop data. This action is irreversible.",
+                           style: TextStyle(
+                             fontSize: 13,
+                             color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87,
+                           ),
+                         ),
+                         const SizedBox(height: 16),
+                         OutlinedButton.icon(
+                           style: OutlinedButton.styleFrom(
+                             foregroundColor: Colors.redAccent,
+                             side: const BorderSide(color: Colors.redAccent),
+                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                           ),
+                           icon: const Icon(Icons.delete_forever, size: 18),
+                           label: const Text("DELETE ACCOUNT"),
+                           onPressed: () => _confirmDeleteAccount(user),
+                         ),
+                       ],
+                     ),
+                   ),
+                   const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -265,10 +314,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(String title, {bool isDestructive = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.cyanAccent)),
+      child: Text(
+        title, 
+        style: TextStyle(
+          fontSize: 18, 
+          fontWeight: FontWeight.bold, 
+          color: isDestructive ? Colors.redAccent : Colors.cyanAccent,
+        ),
+      ),
     );
   }
 
@@ -289,5 +345,132 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         validator: (v) => v!.isEmpty ? "Required" : null,
       ),
     );
+  }
+
+  Future<void> _confirmDeleteAccount(UserModel user) async {
+    final passwordCtrl = TextEditingController();
+    final authUser = ref.read(authRepositoryProvider).currentUser;
+    final isGoogleUser = authUser?.providerData
+        .any((p) => p.providerId == 'google.com') ?? false;
+    bool isDeleting = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
+              SizedBox(width: 8),
+              Text("Delete Account?", style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Are you sure you want to permanently delete your account?",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "• All your shop data, inventory, sales, and employee accounts will be permanently deactivated.\n"
+                "• You will lose any remaining days on your trial or subscription.\n"
+                "• Note: Creating another account with this email will NOT grant a new free trial.",
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              if (!isGoogleUser) ...[
+                const SizedBox(height: 16),
+                const Text(
+                  "Enter your password to confirm:",
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: passwordCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: "Password",
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isDeleting ? null : () => Navigator.pop(dialogContext),
+              child: const Text("CANCEL"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: isDeleting
+                  ? null
+                  : () async {
+                      if (!isGoogleUser && passwordCtrl.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Please enter your password to confirm deletion.")),
+                        );
+                        return;
+                      }
+
+                      setDialogState(() => isDeleting = true);
+                      try {
+                        final authRepo = ref.read(authRepositoryProvider);
+                        final userProfileRepo = ref.read(userProfileRepositoryProvider);
+
+                        // 1. Record deletion in trial_history and deactivate profile
+                        await userProfileRepo.deleteUserAccount(user: user);
+
+                        // 2. Delete Firebase Auth account
+                        await authRepo.deleteCurrentUserAccount(
+                          currentPassword: isGoogleUser ? null : passwordCtrl.text.trim(),
+                        );
+
+                        if (mounted) {
+                          Navigator.pop(dialogContext);
+                          Navigator.of(context).popUntil((route) => route.isFirst);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Your account has been permanently deleted."),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setDialogState(() => isDeleting = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text("Deletion failed: ${e.toString().replaceAll('Exception:', '').trim()}"),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              child: isDeleting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text("PERMANENTLY DELETE"),
+            ),
+          ],
+        ),
+      ),
+    );
+    passwordCtrl.dispose();
   }
 }

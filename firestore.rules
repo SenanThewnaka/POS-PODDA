@@ -1,48 +1,380 @@
 rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Multi-Tenant POS Application Architecture:
+//
+// Collection: users
+// Document ID: {userId} (matches Firebase Auth UID)
+// Fields:
+//   - uid: string (required, 1-128 chars, immutable)
+//   - email: string (required, valid email, 1-128 chars)
+//   - name: string (required, 1-100 chars)
+//   - role: string (required, 'owner' | 'manager' | 'cashier' | 'stock keeper' | custom role)
+//   - shopId: string (required, for owners shopId == uid, for employees points to owner uid)
+//   - mobile: string (optional, <= 50 chars)
+//   - shopName: string (optional, <= 100 chars)
+//   - shopAddress: string (optional, <= 300 chars)
+//   - shopMobile: string (optional, <= 50 chars)
+//   - shopCode: string (optional, <= 50 chars)
+//   - username: string (optional, <= 50 chars)
+//   - storedPassword: disallowed (plaintext credentials must never be stored in Firestore)
+//   - permissions: map (optional, feature flags)
+//   - roleId: string (optional, <= 128 chars)
+//   - shopLogo: string (optional, base64/url, <= 500000 chars)
+//   - invoiceFooterMessage: string (optional, <= 500 chars)
+//   - invoiceContactInfo: string (optional, <= 200 chars)
+//   - isVatRegistered: bool (optional)
+//   - vatNumber: string (optional, <= 50 chars)
+//   - vatPercentage: number (optional, 0 - 100)
+//   - isActive: bool (optional, soft-deletion / active status flag)
+//   - isDeleted: bool (optional, soft-deletion flag)
+//   - deletedAt: timestamp or null (optional, soft-deletion timestamp)
+//   - plan: string ('free' | 'trial' | 'plus' | 'pro', client cannot escalate)
+//   - currentPlan: string ('free' | 'trial' | 'plus' | 'pro', client cannot escalate)
+//   - subscriptionStatus: string ('active' | 'inactive' | 'expired' | 'trial', client cannot escalate)
+//   - billingCycle: string ('monthly' | 'quarterly' | 'semi_annual' | 'yearly' | 'lifetime' | 'trial')
+//   - expiryDate: timestamp or null (client cannot escalate)
+//   - isVerified: bool (optional)
+//   - verificationCode: string (optional, <= 50 chars)
+//   - welcomeSent: bool (optional)
+//   - activeSessionId: string or null (optional, <= 128 chars, device session tracking)
+//   - activeDeviceName: string or null (optional, <= 100 chars, device description)
+//   - lastSessionClaimedAt: timestamp or null (optional, device session claim timestamp)
+//
+// Collection: trial_history
+// Document ID: {email} (lowercase email address of user)
+// Fields:
+//   - email: string (user email)
+//   - uid: string (Firebase Auth UID)
+//   - hasUsedTrial: bool (consumed flag, irreversible)
+//   - accountDeleted: bool (account deletion flag, irreversible)
+//   - trialGrantedAt: timestamp (optional)
+//   - trialExpiryDate: timestamp (optional)
+//   - deletedAt: timestamp (optional)
+// Tenancy: Accessible strictly by authenticated user matching request.auth.token.email. Deletion disallowed. Consumed flags cannot be reversed on update.
+//
+// Collection: users/{userId}/* (Subcollections: products, batches, customers, system)
+// Document ID: auto-generated or scoped IDs
+// Tenancy: Accessible strictly by members of the shop where shopId == userId.
+//
+// Collection: shops/{shopId}/* (Subcollections: sales, shifts, roles, suppliers, grn, stats, system)
+// Document ID: auto-generated or date-based IDs
+// Subcollection Access Controls:
+//   - sales: read and create by shop members; deletion strictly blocked; update by shop owner only.
+//   - shifts: read, create, update by shop members; deletion strictly blocked for audit trail integrity.
+//   - roles: read by shop members; create, update, delete (write) restricted to shop owner only.
+//   - suppliers, grn, stats, system: read and write by shop members.
+//
+// Collection: subscription_checkouts
+// Document ID: {checkoutId} (created server-side by Payments Cloud Function)
+// Fields:
+//   - checkoutId: string
+//   - paymentId: string or null
+//   - userId: string (Auth UID of purchaser)
+//   - tier: string ('plus' | 'pro')
+//   - cycleKey: string
+//   - durationDays: number
+//   - amountCents: number
+//   - status: string
+//   - checkoutUrl: string
+//   - createdAt: timestamp
+// Tenancy: Read-only by the owner (userId == auth.uid). Client writes completely denied.
+//
+// ===============================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    // Check if user is authenticated
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    // A user is a member of a shop if they are the shop owner (shopId == uid)
+    // Verify membership in a shop:
+    // A user is a shop member if they are the shop owner (request.auth.uid == shopId)
     // or if their user record has the matching shopId.
     function isShopMember(shopId) {
       return isAuthenticated() && (
         request.auth.uid == shopId ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.shopId == shopId)
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.shopId == shopId
+        )
       );
     }
 
-    // User profiles
-    match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isOwner(userId) || (
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner'
+    // Verify whether the authenticated caller is the owner of the shop
+    function isShopOwner(shopId) {
+      return isAuthenticated() && (
+        request.auth.uid == shopId ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner' &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.shopId == shopId
+        )
       );
+    }
+
+    // Validate email format
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    // Comprehensive validator for user profiles (enforces types, required fields, and DoS size limits)
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'name', 'role', 'shopId']) &&
+        // Required fields
+        data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128 &&
+        isValidEmail(data.email) && data.email.size() <= 128 &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+        data.role is string && data.role.size() > 0 && data.role.size() <= 50 &&
+        data.shopId is string && data.shopId.size() > 0 && data.shopId.size() <= 128 &&
+        // Optional fields validation
+        (!('mobile' in data) || data.mobile == null || (data.mobile is string && data.mobile.size() <= 50)) &&
+        (!('shopName' in data) || data.shopName == null || (data.shopName is string && data.shopName.size() <= 100)) &&
+        (!('shopAddress' in data) || data.shopAddress == null || (data.shopAddress is string && data.shopAddress.size() <= 300)) &&
+        (!('shopMobile' in data) || data.shopMobile == null || (data.shopMobile is string && data.shopMobile.size() <= 50)) &&
+        (!('shopCode' in data) || data.shopCode == null || (data.shopCode is string && data.shopCode.size() <= 50)) &&
+        (!('username' in data) || data.username == null || (data.username is string && data.username.size() <= 50)) &&
+        // Disallow storedPassword to prevent plaintext credential storage in Firestore
+        (!('storedPassword' in data) || data.storedPassword == null) &&
+        (!('shopLogo' in data) || data.shopLogo == null || (data.shopLogo is string && data.shopLogo.size() <= 500000)) &&
+        (!('invoiceFooterMessage' in data) || data.invoiceFooterMessage == null || (data.invoiceFooterMessage is string && data.invoiceFooterMessage.size() <= 500)) &&
+        (!('invoiceContactInfo' in data) || data.invoiceContactInfo == null || (data.invoiceContactInfo is string && data.invoiceContactInfo.size() <= 200)) &&
+        (!('vatNumber' in data) || data.vatNumber == null || (data.vatNumber is string && data.vatNumber.size() <= 50)) &&
+        (!('vatPercentage' in data) || data.vatPercentage == null || (data.vatPercentage is number && data.vatPercentage >= 0 && data.vatPercentage <= 100)) &&
+        (!('isVatRegistered' in data) || data.isVatRegistered == null || data.isVatRegistered is bool) &&
+        (!('isActive' in data) || data.isActive == null || data.isActive is bool) &&
+        (!('isDeleted' in data) || data.isDeleted == null || data.isDeleted is bool) &&
+        (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is timestamp) &&
+        (!('isVerified' in data) || data.isVerified == null || data.isVerified is bool) &&
+        (!('welcomeSent' in data) || data.welcomeSent == null || data.welcomeSent is bool) &&
+        (!('verificationCode' in data) || data.verificationCode == null || (data.verificationCode is string && data.verificationCode.size() <= 50)) &&
+        (!('roleId' in data) || data.roleId == null || (data.roleId is string && data.roleId.size() <= 128)) &&
+        (!('permissions' in data) || data.permissions == null || data.permissions is map) &&
+        (!('plan' in data) || (data.plan is string && data.plan in ['free', 'trial', 'plus', 'pro'])) &&
+        (!('currentPlan' in data) || (data.currentPlan is string && data.currentPlan in ['free', 'trial', 'plus', 'pro'])) &&
+        (!('subscriptionStatus' in data) || (data.subscriptionStatus is string && data.subscriptionStatus in ['active', 'inactive', 'expired', 'trial'])) &&
+        (!('billingCycle' in data) || (data.billingCycle is string && data.billingCycle in ['monthly', 'quarterly', 'semi_annual', 'yearly', 'lifetime', 'trial'])) &&
+        (!('expiryDate' in data) || data.expiryDate == null || data.expiryDate is timestamp) &&
+        (!('activeSessionId' in data) || data.activeSessionId == null || (data.activeSessionId is string && data.activeSessionId.size() <= 128)) &&
+        (!('activeDeviceName' in data) || data.activeDeviceName == null || (data.activeDeviceName is string && data.activeDeviceName.size() <= 100)) &&
+        (!('lastSessionClaimedAt' in data) || data.lastSessionClaimedAt == null || data.lastSessionClaimedAt is timestamp);
+    }
+
+    // Validates initial user document state upon creation
+    // Prevents initializing with unverified pro or plus plans
+    // Allows 14-day free trial expiry date (up to 16 days in the future to account for timezone/skew)
+    function isValidInitialUser(data, userId) {
+      return isValidUser(data) &&
+        data.uid == userId &&
+        (!('plan' in data) || data.plan in ['free', 'trial']) &&
+        (!('currentPlan' in data) || data.currentPlan in ['free', 'trial']) &&
+        (!('subscriptionStatus' in data) || data.subscriptionStatus in ['active', 'trial', 'inactive', 'expired']) &&
+        (
+          !('expiryDate' in data) ||
+          data.expiryDate == null ||
+          (
+            (('plan' in data && data.plan == 'trial') || ('currentPlan' in data && data.currentPlan == 'trial')) &&
+            data.expiryDate is timestamp &&
+            data.expiryDate <= request.time + duration.value(16, 'd')
+          )
+        );
+    }
+
+    // Enforces subscription immutability against client updates
+    // Only Cloud Functions via Firebase Admin SDK can upgrade or modify subscription status
+    function subscriptionFieldsUnchanged() {
+      return (
+        (!('plan' in request.resource.data) ||
+          ('plan' in resource.data ? request.resource.data.plan == resource.data.plan : request.resource.data.plan in ['free', 'trial'])) &&
+        (!('currentPlan' in request.resource.data) ||
+          ('currentPlan' in resource.data ? request.resource.data.currentPlan == resource.data.currentPlan :
+            ('plan' in resource.data ? request.resource.data.currentPlan == resource.data.plan : request.resource.data.currentPlan in ['free', 'trial']))) &&
+        (!('subscriptionStatus' in request.resource.data) ||
+          ('subscriptionStatus' in resource.data ? request.resource.data.subscriptionStatus == resource.data.subscriptionStatus : request.resource.data.subscriptionStatus in ['active', 'trial', 'inactive', 'expired'])) &&
+        (!('expiryDate' in request.resource.data) ||
+          ('expiryDate' in resource.data ? request.resource.data.expiryDate == resource.data.expiryDate : request.resource.data.expiryDate == null))
+      );
+    }
+
+    // Controls user read access: user can read their own profile, shop owners can read their employees,
+    // and employees can read their shop owner's profile (for shop details & subscription tier).
+    function canReadUser(userId) {
+      return isAuthenticated() && (
+        request.auth.uid == userId ||
+        (
+          'shopId' in resource.data && (
+            request.auth.uid == resource.data.shopId ||
+            (
+              'role' in resource.data &&
+              resource.data.role == 'owner' &&
+              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.shopId == resource.data.shopId
+            )
+          )
+        )
+      );
+    }
+
+    // Controls user creation access
+    // Enforces multi-tenant isolation:
+    // Path 1: Self-registering owner (auth UID == userId, role == 'owner', shopId == userId)
+    // Path 2: Employee profile created by verified owner (shopId == request.auth.uid, role != 'owner')
+    // Any other user creation is strictly rejected.
+    function canCreateUser(userId) {
+      return isAuthenticated() && (
+        (
+          request.auth.uid == userId &&
+          request.resource.data.role == 'owner' &&
+          request.resource.data.shopId == userId
+        ) ||
+        (
+          request.resource.data.shopId == request.auth.uid &&
+          request.resource.data.role != 'owner'
+        )
+      ) && isValidInitialUser(request.resource.data, userId);
+    }
+
+    // Controls user profile update access
+    // Prevents staff permission self-escalation:
+    // - Owner can update their profile (subscription fields protected)
+    // - Non-owner updating their own document CANNOT modify role, roleId, isActive, or permissions
+    // - Only the shop owner can modify role, roleId, isActive, or permissions of staff
+    function canUpdateUser(userId) {
+      return isAuthenticated() &&
+        (
+          request.auth.uid == userId ||
+          (
+            'shopId' in resource.data &&
+            resource.data.shopId == request.auth.uid &&
+            isShopOwner(resource.data.shopId)
+          )
+        ) &&
+        isValidUser(request.resource.data) &&
+        // Protect identity and shop binding
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.shopId == resource.data.shopId &&
+        // Prevent role and permission escalation
+        (
+          // Owner updating their own profile
+          (request.auth.uid == userId && resource.data.role == 'owner') ||
+          // Non-owner updating their own document: role, roleId, isActive, and permissions MUST remain identical
+          (
+            request.auth.uid == userId &&
+            resource.data.role != 'owner' &&
+            request.resource.data.role == resource.data.role &&
+            request.resource.data.roleId == resource.data.roleId &&
+            request.resource.data.isActive == resource.data.isActive &&
+            request.resource.data.permissions == resource.data.permissions
+          ) ||
+          // Shop owner managing staff under their shop (cannot promote staff to owner)
+          (
+            resource.data.shopId == request.auth.uid &&
+            isShopOwner(resource.data.shopId) &&
+            request.resource.data.role != 'owner'
+          )
+        ) &&
+        // Lock down subscription parameters from client tampering
+        subscriptionFieldsUnchanged();
+    }
+
+    // Controls user deletion access
+    function canDeleteUser(userId) {
+      return isAuthenticated() && (
+        request.auth.uid == userId ||
+        (
+          'shopId' in resource.data &&
+          resource.data.shopId == request.auth.uid &&
+          resource.data.role != 'owner'
+        )
+      );
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // User profiles collection
+    match /users/{userId} {
+      allow read: if canReadUser(userId);
+      allow create: if canCreateUser(userId);
+      allow update: if canUpdateUser(userId);
+      allow delete: if canDeleteUser(userId);
 
       // Subcollections under users (products, batches, customers, system)
-      match /{document=**} {
+      // Scoped strictly to the shop matching the user ID
+      match /{allSubcollections=**} {
         allow read, write: if isShopMember(userId);
       }
     }
 
-    // Shop collections (shifts, sales, suppliers, grn, products, stats, roles, system)
+    // Shop root and subcollections
     match /shops/{shopId} {
-      allow read, write: if isShopMember(shopId);
+      allow read: if isShopMember(shopId);
+      allow write: if isShopOwner(shopId);
 
-      match /{document=**} {
-        allow read, write: if isShopMember(shopId);
+      // Subcollection: sales
+      // Cashiers and staff can create and read sales; deletion is blocked to prevent fraud;
+      // updates are restricted to the shop owner.
+      match /sales/{saleId} {
+        allow read, create: if isShopMember(shopId);
+        allow update: if isShopOwner(shopId);
+        allow delete: if false;
       }
+
+      // Subcollection: shifts
+      // Staff can open, update, and close shifts; deletion is strictly blocked for audit trail integrity.
+      match /shifts/{shiftId} {
+        allow read, create, update: if isShopMember(shopId);
+        allow delete: if false;
+      }
+
+      // Subcollection: roles
+      // Team members can read role definitions; only the shop owner can define, edit, or delete roles.
+      match /roles/{roleId} {
+        allow read: if isShopMember(shopId);
+        allow write: if isShopOwner(shopId);
+      }
+
+      // Other shop operational subcollections (suppliers, grn, stats, system)
+      match /{subcollection}/{document=**} {
+        allow read, write: if isShopMember(shopId) &&
+          !(subcollection in ['sales', 'shifts', 'roles']);
+      }
+    }
+
+    // Trial history tracking collection (keyed by lowercase email)
+    // Prevents abuse/repeat trials: readable and creatable by email owner,
+    // updates cannot reverse consumed flags (hasUsedTrial or accountDeleted), deletion disallowed
+    match /trial_history/{email} {
+      allow read, create: if isAuthenticated() &&
+        request.auth.token.email != null &&
+        request.auth.token.email.lower() == email;
+      allow update: if isAuthenticated() &&
+        request.auth.token.email != null &&
+        request.auth.token.email.lower() == email &&
+        (!('hasUsedTrial' in resource.data) || resource.data.hasUsedTrial == false || request.resource.data.hasUsedTrial == true) &&
+        (!('accountDeleted' in resource.data) || resource.data.accountDeleted == false || request.resource.data.accountDeleted == true);
+      allow delete: if false;
+    }
+
+    // Subscription checkouts collection (managed server-side by Payments Cloud Function)
+    match /subscription_checkouts/{checkoutId} {
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow write: if false;
     }
   }
 }

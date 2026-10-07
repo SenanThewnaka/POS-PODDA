@@ -12,8 +12,6 @@ import 'package:sme_buddy/firebase_options.dart';
 import 'package:sme_buddy/features/settings/theme_provider.dart';
 import 'package:sme_buddy/utils/analytics_service.dart';
 
-import 'package:shorebird_code_push/shorebird_code_push.dart';
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -41,18 +39,6 @@ void main() async {
       return true;
     };
   }
-
-  // Initialize Shorebird OTA safely
-  try {
-    final shorebirdUpdater = ShorebirdUpdater();
-    unawaited(
-      shorebirdUpdater.readCurrentPatch().then(
-        (value) {
-          if (kDebugMode) print('Shorebird patch: ${value?.number ?? "none"}');
-        },
-      ).catchError((_) {}),
-    );
-  } catch (_) {}
 
   // OPTIMIZATION: Enable Firestore Offline Persistence
   try {

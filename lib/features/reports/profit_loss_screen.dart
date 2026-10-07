@@ -48,6 +48,7 @@ class _ProfitLossScreenState extends ConsumerState<ProfitLossScreen> {
     final range = _getDateRange();
     final profitAsync = ref.watch(profitSummaryProvider(range));
     final isDesktop = ResponsiveLayout.isDesktop(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return GlassScaffold(
       appBar: AppBar(
@@ -71,9 +72,9 @@ class _ProfitLossScreenState extends ConsumerState<ProfitLossScreen> {
                         label: Text(filter),
                         selected: isSelected,
                         selectedColor: const Color(0xFF6366F1),
-                        backgroundColor: const Color(0xFF1E293B),
+                        backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
                         labelStyle: TextStyle(
-                          color: isSelected ? Colors.white : Colors.white70,
+                          color: isSelected ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF334155)),
                           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
                         onSelected: (selected) {
@@ -89,11 +90,11 @@ class _ProfitLossScreenState extends ConsumerState<ProfitLossScreen> {
                           ? "${DateFormat('MMM d').format(_customRange!.start)} - ${DateFormat('MMM d').format(_customRange!.end)}"
                           : "Custom",
                       style: TextStyle(
-                        color: _filterType == 'Custom' ? Colors.cyanAccent : Colors.white70,
+                        color: _filterType == 'Custom' ? Colors.cyanAccent : (isDark ? Colors.white70 : const Color(0xFF334155)),
                         fontWeight: _filterType == 'Custom' ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
-                    backgroundColor: const Color(0xFF1E293B),
+                    backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
                     onPressed: () async {
                       final picked = await showDateRangePicker(
                         context: context,
@@ -130,7 +131,7 @@ class _ProfitLossScreenState extends ConsumerState<ProfitLossScreen> {
                       // Date range display
                       Text(
                         "${DateFormat('MMMM dd, yyyy').format(range.start)}  →  ${DateFormat('MMMM dd, yyyy').format(range.end)}",
-                        style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13),
+                        style: TextStyle(color: isDark ? Colors.white60 : Colors.black54, fontSize: 13),
                       ),
                       const SizedBox(height: 12),
 
@@ -177,16 +178,16 @@ class _ProfitLossScreenState extends ConsumerState<ProfitLossScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text("Income Statement Breakdown",
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text("Income Statement Breakdown",
+                                style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 16)),
                             const SizedBox(height: 16),
                             _buildStatementRow("Gross Sales / Revenue (${summary.transactionCount} orders)", summary.totalRevenue, isPositive: true),
                             _buildStatementRow("Less: Cost of Goods Sold (COGS)", -summary.totalCOGS, isPositive: false),
-                            const Divider(color: Colors.white24, height: 24),
+                            Divider(color: isDark ? Colors.white24 : Colors.black12, height: 24),
                             _buildStatementRow("Gross Profit", summary.grossProfit, isBold: true, highlightColor: Colors.tealAccent),
                             const SizedBox(height: 8),
                             _buildStatementRow("Less: Shift Payouts & Expenses", -summary.operatingExpenses, isPositive: false),
-                            const Divider(color: Colors.white38, height: 24),
+                            Divider(color: isDark ? Colors.white38 : Colors.black26, height: 24),
                             _buildStatementRow(
                               "NET PROFIT (BOTTOM LINE)",
                               summary.netProfit,

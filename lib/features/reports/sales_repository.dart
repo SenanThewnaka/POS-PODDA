@@ -36,11 +36,11 @@ final salesRepositoryProvider = Provider((ref) {
   return repo;
 });
 
-final salesSummaryProvider = StreamProvider.family<DailySummary, DateTimeRange>((ref, range) {
+final salesSummaryProvider = StreamProvider.family.autoDispose<DailySummary, DateTimeRange>((ref, range) {
   return ref.watch(salesRepositoryProvider).getStatsStream(range.start, range.end);
 });
 
-final salesListProvider = StreamProvider.family<List<Sale>, DateTimeRange>((ref, range) {
+final salesListProvider = StreamProvider.family.autoDispose<List<Sale>, DateTimeRange>((ref, range) {
   return ref.watch(salesRepositoryProvider).getSalesStream(range.start, range.end);
 });
 
@@ -96,6 +96,7 @@ class SalesRepository {
         quantity: item.quantity,
         subTotal: item.subTotal,
         description: item.description,
+        isTaxable: item.product.isTaxable,
       );
     }).toList();
 
@@ -117,7 +118,9 @@ class SalesRepository {
       userName: currentUser.name, // Audit
     );
     
-    // ATOMIC WRITE: Sale Doc + Stats Increment
+    // ATOMIC WRITE: Sale Doc + Stats Increment + Customer Balance (all or nothing).
+    // Previously updateBalance was called separately BEFORE recordSale, causing desync if
+    // any later step (stock deduction, etc.) failed — resulting in "overdue shows but no record".
     await FirebaseFirestore.instance.runTransaction((transaction) async {
        // 1. Write Sale
        transaction.set(docRef, sale.toMap());
@@ -129,6 +132,15 @@ class SalesRepository {
          'creditGiven': method == 'CREDIT' ? FieldValue.increment(amount) : FieldValue.increment(0),
          'updatedAt': FieldValue.serverTimestamp(),
        }, SetOptions(merge: true));
+
+       // 3. ATOMIC: Update customer balance for credit sales in the same transaction.
+       // This ensures the sale record and the outstanding balance ALWAYS stay in sync.
+       if (method == 'CREDIT' && customerId != null && customerId.isNotEmpty) {
+         final customerRef = _customerCollection.doc(customerId);
+         transaction.update(customerRef, {
+           'currentBalance': FieldValue.increment(amount),
+         });
+       }
     });
     
     print("Sale Saved Successfully: ${docRef.id}");
@@ -147,24 +159,8 @@ class SalesRepository {
   Future<void> performMaintenance() async {
      // A. Backfill Stats if needed (One-time Migration)
      _checkAndRunStatsMigration();
-
-     // B. Delete Old Sales
-     try {
-       final cutoff = DateTime.now().subtract(const Duration(days: 60));
-       // Batch delete is safer for large sets
-       final snapshot = await _collection.where('timestamp', isLessThan: Timestamp.fromDate(cutoff)).limit(500).get();
-       
-       if (snapshot.docs.isNotEmpty) {
-         print("Maintenance: Deleting ${snapshot.docs.length} old sales records.");
-         final batch = FirebaseFirestore.instance.batch();
-         for(var doc in snapshot.docs) {
-           batch.delete(doc.reference);
-         }
-         await batch.commit();
-       }
-     } catch (e) {
-       print("Maintenance Error: $e");
-     }
+     // NOTE: Sales records are strictly retained permanently for tax compliance,
+     // warranty audits, receipt verification, and customer credit ledger integrity.
   }
 
   Future<void> _checkAndRunStatsMigration() async {
@@ -354,6 +350,14 @@ class SalesRepository {
            'currentBalance': currentBalance - amount
          });
        }
+
+       // Update today's cash stats so daily cash collection balances
+       final todayStr = DateFormat('yyyy_MM_dd').format(DateTime.now());
+       final statsRef = _statsCollection.doc(todayStr);
+       transaction.set(statsRef, {
+         'cashInHand': FieldValue.increment(amount),
+         'updatedAt': FieldValue.serverTimestamp(),
+       }, SetOptions(merge: true));
     });
   }
 

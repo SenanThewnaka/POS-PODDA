@@ -47,16 +47,26 @@ app.*.map.json
 # Firebase cache
 .firebase/
 
-# Firebase / Secret Keys
+# Firebase / Secret Keys (keep native configs secure)
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 macos/Runner/GoogleService-Info.plist
-lib/firebase_options.dart
 android/key.properties
 
-# Local Tools & Temp Assets
+# Local Tools, Caches & Temp Assets
 graphify-out/
+.graphifyignore
+scratch/
 unnamed-*.jpg
+
+# Python & Pytest cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+tests/selenium/.pytest_cache/
+tests/selenium/__pycache__/
+tests/selenium/reports/
+tests/selenium/fail_*.png
 
 # Node / Cloud Functions
 functions/node_modules/
@@ -65,3 +75,4 @@ functions/.runtimeconfig.json
 functions/.env
 firebase-debug.log
 firebase-debug.*.log
+

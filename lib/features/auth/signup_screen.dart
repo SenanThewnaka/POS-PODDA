@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
+import 'package:sme_buddy/features/auth/widgets/google_sign_in_button.dart';
 import 'package:sme_buddy/features/users/user_model.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
 import 'dart:math';
@@ -25,8 +26,19 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _confirmPassCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _nameCtrl.dispose();
+    _mobileCtrl.dispose();
+    _passCtrl.dispose();
+    _confirmPassCtrl.dispose();
+    super.dispose();
+  }
 
   void _signup() async {
     if (!_formKey.currentState!.validate()) return;
@@ -38,30 +50,58 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     setState(() => _isLoading = true);
     try {
       final repo = ref.read(authRepositoryProvider);
+      final userProfileRepo = ref.read(userProfileRepositoryProvider);
+      final rawEmail = _emailCtrl.text.trim();
+      final hasUsedTrial = await userProfileRepo.checkEmailHasUsedTrial(rawEmail);
+
       final user = await repo.signUpWithEmail(
-        _emailCtrl.text.trim(), 
+        rawEmail, 
         _passCtrl.text.trim()
       );
       
       if (user != null) {
-         // Create Firestore Profile with Free Lifetime Plan and Verified status
-         final userModel = UserModel(
-           uid: user.uid,
-           email: user.email!, // Email is non-null after signup
-           name: _nameCtrl.text.trim(),
-           mobile: _mobileCtrl.text.trim(),
-           role: 'owner', // Default to owner for new signups
-           shopId: user.uid, // Owner's Shop ID is their own UID
-           shopName: "${_nameCtrl.text.trim()}'s Shop", // Default Shop Name
-           plan: 'free',
-           subscriptionStatus: 'active',
-           billingCycle: 'lifetime',
-           expiryDate: null,
-           isVerified: true,
-           verificationCode: null,
-           welcomeSent: false,
-         );
-         await ref.read(userProfileRepositoryProvider).saveUserProfile(userModel);
+        if (hasUsedTrial) {
+          // Trial already used or account previously deleted: mark trial expired
+          final pastDate = DateTime.now().subtract(const Duration(days: 1));
+          final userModel = UserModel(
+            uid: user.uid,
+            email: user.email!,
+            name: _nameCtrl.text.trim(),
+            mobile: _mobileCtrl.text.trim(),
+            role: 'owner',
+            shopId: user.uid,
+            shopName: "${_nameCtrl.text.trim()}'s Shop",
+            plan: 'trial',
+            subscriptionStatus: 'expired',
+            billingCycle: 'trial',
+            expiryDate: pastDate,
+            isVerified: true,
+            verificationCode: null,
+            welcomeSent: false,
+          );
+          await userProfileRepo.saveUserProfile(userModel);
+        } else {
+          // New user: grant 14-day free trial
+          final trialExpiry = DateTime.now().add(const Duration(days: 14));
+          final userModel = UserModel(
+            uid: user.uid,
+            email: user.email!,
+            name: _nameCtrl.text.trim(),
+            mobile: _mobileCtrl.text.trim(),
+            role: 'owner',
+            shopId: user.uid,
+            shopName: "${_nameCtrl.text.trim()}'s Shop",
+            plan: 'trial',
+            subscriptionStatus: 'active',
+            billingCycle: 'trial',
+            expiryDate: trialExpiry,
+            isVerified: true,
+            verificationCode: null,
+            welcomeSent: false,
+          );
+          await userProfileRepo.saveUserProfile(userModel);
+          await userProfileRepo.recordTrialGranted(user.email!, uid: user.uid, expiryDate: trialExpiry);
+        }
       }
       
       // Auto-send verification email -> REPLACED WITH OTP
@@ -91,6 +131,54 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleGoogleSignUp() async {
+    setState(() => _isGoogleLoading = true);
+    try {
+      final authRepo = ref.read(authRepositoryProvider);
+      final cred = await authRepo.signInWithGoogle();
+      if (cred == null || cred.user == null) {
+        // User cancelled the sign-in flow
+        return;
+      }
+
+      // Automatically provision owner profile if this is a first-time sign-in
+      final userProfileRepo = ref.read(userProfileRepositoryProvider);
+      await userProfileRepo.ensureUserProfileForGoogle(cred.user!);
+
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('popup_closed_by_user') ||
+          errorStr.contains('cancelled') ||
+          errorStr.contains('canceled') ||
+          errorStr.contains('sign_in_canceled')) {
+        return;
+      }
+
+      String message = "Google Sign-Up Failed";
+      if (errorStr.contains("network")) {
+        message = "Network error. Please check your internet connection.";
+      } else if (errorStr.contains("account-exists-with-different-credential")) {
+        message = "An account already exists with this email using another method.";
+      } else {
+        message = "Sign up failed: ${e.toString().replaceAll(RegExp(r'\[.*?\]'), '').trim()}";
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -170,7 +258,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   const SizedBox(height: 32),
 
                   ElevatedButton(
-                    onPressed: _isLoading ? null : _signup,
+                    onPressed: (_isLoading || _isGoogleLoading) ? null : _signup,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.cyanAccent,
                       foregroundColor: Colors.black,
@@ -184,6 +272,33 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       : const Text("CREATE ACCOUNT", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   ),
                   
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: isDark ? Colors.white24 : Colors.black12)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          "OR",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white54 : Colors.black45,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: isDark ? Colors.white24 : Colors.black12)),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  GoogleSignInButton(
+                    onPressed: (_isLoading || _isGoogleLoading) ? null : _handleGoogleSignUp,
+                    isLoading: _isGoogleLoading,
+                    label: "Sign up with Google",
+                  ),
+
                   const SizedBox(height: 16),
                   TextButton(
                     onPressed: () => Navigator.pop(context),

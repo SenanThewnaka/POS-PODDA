@@ -231,7 +231,7 @@ class HeldBillsDialog extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(
                 "Note: ${bill.note!}",
-                style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.white70),
+                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: isDark ? Colors.white70 : Colors.black54),
               ),
             ),
 

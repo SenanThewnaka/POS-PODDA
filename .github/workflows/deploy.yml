@@ -1,0 +1,50 @@
+name: Deploy POS Podda Web to Firebase
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Ensure only one deploy runs at a time to prevent race conditions
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  test_build_and_deploy:
+    name: Build & Deploy to Firebase Hosting
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: 📥 Check out repository
+        uses: actions/checkout@v4
+
+      - name: 🐦 Set up Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: 📦 Install Flutter Dependencies
+        run: flutter pub get
+
+      - name: 🧪 Run Automated Tests
+        run: flutter test
+
+      - name: 🔨 Build Flutter Web (Production Release)
+        run: flutter build web --release --no-wasm-dry-run
+
+      - name: 🚀 Deploy to Firebase Hosting (Service Account)
+        if: secrets.FIREBASE_SERVICE_ACCOUNT_POS_PODDA != ''
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: "${{ secrets.GITHUB_TOKEN }}"
+          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT_POS_PODDA }}"
+          channelId: live
+          projectId: pos-podda
+
+      - name: 🚀 Deploy to Firebase Hosting (Token Fallback)
+        if: secrets.FIREBASE_SERVICE_ACCOUNT_POS_PODDA == '' && secrets.FIREBASE_TOKEN != ''
+        run: npx firebase-tools deploy --only hosting --token "${{ secrets.FIREBASE_TOKEN }}"

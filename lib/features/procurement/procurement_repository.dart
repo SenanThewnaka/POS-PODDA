@@ -136,10 +136,11 @@ class ProcurementRepository {
       writeBatch.set(batchRef, newBatch.toMap());
       savedItems.add(item.copyWith(batchId: batchRef.id));
 
-      // Update product current stock, latest cost price, and latest selling price
+      // Update product current stock, latest cost price, latest selling price, and reactivate product
       final Map<String, dynamic> productUpdate = {
         'currentStock': FieldValue.increment(item.quantity),
         'costPrice': item.unitCostPrice,
+        'isActive': true,
       };
 
       if (item.sellingPrice > 0) {
@@ -233,6 +234,7 @@ class ProcurementRepository {
         final Map<String, dynamic> productUpdate = {
           'currentStock': FieldValue.increment(deltaStock),
           'costPrice': currItem.unitCostPrice,
+          if (deltaStock > 0) 'isActive': true,
         };
         if (currItem.sellingPrice > 0) {
           productUpdate['sellingPrice'] = currItem.sellingPrice;
@@ -263,6 +265,7 @@ class ProcurementRepository {
         final Map<String, dynamic> productUpdate = {
           'currentStock': FieldValue.increment(currItem.quantity),
           'costPrice': currItem.unitCostPrice,
+          'isActive': true,
         };
         if (currItem.sellingPrice > 0) {
           productUpdate['sellingPrice'] = currItem.sellingPrice;

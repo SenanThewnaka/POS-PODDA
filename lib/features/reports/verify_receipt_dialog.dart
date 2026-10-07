@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:sme_buddy/features/reports/receipt_screen.dart';
 import 'package:sme_buddy/features/reports/sale_model.dart';
 import 'package:sme_buddy/features/reports/sales_repository.dart';
+import 'package:sme_buddy/utils/sound_service.dart';
 
 class VerifyReceiptDialog extends ConsumerStatefulWidget {
   final String? initialBillId;
@@ -65,13 +65,16 @@ class _VerifyReceiptDialogState extends ConsumerState<VerifyReceiptDialog> {
           if (sale != null) {
             _verifiedSale = sale;
             _errorMessage = null;
+            SoundService.playScanSuccess();
           } else {
             _errorMessage = "Receipt ID '$cleanId' not found. It may be invalid or from another store.";
+            SoundService.playScanError();
           }
         });
       }
     } catch (e) {
       if (mounted) {
+        SoundService.playScanError();
         setState(() {
           _isLoading = false;
           _errorMessage = "Error verifying receipt: $e";

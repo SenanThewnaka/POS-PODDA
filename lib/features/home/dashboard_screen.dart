@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:sme_buddy/features/subscription/subscription_guard.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
 import 'package:sme_buddy/features/home/home_screen.dart';
@@ -27,6 +29,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _currentIndex = 0;
   bool? _isSidebarCollapsedOverride;
+  final Set<int> _loadedTabs = {0}; // Only load POS HomeScreen initially for fastest startup
   final PageController _pageController = PageController();
 
   bool _isCollapsed(BuildContext context) {
@@ -34,9 +37,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return context.isTablet;
   }
 
-  void _navigateTo(int index) {
-    setState(() => _currentIndex = index);
-    _pageController.jumpToPage(index);
+  Future<void> _navigateTo(int index) async {
+    if (index == 2) {
+      if (!await SubscriptionGuard.check(context, ref, SubscriptionAction.accessCreditBook)) {
+        return;
+      }
+    }
+    
+    if (mounted) {
+      setState(() {
+        _currentIndex = index;
+        _loadedTabs.add(index);
+      });
+      _pageController.jumpToPage(index);
+    }
   }
 
   @override
@@ -53,17 +67,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     final contentPages = [
       const HomeScreen(),
-      const InventoryScreen(),
-      const CustomerListScreen(),
-      isDesktopOrTablet ? const ReportsScreen() : const MenuScreen(),
-      const SettingsScreen(),
+      _loadedTabs.contains(1) ? const InventoryScreen() : const SizedBox.shrink(),
+      _loadedTabs.contains(2) ? const CustomerListScreen() : const SizedBox.shrink(),
+      _loadedTabs.contains(3)
+          ? (isDesktopOrTablet ? const ReportsScreen() : const MenuScreen())
+          : const SizedBox.shrink(),
+      _loadedTabs.contains(4) ? const SettingsScreen() : const SizedBox.shrink(),
     ];
 
     Widget body = PageView(
       controller: _pageController,
       physics: const NeverScrollableScrollPhysics(),
       onPageChanged: (index) {
-        setState(() => _currentIndex = index);
+        setState(() {
+          _currentIndex = index;
+          _loadedTabs.add(index);
+        });
       },
       children: contentPages,
     );
@@ -214,10 +233,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           activeColor: activeColor,
                           isDark: isDark,
                           isCollapsed: isCollapsed,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const GRNHistoryScreen()),
-                          ),
+                          onTap: () async {
+                            if (await SubscriptionGuard.check(context, ref, SubscriptionAction.useGRN)) {
+                              if (context.mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => const GRNHistoryScreen()));
+                            }
+                          },
                         ),
                         const SizedBox(height: 6),
                       ],
@@ -529,8 +549,10 @@ class MenuScreen extends ConsumerWidget {
             }),
 
           if (user?.hasPermission(AppPermissions.canManageInventory) ?? true)
-            _buildMenuItem(context, Icons.local_shipping_outlined, "Procurement & ERP (GRN)", Colors.cyanAccent, () {
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const GRNHistoryScreen()));
+            _buildMenuItem(context, Icons.local_shipping_outlined, "Procurement & ERP (GRN)", Colors.cyanAccent, () async {
+               if (await SubscriptionGuard.check(context, ref, SubscriptionAction.useGRN)) {
+                  if (context.mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => const GRNHistoryScreen()));
+               }
             }),
 
           _buildMenuItem(context, Icons.point_of_sale_rounded, "Shifts & Cash Balancing", Colors.greenAccent, () {

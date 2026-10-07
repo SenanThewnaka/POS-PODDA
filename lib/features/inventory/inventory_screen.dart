@@ -1,3 +1,4 @@
+import 'package:sme_buddy/utils/responsive_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/inventory/add_product_screen.dart';
@@ -50,9 +51,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(productsStreamProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent, // Transparent to show Dashboard Gradient
+    return GlassScaffold(
       appBar: AppBar(
         title: const Text("Inventory", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
@@ -251,7 +252,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       const SizedBox(height: 16),
                       Text("Failed to load inventory", style: TextStyle(color: Colors.red.shade300, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
-                      const Text("Check your connection.", style: TextStyle(color: Colors.white54)),
+                      Text("Check your connection.", style: TextStyle(color: isDark ? Colors.white54 : Colors.black45)),
                     ],
                   ),
                 ),
@@ -291,18 +292,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.inventory_2_outlined, size: 80, color: Colors.white30),
+                          Icon(Icons.inventory_2_outlined, size: 80, color: isDark ? Colors.white30 : Colors.black26),
                           const SizedBox(height: 16),
-                          const Text("No Items Found", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white70)),
+                          Text("No Items Found", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white70 : Colors.black87)),
                           const SizedBox(height: 8),
-                          Text("Try adjusting your filters.", style: TextStyle(color: Colors.white.withValues(alpha: 0.38))),
+                          Text("Try adjusting your filters.", style: TextStyle(color: isDark ? Colors.white38 : Colors.black38)),
                         ],
                       ),
                     );
                   }
                   
                   return GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 180), // Increased to clear lifted FAB
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, context.isTabletOrDesktop ? 24 : 180),
                     gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 200, // Responsive: ~2 cols on phone, 4+ on tablet
                       childAspectRatio: 0.75, 
@@ -367,10 +368,27 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                       decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)),
                                       child: const Text("INACTIVE", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.redAccent)),
                                     )
-                                  else if (isOut)
-                                    const Icon(Icons.error_outline, color: Colors.redAccent, size: 18)
-                                  else if (isLow)
-                                    const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 18)
+                                  else
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (!product.isTaxable)
+                                          Container(
+                                            margin: const EdgeInsets.only(right: 4),
+                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.teal.withValues(alpha: 0.2),
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(color: Colors.teal.withValues(alpha: 0.4), width: 0.8),
+                                            ),
+                                            child: const Text("EXEMPT", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                                          ),
+                                        if (isOut)
+                                          const Icon(Icons.error_outline, color: Colors.redAccent, size: 18)
+                                        else if (isLow)
+                                          const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 18)
+                                      ],
+                                    )
                                ],
                              ),
                              const Spacer(),

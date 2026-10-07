@@ -161,17 +161,16 @@ exports.verifyPaymentSession = onCall({ cors: true }, async (request) => {
   }
 
   let effectivePaymentId = paymentId;
+  let checkoutData = null;
 
-  // If checkoutId is given, resolve paymentId from checkout session record
-  if (!effectivePaymentId && checkoutId) {
-    const checkoutDoc = await db.collection("subscription_checkouts").doc(checkoutId).get();
-    if (checkoutDoc.exists) {
-      effectivePaymentId = checkoutDoc.data().paymentId;
-    }
+  let checkoutDoc;
+  if (checkoutId) {
+    checkoutDoc = await db.collection("subscription_checkouts").doc(checkoutId).get();
   }
 
-  if (!effectivePaymentId) {
-    throw new HttpsError("not-found", "Could not locate payment reference.");
+  // If checkoutId is given, resolve paymentId from checkout session record or fetch directly from gateway
+  if (!effectivePaymentId && checkoutDoc && checkoutDoc.exists) {
+    effectivePaymentId = checkoutDoc.data().paymentId;
   }
 
   const secretKey = PAYMENTS_LK_SECRET_KEY || process.env.PAYMENTS_LK_KEY;
@@ -182,24 +181,52 @@ exports.verifyPaymentSession = onCall({ cors: true }, async (request) => {
     );
   }
 
-  // Fetch status directly from Payments.lk
-  const response = await fetch(`https://api.payments.lk/v1/payments/${effectivePaymentId}`, {
-    headers: {
-      Authorization: `Bearer ${secretKey}`,
-    },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Payments.lk fetch payment failed:", response.status, errorText);
-    throw new HttpsError(
-      "internal",
-      `Payment gateway check failed (${response.status}): ${errorText}`
-    );
+  // If effectivePaymentId is still missing, query Payments.lk checkout directly
+  if (!effectivePaymentId && checkoutId) {
+    try {
+      const chkRes = await fetch(`https://api.payments.lk/v1/checkouts/${checkoutId}`, {
+        headers: { Authorization: `Bearer ${secretKey}` },
+      });
+      if (chkRes.ok) {
+        checkoutData = await chkRes.json();
+        effectivePaymentId = checkoutData.payment?.id || checkoutData.paymentId || null;
+        if (effectivePaymentId && checkoutDoc && checkoutDoc.exists) {
+          await checkoutDoc.ref.update({ paymentId: effectivePaymentId });
+        }
+      }
+    } catch (chkErr) {
+      console.warn("Direct checkout check error:", chkErr.message);
+    }
   }
 
-  const paymentData = await response.json();
-  const paymentStatus = paymentData.status;
+  if (!effectivePaymentId && (!checkoutData || checkoutData.status !== "completed")) {
+    throw new HttpsError("not-found", "Could not locate payment reference.");
+  }
+
+  let paymentStatus = "unknown";
+
+  if (effectivePaymentId) {
+    // Fetch status directly from Payments.lk
+    const response = await fetch(`https://api.payments.lk/v1/payments/${effectivePaymentId}`, {
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Payments.lk fetch payment failed:", response.status, errorText);
+      throw new HttpsError(
+        "internal",
+        `Payment gateway check failed (${response.status}): ${errorText}`
+      );
+    }
+
+    const paymentData = await response.json();
+    paymentStatus = paymentData.status;
+  } else if (checkoutData && checkoutData.status === "completed") {
+    paymentStatus = "succeeded";
+  }
 
   if (paymentStatus === "succeeded") {
     const uid = request.auth.uid;
@@ -212,23 +239,34 @@ exports.verifyPaymentSession = onCall({ cors: true }, async (request) => {
     let metaCycle;
     let durationDays;
 
-    let checkoutDoc;
-    if (checkoutId) {
-      checkoutDoc = await db.collection("subscription_checkouts").doc(checkoutId).get();
-    } else if (effectivePaymentId) {
+    if (!checkoutDoc && effectivePaymentId) {
       const snap = await db.collection("subscription_checkouts").where("paymentId", "==", effectivePaymentId).limit(1).get();
       if (!snap.empty) checkoutDoc = snap.docs[0];
     }
 
     if (checkoutDoc && checkoutDoc.exists) {
       const cData = checkoutDoc.data();
+      if (cData.userId && cData.userId !== request.auth.uid) {
+        throw new HttpsError("permission-denied", "Unauthorized: checkout session does not belong to the authenticated user.");
+      }
+      // IDEMPOTENCY GUARD: Do not allow re-activating an already completed checkout
+      if (cData.status === "completed" || cData.activatedAt) {
+        return {
+          success: true,
+          status: "succeeded",
+          tier: cData.tier,
+          cycleKey: cData.cycleKey,
+          alreadyActivated: true,
+          expiryDate: userData.expiryDate ? userData.expiryDate.toDate().toISOString() : null,
+        };
+      }
       metaTier = cData.tier;
       metaCycle = cData.cycleKey;
       durationDays = cData.durationDays;
     }
 
-    metaTier = metaTier || "pro";
-    metaCycle = metaCycle || "monthly";
+    metaTier = (metaTier || "plus").toLowerCase();
+    metaCycle = (metaCycle || "monthly").toLowerCase();
     durationDays = durationDays || 30;
 
     const now = new Date();
@@ -236,22 +274,28 @@ exports.verifyPaymentSession = onCall({ cors: true }, async (request) => {
     const baseDate = existingExpiry && existingExpiry > now ? existingExpiry : now;
     const newExpiry = new Date(baseDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
-    // Update user profile in Firestore
-    await userRef.update({
-      plan: metaTier,
-      subscriptionStatus: "active",
-      billingCycle: metaCycle,
-      expiryDate: admin.firestore.Timestamp.fromDate(newExpiry),
-    });
+    // Atomically activate subscription and mark checkout completed
+    await db.runTransaction(async (transaction) => {
+      if (checkoutDoc && checkoutDoc.exists) {
+        const freshCheckout = await transaction.get(checkoutDoc.ref);
+        if (freshCheckout.exists && (freshCheckout.data().status === "completed" || freshCheckout.data().activatedAt)) {
+          return; // Race guard: already processed by a concurrent call
+        }
+        transaction.update(checkoutDoc.ref, {
+          status: "completed",
+          paymentStatus: "succeeded",
+          activatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
 
-    // Update checkout audit record
-    if (checkoutDoc && checkoutDoc.exists) {
-      await checkoutDoc.ref.update({
-        status: "completed",
-        paymentStatus: "succeeded",
-        activatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      transaction.update(userRef, {
+        plan: metaTier,
+        currentPlan: metaTier,
+        subscriptionStatus: "active",
+        billingCycle: metaCycle,
+        expiryDate: admin.firestore.Timestamp.fromDate(newExpiry),
       });
-    }
+    });
 
     return {
       success: true,
@@ -279,6 +323,50 @@ exports.paymentsWebhook = onRequest({ cors: true }, async (req, res) => {
   }
 
   try {
+    // 1. Webhook Signature / Secret Verification
+    const secretKey = PAYMENTS_LK_SECRET_KEY || process.env.PAYMENTS_LK_KEY;
+    const webhookSecret = process.env.PAYMENTS_LK_WEBHOOK_SECRET || secretKey;
+
+    if (!webhookSecret) {
+      console.error("Payments.lk webhook secret is not configured on the server.");
+      res.status(500).json({ error: "Server configuration error" });
+      return;
+    }
+
+    const authHeader = req.headers["authorization"] || req.headers["x-api-key"];
+    const signature = req.headers["x-payments-signature"] || req.headers["x-signature"];
+
+    if (!signature && !authHeader) {
+      console.error("Unauthorized webhook: Missing authentication signature or authorization header");
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+
+    const crypto = require("crypto");
+    if (signature) {
+      const rawBody = typeof req.rawBody !== "undefined" ? req.rawBody : (typeof req.body === "string" ? req.body : JSON.stringify(req.body));
+      const expectedSig = crypto.createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
+      const sigBuf = Buffer.from(signature, "utf8");
+      const expBuf = Buffer.from(expectedSig, "utf8");
+      if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+        console.error("Unauthorized webhook: Signature mismatch");
+        res.status(401).json({ error: "Invalid signature" });
+        return;
+      }
+    } else if (authHeader) {
+      const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+      const tokenBuf = Buffer.from(token, "utf8");
+      const secBuf = Buffer.from(webhookSecret, "utf8");
+      const keyBuf = Buffer.from(secretKey || "", "utf8");
+      const matchSecret = tokenBuf.length === secBuf.length && crypto.timingSafeEqual(tokenBuf, secBuf);
+      const matchKey = keyBuf.length > 0 && tokenBuf.length === keyBuf.length && crypto.timingSafeEqual(tokenBuf, keyBuf);
+      if (!matchSecret && !matchKey) {
+        console.error("Unauthorized webhook: Invalid authorization token");
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+    }
+
     const event = req.body;
     console.log("Received Payments.lk webhook event:", event?.type || event?.object);
 
@@ -301,6 +389,12 @@ exports.paymentsWebhook = onRequest({ cors: true }, async (req, res) => {
 
       if (checkoutDoc && checkoutDoc.exists) {
         const cData = checkoutDoc.data();
+        // IDEMPOTENCY GUARD: Do not re-process already activated checkouts
+        if (cData.status === "completed" || cData.activatedAt) {
+          console.log(`Checkout ${checkoutDoc.id} already completed. Skipping.`);
+          res.status(200).json({ received: true, alreadyActivated: true });
+          return;
+        }
         uid = cData.userId;
         tier = cData.tier || "pro";
         cycleKey = cData.cycleKey || "monthly";
@@ -317,11 +411,22 @@ exports.paymentsWebhook = onRequest({ cors: true }, async (req, res) => {
         const baseDate = existingExpiry && existingExpiry > now ? existingExpiry : now;
         const newExpiry = new Date(baseDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
-        await userRef.update({
-          plan: tier,
-          subscriptionStatus: "active",
-          billingCycle: cycleKey,
-          expiryDate: admin.firestore.Timestamp.fromDate(newExpiry),
+        await db.runTransaction(async (transaction) => {
+          if (checkoutDoc && checkoutDoc.exists) {
+            transaction.update(checkoutDoc.ref, {
+              status: "completed",
+              paymentStatus: "succeeded",
+              activatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+
+          transaction.update(userRef, {
+            plan: tier,
+            currentPlan: tier,
+            subscriptionStatus: "active",
+            billingCycle: cycleKey,
+            expiryDate: admin.firestore.Timestamp.fromDate(newExpiry),
+          });
         });
 
         console.log(`Successfully upgraded user ${uid} to ${tier} via webhook.`);

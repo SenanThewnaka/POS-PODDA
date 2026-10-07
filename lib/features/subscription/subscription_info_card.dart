@@ -17,15 +17,19 @@ class SubscriptionInfoCard extends ConsumerWidget {
 
         final now = DateTime.now();
         final expiry = user.expiryDate;
-        final isExpired = expiry == null || now.isAfter(expiry);
-        final daysLeft = expiry != null ? expiry.difference(now).inDays : 0;
+        final isFree = user.plan.toLowerCase() == 'free';
+        final isExpired = !isFree && (expiry == null || now.isAfter(expiry));
+        final rawDaysLeft = expiry != null ? expiry.difference(now).inDays + 1 : 0;
+        final daysLeft = rawDaysLeft > 0 ? rawDaysLeft : 0;
         
         final isDark = Theme.of(context).brightness == Brightness.dark;
         
         Color baseColor = isDark ? Colors.blue : Colors.blueAccent;
         Color accentColor = isDark ? Colors.cyanAccent : Colors.blue.shade700;
         String planLabel = user.plan.toUpperCase();
-        String cycleLabel = user.billingCycle.toUpperCase();
+        String cycleLabel = user.plan.toLowerCase() == 'trial'
+            ? (isExpired ? "14-DAY TRIAL (EXPIRED)" : "$daysLeft DAYS LEFT IN TRIAL")
+            : user.billingCycle.toUpperCase();
         
         if (user.plan == 'trial') {
            baseColor = Colors.orange;

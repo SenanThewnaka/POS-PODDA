@@ -210,7 +210,7 @@ class _EmployeeList extends ConsumerWidget {
 
 // Temporary Provider for employees. 
 // Ideally define in user_repository but creating here for colocation or modify repository.
-final shopEmployeesProvider = StreamProvider.family<List<UserModel>, String>((ref, shopId) {
+final shopEmployeesProvider = StreamProvider.family.autoDispose<List<UserModel>, String>((ref, shopId) {
    return ref.watch(userProfileRepositoryProvider).getShopEmployees(shopId);
 });
 
@@ -236,6 +236,15 @@ class _AddEmployeeDialogState extends ConsumerState<AddEmployeeDialog> {
   Map<String, bool> _permissions = Map.from(AppPermissions.defaultCashierPermissions);
   bool _isLoading = false;
 
+  @override
+  void dispose() {
+    _usernameCtrl.dispose();
+    _passCtrl.dispose();
+    _nameCtrl.dispose();
+    _mobileCtrl.dispose();
+    super.dispose();
+  }
+
   void _addEmployee() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -260,8 +269,7 @@ class _AddEmployeeDialogState extends ConsumerState<AddEmployeeDialog> {
           shopId: widget.shopId,
           shopName: widget.shopName,
           username: _usernameCtrl.text.trim(),
-          storedPassword: _passCtrl.text.trim(),
-          permissions: _permissions,
+                    permissions: _permissions,
         );
         
         await ref.read(userProfileRepositoryProvider).saveUserProfile(newEmp);

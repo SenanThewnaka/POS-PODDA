@@ -58,30 +58,66 @@ class ShiftRepository {
     });
   }
 
+  DocumentReference get _activeShiftLockRef => FirebaseFirestore.instance
+      .collection('shops')
+      .doc(currentUser.shopId)
+      .collection('system')
+      .doc('active_shift');
+
   Future<ShiftModel> openShift({
     required double openingFloat,
     String? notes,
   }) async {
-    // Check if open shift already exists
-    final existing = await _collection.where('isOpen', isEqualTo: true).limit(1).get();
-    if (existing.docs.isNotEmpty) {
-      return ShiftModel.fromMap(existing.docs.first.data() as Map<String, dynamic>);
-    }
+    return FirebaseFirestore.instance.runTransaction((transaction) async {
+      final lockSnap = await transaction.get(_activeShiftLockRef);
+      if (lockSnap.exists) {
+        final lockData = lockSnap.data() as Map<String, dynamic>?;
+        final activeShiftId = lockData?['shiftId'] as String?;
+        final isOpen = lockData?['isOpen'] as bool? ?? false;
+        if (isOpen && activeShiftId != null && activeShiftId.isNotEmpty) {
+          final shiftDocRef = _collection.doc(activeShiftId);
+          final shiftSnap = await transaction.get(shiftDocRef);
+          if (shiftSnap.exists) {
+            final shiftData = shiftSnap.data() as Map<String, dynamic>;
+            if (shiftData['isOpen'] == true) {
+              return ShiftModel.fromMap(shiftData);
+            }
+          }
+        }
+      }
 
-    final docRef = _collection.doc();
-    final shift = ShiftModel(
-      id: docRef.id,
-      shopId: currentUser.shopId,
-      cashierId: currentUser.uid,
-      cashierName: currentUser.name ?? currentUser.username ?? 'Cashier',
-      openedAt: DateTime.now(),
-      isOpen: true,
-      openingFloat: openingFloat,
-      notes: notes,
-    );
+      // Check if open shift already exists in collection (fallback / legacy)
+      final existing = await _collection.where('isOpen', isEqualTo: true).limit(1).get();
+      if (existing.docs.isNotEmpty) {
+        final existingDoc = existing.docs.first;
+        transaction.set(_activeShiftLockRef, {
+          'shiftId': existingDoc.id,
+          'isOpen': true,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        return ShiftModel.fromMap(existingDoc.data() as Map<String, dynamic>);
+      }
 
-    await docRef.set(shift.toMap());
-    return shift;
+      final docRef = _collection.doc();
+      final shift = ShiftModel(
+        id: docRef.id,
+        shopId: currentUser.shopId,
+        cashierId: currentUser.uid,
+        cashierName: currentUser.name ?? currentUser.username ?? 'Cashier',
+        openedAt: DateTime.now(),
+        isOpen: true,
+        openingFloat: openingFloat,
+        notes: notes,
+      );
+
+      transaction.set(docRef, shift.toMap());
+      transaction.set(_activeShiftLockRef, {
+        'shiftId': docRef.id,
+        'isOpen': true,
+        'openedAt': FieldValue.serverTimestamp(),
+      });
+      return shift;
+    });
   }
 
   Future<bool> addCashTransaction({
@@ -89,10 +125,22 @@ class ShiftRepository {
     required double amount,
     required String reason,
   }) async {
-    final activeDocs = await _collection.where('isOpen', isEqualTo: true).limit(1).get();
-    if (activeDocs.docs.isEmpty) return false;
+    DocumentReference? docRef;
+    try {
+      final lockSnap = await _activeShiftLockRef.get();
+      if (lockSnap.exists) {
+        final lockData = lockSnap.data() as Map<String, dynamic>?;
+        if (lockData?['isOpen'] == true && lockData?['shiftId'] != null) {
+          docRef = _collection.doc(lockData!['shiftId'] as String);
+        }
+      }
+    } catch (_) {}
 
-    final doc = activeDocs.docs.first;
+    if (docRef == null) {
+      final activeDocs = await _collection.where('isOpen', isEqualTo: true).limit(1).get();
+      if (activeDocs.docs.isEmpty) return false;
+      docRef = activeDocs.docs.first.reference;
+    }
 
     final tx = CashDrawerTransaction(
       id: const Uuid().v4(),
@@ -104,7 +152,7 @@ class ShiftRepository {
     );
 
     final isIn = type == 'IN';
-    await doc.reference.update({
+    await docRef.update({
       'cashTransactions': FieldValue.arrayUnion([tx.toMap()]),
       if (isIn) 'cashInTotal': FieldValue.increment(amount),
       if (!isIn) 'cashOutTotal': FieldValue.increment(amount),
@@ -119,13 +167,25 @@ class ShiftRepository {
     required String paymentMethod,
   }) async {
     try {
-      final activeDocs = await _collection.where('isOpen', isEqualTo: true).limit(1).get();
-      if (activeDocs.docs.isEmpty) {
-        if (kDebugMode) print('ShiftRepository: No open shift found to record sale.');
-        return;
-      }
+      DocumentReference? docRef;
+      try {
+        final lockSnap = await _activeShiftLockRef.get();
+        if (lockSnap.exists) {
+          final lockData = lockSnap.data() as Map<String, dynamic>?;
+          if (lockData?['isOpen'] == true && lockData?['shiftId'] != null) {
+            docRef = _collection.doc(lockData!['shiftId'] as String);
+          }
+        }
+      } catch (_) {}
 
-      final doc = activeDocs.docs.first;
+      if (docRef == null) {
+        final activeDocs = await _collection.where('isOpen', isEqualTo: true).limit(1).get();
+        if (activeDocs.docs.isEmpty) {
+          if (kDebugMode) print('ShiftRepository: No open shift found to record sale.');
+          return;
+        }
+        docRef = activeDocs.docs.first.reference;
+      }
 
       final isCash = paymentMethod == 'CASH';
       final isCard = paymentMethod == 'CARD';
@@ -145,7 +205,7 @@ class ShiftRepository {
         updates['creditSales'] = FieldValue.increment(amount);
       }
 
-      await doc.reference.update(updates);
+      await docRef.update(updates);
     } catch (e) {
       if (kDebugMode) print('ShiftRepository error recording sale in active shift: $e');
     }
@@ -174,13 +234,21 @@ class ShiftRepository {
       notes: notes ?? shift.notes,
     );
 
-    await docRef.update({
+    final batch = FirebaseFirestore.instance.batch();
+    batch.update(docRef, {
       'isOpen': false,
       'closedAt': Timestamp.fromDate(now),
       'actualCash': actualCash,
       'difference': diff,
       'notes': notes ?? shift.notes,
     });
+    batch.set(_activeShiftLockRef, {
+      'shiftId': null,
+      'isOpen': false,
+      'closedAt': Timestamp.fromDate(now),
+    }, SetOptions(merge: true));
+
+    await batch.commit();
 
     return updated;
   }

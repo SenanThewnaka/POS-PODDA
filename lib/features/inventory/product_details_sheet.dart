@@ -27,10 +27,12 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
   late TextEditingController _priceController;
   late TextEditingController _costController;
   late TextEditingController _lowStockController;
+  late bool _isTaxable;
 
   @override
   void initState() {
     super.initState();
+    _isTaxable = widget.product.isTaxable;
     _nameController = TextEditingController(text: widget.product.name);
     // For measurable, detailed sheets typically show 'Price per Unit'.
     // If we want to support 'Price per KG' editing here, we need to do the math interactively or just show base price.
@@ -64,6 +66,15 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
     _priceController = TextEditingController(text: initialPrice.toStringAsFixed(2));
     _costController = TextEditingController(text: initialCost.toStringAsFixed(2));
     _lowStockController = TextEditingController(text: initialLowStockText);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _priceController.dispose();
+    _costController.dispose();
+    _lowStockController.dispose();
+    super.dispose();
   }
 
   @override
@@ -123,6 +134,15 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
               controller: _nameController,
               decoration: const InputDecoration(labelText: "Product Name", border: OutlineInputBorder()),
               onTap: () => _nameController.selection = TextSelection(baseOffset: 0, extentOffset: _nameController.text.length),
+            ),
+            const SizedBox(height: 16),
+            SwitchListTile(
+              title: const Text("Taxable Item (VAT Applicable)"),
+              subtitle: const Text("Uncheck for exempt items (e.g. Dhal, Milk)"),
+              value: _isTaxable,
+              activeColor: Colors.cyanAccent,
+              contentPadding: EdgeInsets.zero,
+              onChanged: (val) => setState(() => _isTaxable = val),
             ),
             const SizedBox(height: 16),
             const Text("Pricing & Inventory", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -290,6 +310,7 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
        sellingPrice: sellingPrice,
        costPrice: costPrice,
        lowStockThreshold: lowStock,
+       isTaxable: _isTaxable,
      );
 
      ref.read(productRepositoryProvider).updateProduct(updatedProduct);

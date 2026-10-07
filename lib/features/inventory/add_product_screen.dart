@@ -50,6 +50,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> with Single
   
   // STATE
   bool _isVariablePrice = false;
+  bool _isTaxable = true;
   bool _isLoading = false;
   String _measureType = 'weight'; // weight (Kg), volume (L), length (M)
 
@@ -62,6 +63,17 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> with Single
   @override
   void dispose() {
     _tabController.dispose();
+    _nameController.dispose();
+    _barcodeController.dispose();
+    _unitPriceController.dispose();
+    _unitCostController.dispose();
+    _unitStockController.dispose();
+    _unitLowStockController.dispose();
+    _measPriceController.dispose();
+    _measCostController.dispose();
+    _measStockController.dispose();
+    _measLowStockController.dispose();
+    _servicePriceController.dispose();
     super.dispose();
   }
 
@@ -350,6 +362,15 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> with Single
           icon: Icons.inventory_2_outlined,
           children: [
              _buildTextField(_nameController, "Product Name", hint: "e.g. Anchor Milk Powder"),
+             const SizedBox(height: 12),
+             SwitchListTile(
+               title: const Text("Taxable Item (VAT Applicable)"),
+               subtitle: const Text("Uncheck for exempt items (e.g. Dhal, Milk)"),
+               value: _isTaxable,
+               activeColor: Colors.cyanAccent,
+               contentPadding: EdgeInsets.zero,
+               onChanged: (val) => setState(() => _isTaxable = val),
+             ),
           ]
         ),
         
@@ -437,13 +458,13 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> with Single
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.cyanAccent, 
-          foregroundColor: Colors.white,
+          foregroundColor: Colors.black,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: 4,
           shadowColor: Colors.cyanAccent.withValues(alpha: 0.4),
         ),
         child: _isLoading 
-            ? const Center(child: CircularProgressIndicator(color: Colors.white))
+            ? const Center(child: CircularProgressIndicator(color: Colors.black))
             : Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.1)),
       ),
     );
@@ -533,6 +554,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> with Single
              lowStockThreshold: lowStockInBase > 0 ? lowStockInBase : null,
              barcode: _barcodeController.text.isEmpty ? null : _barcodeController.text,
              buyingOptions: [],
+             isTaxable: _isTaxable,
              createdAt: DateTime.now(),
            );
            
