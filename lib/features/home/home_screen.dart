@@ -118,10 +118,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 HardwareKeyboard.instance.isMetaPressed) &&
             key == LogicalKeyboardKey.enter)) {
       final cart = ref.read(cartProvider);
-      if (cart.isNotEmpty) {
+      final total = ref.read(cartTotalProvider);
+      if (cart.isNotEmpty && total > 0) {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const CheckoutScreen()),
+        );
+      } else if (cart.isNotEmpty && total <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Cannot checkout: Cart total must be greater than Rs. 0.00"),
+            backgroundColor: Colors.red,
+          ),
         );
       }
       return;
@@ -137,12 +145,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         } else {
           // If buffer is empty and cart has items, Enter opens Checkout
           final cart = ref.read(cartProvider);
-          if (cart.isNotEmpty) {
+          final total = ref.read(cartTotalProvider);
+          if (cart.isNotEmpty && total > 0) {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const CheckoutScreen()),
             );
+          } else if (cart.isNotEmpty && total <= 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Cannot checkout: Cart total must be greater than Rs. 0.00"),
+                backgroundColor: Colors.red,
+              ),
+            );
           }
+        }
         }
       } else if (char != null && char.isNotEmpty && !HardwareKeyboard.instance.isControlPressed) {
         _barcodeBuffer.write(char);
@@ -1211,7 +1228,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     const SizedBox(height: 12),
                     ElevatedButton.icon(
-                      onPressed: cart.isEmpty
+                      onPressed: (cart.isEmpty || cartTotal <= 0)
                           ? null
                           : () {
                               Navigator.push(
@@ -1221,7 +1238,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             },
                       icon: const Icon(Icons.payment_rounded, size: 18),
                       label: Text(
-                        cart.isEmpty ? "CART IS EMPTY" : "CHECKOUT [F12]  (Rs. ${cartTotal.toStringAsFixed(2)})",
+                        cart.isEmpty 
+                            ? "CART IS EMPTY" 
+                            : cartTotal <= 0 
+                                ? "TOTAL IS RS. 0.00" 
+                                : "CHECKOUT [F12]  (Rs. ${cartTotal.toStringAsFixed(2)})",
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                       style: ElevatedButton.styleFrom(
@@ -1980,34 +2001,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   },
                 ),
               ),
-              // CHECKOUT BUTTON
+               // CHECKOUT BUTTON
               Consumer(builder: (context, ref, child) {
                  final user = ref.watch(userProfileProvider).value;
+                 final cart = ref.watch(cartProvider);
+                 final total = ref.watch(cartTotalProvider);
+                 final isCartValid = cart.isNotEmpty && total > 0;
                  if (user != null && user.hasPermission(AppPermissions.canCheckout)) {
                     return Padding(
                       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: isCartValid ? () {
                           Navigator.pop(context); // Close sheet
                           Navigator.push(
                             context,
                             MaterialPageRoute(builder: (_) => const CheckoutScreen()),
                           );
-                        },
+                        } : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
+                          disabledBackgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white12 : Colors.grey.shade400,
                           padding: const EdgeInsets.symmetric(vertical: 18),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 8,
                           shadowColor: Colors.green.withValues(alpha: 0.4)
                         ),
-                        child: const Row(
+                        child: Row(
                            mainAxisAlignment: MainAxisAlignment.center,
                            children: [
-                             Icon(Icons.payment),
-                             SizedBox(width: 8),
-                             Text("CHARGE (CHECKOUT)", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                             const Icon(Icons.payment),
+                             const SizedBox(width: 8),
+                             Text(
+                               cart.isEmpty 
+                                   ? "CART IS EMPTY" 
+                                   : total <= 0 
+                                       ? "TOTAL IS RS. 0.00" 
+                                       : "CHARGE (Rs. ${total.toStringAsFixed(2)})", 
+                               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                             ),
                            ],
                         ),
                       ),

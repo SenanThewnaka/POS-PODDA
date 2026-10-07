@@ -95,17 +95,38 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
   void _parseInput(String val) {
     if (widget.product.stockType == 'unit') return;
     
+    final trimmed = val.trim();
     final bUnit = widget.product.baseUnit ?? 'g';
-    double qty = QuantityParser.parse(val, bUnit);
+    if (trimmed.isEmpty) {
+      setState(() {
+        _quantity = 0.0;
+        _parsedFeedback = "";
+        _errorMessage = null;
+      });
+      return;
+    }
+    double qty = QuantityParser.parse(trimmed, bUnit);
     setState(() {
       _quantity = qty;
-      _parsedFeedback = _quantity > 0 ? "Adding: ${UnitFormatter.format(_quantity, bUnit)}" : "";
-      _errorMessage = null; // Clear error on change
+      if (qty <= 0) {
+        _errorMessage = "Quantity must be greater than 0";
+        _parsedFeedback = "";
+      } else {
+        _errorMessage = null;
+        _parsedFeedback = "Adding: ${UnitFormatter.format(_quantity, bUnit)}";
+      }
     });
   }
 
   // Submit Handler (Extracted for Enter Key)
   void _submit() {
+     if (_quantity <= 0) {
+       setState(() {
+         _errorMessage = "Quantity must be greater than 0";
+       });
+       return;
+     }
+
      // Helper for Conversion
      double conversionFactor = 1.0;
      if (widget.product.stockType != 'unit' && widget.product.stockType != 'service') {
@@ -139,13 +160,24 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
        }
      }
 
+     if (finalTotalSelling < 0) {
+       setState(() {
+         _errorMessage = "Total price cannot be negative";
+       });
+       return;
+     }
+
      if (_quantity > 0 && finalTotalSelling >= 0 
           && !(widget.product.isVariablePrice && (double.tryParse(_overridePriceController.text) ?? 0) <= 0)
           && !(widget.product.isVariablePrice && (double.tryParse(_manualCostController.text) ?? -1) < 0) 
       ) { 
                 final cart = ref.read(cartProvider);
-                final existingItem = cart[widget.product.id];
-                final currentQtyInCart = existingItem?.quantity ?? 0.0;
+                double currentQtyInCart = 0.0;
+                for (final item in cart.values) {
+                  if (item.product.id == widget.product.id) {
+                    currentQtyInCart += item.quantity;
+                  }
+                }
                 final totalRequested = currentQtyInCart + _quantity;
                 
                 // Stock Check - Skip for Services
@@ -659,6 +691,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
              setState(() {
                _quantity--;
                _smartInputController.text = _quantity.toInt().toString();
+               _errorMessage = null;
              });
           } : null,
           icon: const Icon(Icons.remove),
@@ -682,9 +715,25 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                }
             },
             onChanged: (val) {
-               double? parsed = double.tryParse(val);
-               if (parsed != null) {
-                 setState(() => _quantity = parsed);
+               final trimmed = val.trim();
+               if (trimmed.isEmpty) {
+                 setState(() {
+                   _quantity = 0.0;
+                   _errorMessage = "Quantity cannot be empty";
+                 });
+                 return;
+               }
+               final parsed = double.tryParse(trimmed);
+               if (parsed == null || parsed <= 0) {
+                 setState(() {
+                   _quantity = 0.0;
+                   _errorMessage = "Quantity must be at least 1";
+                 });
+               } else {
+                 setState(() {
+                   _quantity = parsed;
+                   _errorMessage = null;
+                 });
                }
             },
             onTap: () => _smartInputController.selectAll(),
@@ -701,6 +750,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
              setState(() {
                _quantity++;
                _smartInputController.text = _quantity.toInt().toString();
+               _errorMessage = null;
              });
           },
           icon: const Icon(Icons.add),

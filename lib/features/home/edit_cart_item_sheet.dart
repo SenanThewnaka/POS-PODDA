@@ -42,11 +42,21 @@ class _EditCartItemSheetState extends ConsumerState<EditCartItemSheet> {
   void _parseInput(String val) {
     if (widget.cartItem.product.stockType == 'unit') return;
     
+    final trimmed = val.trim();
+    if (trimmed.isEmpty) {
+      setState(() {
+        _quantity = 0.0;
+        _parsedFeedback = "Quantity cannot be empty";
+      });
+      return;
+    }
     final bUnit = widget.cartItem.product.baseUnit ?? 'g';
-    double qty = QuantityParser.parse(val, bUnit);
+    double qty = QuantityParser.parse(trimmed, bUnit);
     setState(() {
       _quantity = qty;
-      _parsedFeedback = _quantity > 0 ? "New Qty: ${UnitFormatter.format(_quantity, bUnit)}" : "";
+      _parsedFeedback = _quantity > 0 
+          ? "New Qty: ${UnitFormatter.format(_quantity, bUnit)}" 
+          : "Invalid quantity (must be greater than 0)";
     });
   }
 
@@ -283,9 +293,16 @@ class _EditCartItemSheetState extends ConsumerState<EditCartItemSheet> {
             keyboardType: TextInputType.number,
             onTap: () => _smartInputController.selectAll(),
             onChanged: (val) {
-              final parsed = double.tryParse(val);
+              final trimmed = val.trim();
+              if (trimmed.isEmpty) {
+                setState(() => _quantity = 0.0);
+                return;
+              }
+              final parsed = double.tryParse(trimmed);
               if (parsed != null && parsed > 0) {
                 setState(() => _quantity = parsed);
+              } else {
+                setState(() => _quantity = 0.0);
               }
             },
             decoration: const InputDecoration(

@@ -82,7 +82,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter ||
         key == LogicalKeyboardKey.f12) {
-      _onCompletePressed(total);
+      if (total > 0) {
+        _onCompletePressed(total);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Cannot complete checkout: Cart total must be greater than Rs. 0.00"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
       return true;
     }
 
@@ -196,6 +205,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   void _onCompletePressed(double total) {
     if (_isLoading) return;
+
+    final cart = ref.read(cartProvider);
+    if (cart.isEmpty || total <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Cannot complete checkout: Cart is empty or total is Rs. 0.00."),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
 
     if (_paymentMethod == 'SPLIT') {
       final cash = double.tryParse(_splitCashController.text.trim()) ?? 0.0;
@@ -1524,16 +1544,35 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   Widget _buildCompleteButton(double total, bool isDesktopOrTablet) {
+    final cart = ref.watch(cartProvider);
+    final canComplete = !_isLoading && cart.isNotEmpty && total > 0;
+
+    String buttonText;
+    if (cart.isEmpty) {
+      buttonText = "CART IS EMPTY";
+    } else if (total <= 0) {
+      buttonText = "TOTAL IS RS. 0.00";
+    } else if (_paymentMethod == 'CREDIT') {
+      buttonText = _selectedCustomer == null
+          ? "SELECT CUSTOMER"
+          : "ADD TO POTHA (CREDIT)${isDesktopOrTablet ? ' [Enter]' : ''}";
+    } else if (_paymentMethod == 'SPLIT') {
+      buttonText = "COMPLETE SPLIT BILL${isDesktopOrTablet ? ' [Enter]' : ''}";
+    } else {
+      buttonText = "COMPLETE SALE${isDesktopOrTablet ? ' [Enter]' : ''}";
+    }
+
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _isLoading ? null : () => _onCompletePressed(total),
+        onPressed: canComplete ? () => _onCompletePressed(total) : null,
         style: ElevatedButton.styleFrom(
           backgroundColor:
               _paymentMethod == 'CREDIT'
                   ? Colors.redAccent
                   : (_paymentMethod == 'SPLIT' ? Colors.purpleAccent : Colors.greenAccent),
           foregroundColor: Colors.black,
+          disabledBackgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white12 : Colors.grey.shade400,
           padding: const EdgeInsets.symmetric(vertical: 18),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
@@ -1544,13 +1583,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 child: CircularProgressIndicator(color: Colors.black, strokeWidth: 3),
               )
             : Text(
-                _paymentMethod == 'CREDIT'
-                    ? (_selectedCustomer == null
-                        ? "SELECT CUSTOMER"
-                        : "ADD TO POTHA (CREDIT)${isDesktopOrTablet ? ' [Enter]' : ''}")
-                    : (_paymentMethod == 'SPLIT'
-                        ? "COMPLETE SPLIT BILL${isDesktopOrTablet ? ' [Enter]' : ''}"
-                        : "COMPLETE SALE${isDesktopOrTablet ? ' [Enter]' : ''}"),
+                buttonText,
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
       ),
@@ -1991,12 +2024,22 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   void _processSale(double total) async {
+    final cart = ref.read(cartProvider);
+    if (cart.isEmpty || total <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Cannot process sale: Cart is empty or total is Rs. 0.00."),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
       // NOTE: Customer balance is updated atomically inside recordSale's transaction.
       // Do NOT call updateBalance separately — it caused a desync (overdue shows but no record).
-      final cart = ref.read(cartProvider);
 
       Map<String, double>? splitMap;
       double? tenderAmount;

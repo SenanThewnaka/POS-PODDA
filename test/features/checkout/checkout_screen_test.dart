@@ -857,4 +857,67 @@ void main() {
       expect(find.text('Rs. 20.00'), findsOneWidget);
     });
   });
+
+  group('Category I: Zero Total & Empty Cart Checkout Protection', () {
+    testWidgets('TC-CHK-27: Complete button is disabled and shows CART IS EMPTY when cart is empty', (tester) async {
+      final cart = CartNotifier();
+
+      await tester.pumpWidget(_createCheckoutWidget(cartNotifier: cart));
+      await tester.pumpAndSettle();
+
+      final button = find.widgetWithText(ElevatedButton, 'CART IS EMPTY');
+      expect(button, findsOneWidget);
+      final elevatedButton = tester.widget<ElevatedButton>(button);
+      expect(elevatedButton.onPressed, isNull);
+    });
+
+    testWidgets('TC-CHK-28: Complete button is disabled and shows TOTAL IS RS. 0.00 when cart items sum to 0', (tester) async {
+      final cart = CartNotifier();
+      final freeProduct = Product(
+        id: 'free_item',
+        name: 'Free Item',
+        barcode: 'FREE01',
+        sellingPrice: 0.0,
+        costPrice: 0.0,
+        currentStock: 10,
+        createdAt: DateTime(2026, 1, 1),
+      );
+      cart.addToCart(freeProduct, quantity: 1, overridePrice: 0.0);
+
+      await tester.pumpWidget(_createCheckoutWidget(cartNotifier: cart));
+      await tester.pumpAndSettle();
+
+      final button = find.widgetWithText(ElevatedButton, 'TOTAL IS RS. 0.00');
+      expect(button, findsOneWidget);
+      final elevatedButton = tester.widget<ElevatedButton>(button);
+      expect(elevatedButton.onPressed, isNull);
+    });
+
+    testWidgets('TC-CHK-29: Pressing Enter with Rs. 0.00 cart does not trigger sale and shows snackbar', (tester) async {
+      final cart = CartNotifier();
+      final freeProduct = Product(
+        id: 'free_item_2',
+        name: 'Free Item 2',
+        barcode: 'FREE02',
+        sellingPrice: 0.0,
+        costPrice: 0.0,
+        currentStock: 10,
+        createdAt: DateTime(2026, 1, 1),
+      );
+      cart.addToCart(freeProduct, quantity: 1, overridePrice: 0.0);
+
+      final salesRepo = FakeSalesRepository();
+      await tester.pumpWidget(_createCheckoutWidget(cartNotifier: cart, salesRepo: salesRepo));
+      await tester.pumpAndSettle();
+
+      // Send Enter key
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      // Verify no sale was recorded
+      expect(salesRepo.recordedSales.isEmpty, isTrue);
+      // Verify SnackBar shown
+      expect(find.textContaining('Cart total must be greater than Rs. 0.00'), findsOneWidget);
+    });
+  });
 }

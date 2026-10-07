@@ -127,6 +127,62 @@ void main() {
 
       expect(container.read(cartProvider).values.first.effectivePrice, 100.0);
     });
+
+    test('does NOT add item when quantity is 0', () {
+      final product = _makeProduct(price: 100.0);
+      notifier.addToCart(product, quantity: 0);
+
+      expect(container.read(cartProvider).isEmpty, true);
+    });
+
+    test('does NOT add item when quantity is negative', () {
+      final product = _makeProduct(price: 100.0);
+      notifier.addToCart(product, quantity: -2);
+
+      expect(container.read(cartProvider).isEmpty, true);
+    });
+  });
+
+  group('CartNotifier.updateItemDetails', () {
+    late ProviderContainer container;
+    late CartNotifier notifier;
+
+    setUp(() {
+      container = ProviderContainer();
+      notifier = container.read(cartProvider.notifier);
+    });
+
+    tearDown(() => container.dispose());
+
+    test('removes item when updated quantity is 0', () {
+      final product = _makeProduct();
+      notifier.addToCart(product, quantity: 2);
+      final itemId = container.read(cartProvider).keys.first;
+
+      notifier.updateItemDetails(itemId, newQuantity: 0);
+      expect(container.read(cartProvider).isEmpty, true);
+    });
+
+    test('removes item when updated quantity is negative', () {
+      final product = _makeProduct();
+      notifier.addToCart(product, quantity: 2);
+      final itemId = container.read(cartProvider).keys.first;
+
+      notifier.updateItemDetails(itemId, newQuantity: -1);
+      expect(container.read(cartProvider).isEmpty, true);
+    });
+
+    test('updates item details when quantity is positive', () {
+      final product = _makeProduct(price: 100.0);
+      notifier.addToCart(product, quantity: 1);
+      final itemId = container.read(cartProvider).keys.first;
+
+      notifier.updateItemDetails(itemId, newQuantity: 3, newPrice: 90.0, newDescription: 'Discounted');
+      final updated = container.read(cartProvider)[itemId]!;
+      expect(updated.quantity, 3.0);
+      expect(updated.effectivePrice, 90.0);
+      expect(updated.description, 'Discounted');
+    });
   });
 
   group('CartNotifier.updateQuantity', () {

@@ -73,6 +73,7 @@ class CartNotifier extends StateNotifier<Map<String, CartItem>> {
   }
 
   void addToCart(Product product, {double quantity = 1, double? overridePrice, double? overrideCostPrice, String? description}) {
+    if (quantity <= 0) return;
     final updated = Map<String, CartItem>.from(state);
     
     final priceToUse = overridePrice ?? product.sellingPrice;
@@ -142,15 +143,19 @@ class CartNotifier extends StateNotifier<Map<String, CartItem>> {
   void updateItemDetails(String cartItemId, {double? newPrice, String? newDescription, double? newQuantity}) {
     if (!state.containsKey(cartItemId)) return;
     final updated = Map<String, CartItem>.from(state);
-    final current = updated[cartItemId]!;
-    updated[cartItemId] = CartItem(
-      id: current.id,
-      product: current.product,
-      quantity: newQuantity ?? current.quantity,
-      effectivePrice: newPrice ?? current.effectivePrice,
-      costPrice: current.costPrice,
-      description: newDescription ?? current.description,
-    );
+    if (newQuantity != null && newQuantity <= 0) {
+      updated.remove(cartItemId);
+    } else {
+      final current = updated[cartItemId]!;
+      updated[cartItemId] = CartItem(
+        id: current.id,
+        product: current.product,
+        quantity: newQuantity ?? current.quantity,
+        effectivePrice: newPrice ?? current.effectivePrice,
+        costPrice: current.costPrice,
+        description: newDescription ?? current.description,
+      );
+    }
     state = updated;
   }
 
@@ -166,6 +171,12 @@ class CartNotifier extends StateNotifier<Map<String, CartItem>> {
   }
 
   void replaceCart(Map<String, CartItem> newCart) {
-    state = Map.from(newCart);
+    final validMap = <String, CartItem>{};
+    newCart.forEach((k, v) {
+      if (v.quantity > 0) {
+        validMap[k] = v;
+      }
+    });
+    state = validMap;
   }
 }
