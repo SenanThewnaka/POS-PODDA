@@ -14,8 +14,21 @@ import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/features/subscription/subscription_guard.dart';
 import 'package:sme_buddy/utils/barcode_utils.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
+import 'package:sme_buddy/features/inventory/services/barcode_lookup_service.dart';
+
 class AddProductScreen extends ConsumerStatefulWidget {
-  const AddProductScreen({super.key});
+  final String? initialBarcode;
+  final String? initialName;
+  final double? initialPrice;
+  final double? initialCost;
+
+  const AddProductScreen({
+    super.key,
+    this.initialBarcode,
+    this.initialName,
+    this.initialPrice,
+    this.initialCost,
+  });
 
   @override
   ConsumerState<AddProductScreen> createState() => _AddProductScreenState();
@@ -52,12 +65,31 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> with Single
   bool _isVariablePrice = false;
   bool _isTaxable = true;
   bool _isLoading = false;
+  bool _isLookingUpBarcode = false;
+  String? _lookupMessage;
   String _measureType = 'weight'; // weight (Kg), volume (L), length (M)
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    if (widget.initialBarcode != null && widget.initialBarcode!.isNotEmpty) {
+      _barcodeController.text = widget.initialBarcode!;
+    }
+    if (widget.initialName != null && widget.initialName!.isNotEmpty) {
+      _nameController.text = widget.initialName!;
+    }
+    if (widget.initialPrice != null && widget.initialPrice! > 0) {
+      _unitPriceController.text = widget.initialPrice!.toStringAsFixed(2);
+    }
+    if (widget.initialCost != null && widget.initialCost! > 0) {
+      _unitCostController.text = widget.initialCost!.toStringAsFixed(2);
+    }
+    if (widget.initialBarcode != null && (widget.initialName == null || widget.initialName!.isEmpty)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _performBarcodeLookup(widget.initialBarcode!);
+      });
+    }
   }
 
   @override
@@ -406,19 +438,59 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> with Single
                    child: OutlinedButton.icon(
                      onPressed: _barcodeController.text.isEmpty ? _generateBarcode : null,
                      icon: const Icon(Icons.autorenew),
-                     label: const Text("Generate New"),
+                     label: const Text("Generate"),
                    ),
                  ),
                  const SizedBox(width: 8),
                  Expanded(
                    child: OutlinedButton.icon(
-                     onPressed: _barcodeController.text.isNotEmpty ? () => _printBarcode(_barcodeController.text) : null,
-                     icon: const Icon(Icons.print),
-                     label: const Text("Print Label"),
+                     onPressed: (_barcodeController.text.isNotEmpty && !_isLookingUpBarcode)
+                         ? () => _performBarcodeLookup(_barcodeController.text)
+                         : null,
+                     icon: _isLookingUpBarcode
+                         ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                         : const Icon(Icons.travel_explore),
+                     label: const Text("Auto-Fill"),
                    ),
                  ),
+                 const SizedBox(width: 8),
+                 IconButton.outlined(
+                   onPressed: _barcodeController.text.isNotEmpty ? () => _printBarcode(_barcodeController.text) : null,
+                   icon: const Icon(Icons.print),
+                   tooltip: "Print Label",
+                 ),
                ],
-             )
+             ),
+             if (_isLookingUpBarcode) ...[
+               const SizedBox(height: 8),
+               const LinearProgressIndicator(minHeight: 2),
+               const SizedBox(height: 4),
+               const Text("Searching Sri Lanka catalog & online database...", style: TextStyle(fontSize: 12, color: Colors.cyanAccent)),
+             ] else if (_lookupMessage != null) ...[
+               const SizedBox(height: 8),
+               Container(
+                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                 decoration: BoxDecoration(
+                   color: Colors.cyan.withValues(alpha: 0.1),
+                   borderRadius: BorderRadius.circular(8),
+                   border: Border.all(color: Colors.cyan.withValues(alpha: 0.3)),
+                 ),
+                 child: Row(
+                   children: [
+                     const Icon(Icons.info_outline, size: 16, color: Colors.cyanAccent),
+                     const SizedBox(width: 6),
+                     Expanded(
+                       child: Text(
+                         _lookupMessage!,
+                         style: const TextStyle(fontSize: 12, color: Colors.cyanAccent),
+                         maxLines: 2,
+                         overflow: TextOverflow.ellipsis,
+                       ),
+                     ),
+                   ],
+                 ),
+               ),
+             ]
           ]
         )
       ],
@@ -474,7 +546,69 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> with Single
 
   Future<void> _scanBarcode() async {
     final result = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => const SimpleScannerScreen()));
-    if (result != null) setState(() => _barcodeController.text = result);
+    if (result != null && result.isNotEmpty) {
+      setState(() => _barcodeController.text = result);
+      await _performBarcodeLookup(result);
+    }
+  }
+
+  Future<void> _performBarcodeLookup(String barcode) async {
+    final clean = barcode.trim();
+    if (clean.length < 4) return;
+
+    setState(() {
+      _isLookingUpBarcode = true;
+      _lookupMessage = "Searching catalog & online database...";
+    });
+
+    try {
+      final lookupService = ref.read(barcodeLookupServiceProvider);
+      final result = await lookupService.lookup(clean);
+      if (!mounted) return;
+
+      if (result != null) {
+        setState(() {
+          if (_nameController.text.trim().isEmpty) {
+            _nameController.text = result.name;
+          }
+          if (_unitPriceController.text.trim().isEmpty && result.suggestedPrice != null) {
+            _unitPriceController.text = result.suggestedPrice!.toStringAsFixed(2);
+          }
+          if (_unitCostController.text.trim().isEmpty && result.suggestedCost != null) {
+            _unitCostController.text = result.suggestedCost!.toStringAsFixed(2);
+          }
+          _lookupMessage = "Found in ${result.source}: ${result.name}";
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_outline, color: Colors.greenAccent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Auto-filled: ${result.name} (${result.source})",
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF1E293B),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        setState(() {
+          _lookupMessage = "No match found in catalog (enter details manually)";
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _lookupMessage = null);
+    } finally {
+      if (mounted) setState(() => _isLookingUpBarcode = false);
+    }
   }
 
   void _generateBarcode() {

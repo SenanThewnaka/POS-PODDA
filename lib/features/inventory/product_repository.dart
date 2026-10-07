@@ -149,6 +149,60 @@ class ProductRepository {
     return product.copyWith(id: docRef.id);
   }
 
+  Future<int> batchAddProducts(List<Product> products) async {
+    if (products.isEmpty) return 0;
+
+    // 1. Fetch existing barcodes in this shop to avoid inserting duplicates
+    final existingSnap = await _collection.get();
+    final existingBarcodes = <String>{};
+    for (final doc in existingSnap.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final bc = data['barcode'];
+      if (bc != null && bc.toString().trim().isNotEmpty) {
+        existingBarcodes.add(bc.toString().trim());
+      }
+    }
+
+    final toAdd = products.where((p) {
+      if (p.barcode == null || p.barcode!.trim().isEmpty) return true;
+      return !existingBarcodes.contains(p.barcode!.trim());
+    }).toList();
+
+    if (toAdd.isEmpty) return 0;
+
+    // Chunk in batches of 200 (Firestore limit is 500 operations per batch)
+    const chunkSize = 200;
+    for (var i = 0; i < toAdd.length; i += chunkSize) {
+      final end = (i + chunkSize < toAdd.length) ? i + chunkSize : toAdd.length;
+      final chunk = toAdd.sublist(i, end);
+      final writeBatch = _firestore.batch();
+
+      for (final prod in chunk) {
+        final docRef = _collection.doc();
+        final data = prod.toMap();
+        data['id'] = docRef.id;
+        writeBatch.set(docRef, data);
+
+        if (prod.currentStock > 0) {
+          final batchRef = docRef.collection('batches').doc();
+          final stockBatch = StockBatch(
+            id: batchRef.id,
+            productId: docRef.id,
+            costPrice: prod.costPrice,
+            sellingPrice: prod.sellingPrice,
+            currentStock: prod.currentStock,
+            createdAt: DateTime.now(),
+            isActive: true,
+          );
+          writeBatch.set(batchRef, stockBatch.toMap());
+        }
+      }
+      await writeBatch.commit();
+    }
+
+    return toAdd.length;
+  }
+
   Future<void> migrateLegacyStock(String productId, StockBatch batch) async {
     final batchRef = _collection.doc(productId).collection('batches').doc();
     final batchData = batch.copyWith(id: batchRef.id, productId: productId).toMap();

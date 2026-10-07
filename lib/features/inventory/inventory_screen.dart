@@ -16,6 +16,8 @@ import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/shimmer_skeletons.dart';
 import 'package:sme_buddy/features/inventory/simple_scanner_screen.dart'; // Add Scanner
+import 'package:sme_buddy/features/inventory/services/barcode_lookup_service.dart';
+import 'package:sme_buddy/features/inventory/sri_lanka_catalog_sheet.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
@@ -36,12 +38,100 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
     if (barcode != null && barcode.isNotEmpty && mounted) {
       final product = await ref.read(productRepositoryProvider).getProductByBarcode(barcode);
-      if (mounted) {
-        if (product != null) {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => ProductDashboardScreen(product: product)));
+      if (!mounted) return;
+
+      if (product != null) {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => ProductDashboardScreen(product: product)));
+      } else {
+        // Live auto-lookup in Sri Lanka catalog and Open Food Facts API
+        final lookupResult = await ref.read(barcodeLookupServiceProvider).lookup(barcode);
+        if (!mounted) return;
+
+        if (lookupResult != null) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: Colors.cyanAccent),
+                  SizedBox(width: 8),
+                  Text("Found in Catalog"),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    lookupResult.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.qr_code, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(barcode, style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: Colors.grey)),
+                    ],
+                  ),
+                  if (lookupResult.brand != null) ...[
+                    const SizedBox(height: 4),
+                    Text("Brand: ${lookupResult.brand}", style: const TextStyle(fontSize: 13)),
+                  ],
+                  if (lookupResult.suggestedPrice != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      "Suggested MRP: Rs. ${lookupResult.suggestedPrice!.toStringAsFixed(0)}",
+                      style: const TextStyle(fontSize: 13, color: Colors.greenAccent, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  const Text("This product is not in your store yet. Would you like to add it to your inventory?"),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("CANCEL"),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AddProductScreen(
+                          initialBarcode: lookupResult.barcode,
+                          initialName: lookupResult.name,
+                          initialPrice: lookupResult.suggestedPrice,
+                          initialCost: lookupResult.suggestedCost,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text("ADD TO STORE"),
+                ),
+              ],
+            ),
+          );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text("No product found for barcode: $barcode"), backgroundColor: Colors.orange)
+            SnackBar(
+              content: Text("No product found for barcode: $barcode"),
+              action: SnackBarAction(
+                label: "ADD NEW",
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AddProductScreen(initialBarcode: barcode),
+                    ),
+                  );
+                },
+              ),
+              backgroundColor: Colors.orange,
+            ),
           );
         }
       }
@@ -58,6 +148,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         title: const Text("Inventory", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.storefront_outlined),
+            tooltip: 'Sri Lanka Starter Pack',
+            onPressed: () => SriLankaCatalogSheet.show(context),
+          ),
           IconButton(
             icon: const Icon(Icons.qr_code_scanner),
             tooltip: 'Scan Barcode',
@@ -288,6 +383,42 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   }).toList();
 
                   if (filtered.isEmpty) {
+                    if (products.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.inventory_2_outlined, size: 72, color: Colors.cyanAccent.withValues(alpha: 0.6)),
+                              const SizedBox(height: 16),
+                              Text(
+                                "Your Inventory is Empty",
+                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                "Start quickly by preloading the Sri Lanka Starter Pack (Munchee, Maliban, Anchor, Sunlight, etc.) with real barcodes in 1 tap!",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton.icon(
+                                onPressed: () => SriLankaCatalogSheet.show(context),
+                                icon: const Icon(Icons.storefront),
+                                label: const Text("PRELOAD SRI LANKA STARTER PACK"),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.cyanAccent,
+                                  foregroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
