@@ -1162,25 +1162,64 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
         ),
         backgroundColor: Colors.transparent,
         actions: [
-          TextButton.icon(
-            onPressed: _items.isEmpty || _isSubmitting ? null : _submitGRN,
-            icon: _isSubmitting
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : Icon(
-                    isEditing ? Icons.save_outlined : Icons.check_circle_outline,
-                    color: Colors.greenAccent,
+          Padding(
+            padding: const EdgeInsets.only(right: 14, top: 7, bottom: 7),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: _items.isEmpty || _isSubmitting
+                    ? []
+                    : [
+                        BoxShadow(
+                          color: (isEditing ? const Color(0xFF6366F1) : const Color(0xFF10B981)).withValues(alpha: 0.35),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: TextButton.icon(
+                onPressed: _items.isEmpty || _isSubmitting ? null : _submitGRN,
+                style: TextButton.styleFrom(
+                  backgroundColor: _items.isEmpty
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : (isEditing ? const Color(0xFF6366F1) : const Color(0xFF10B981)),
+                  foregroundColor: _items.isEmpty ? Colors.white38 : Colors.white,
+                  disabledBackgroundColor: Colors.white.withValues(alpha: 0.08),
+                  disabledForegroundColor: Colors.white38,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(
+                      color: _items.isEmpty
+                          ? Colors.white.withValues(alpha: 0.15)
+                          : (isEditing ? const Color(0xFF818CF8) : const Color(0xFF34D399)),
+                      width: 1.2,
+                    ),
                   ),
-            label: Text(
-              _isSubmitting
-                  ? "PROCESSING..."
-                  : (isEditing ? "UPDATE GRN" : "CONFIRM & INWARD"),
-              style: TextStyle(
-                color: _items.isEmpty ? Colors.white38 : Colors.greenAccent,
-                fontWeight: FontWeight.bold,
+                  elevation: _items.isEmpty ? 0 : 2,
+                ),
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Icon(
+                        isEditing ? Icons.save_rounded : Icons.check_circle_rounded,
+                        color: _items.isEmpty ? Colors.white38 : Colors.white,
+                        size: 18,
+                      ),
+                label: Text(
+                  _isSubmitting
+                      ? "PROCESSING..."
+                      : (isEditing ? "UPDATE GRN" : "CONFIRM & INWARD"),
+                  style: TextStyle(
+                    color: _items.isEmpty ? Colors.white38 : Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    letterSpacing: 0.5,
+                  ),
+                ),
               ),
             ),
           ),
@@ -1209,6 +1248,8 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
                         Expanded(child: _buildItemsList(productsAsync.valueOrNull)),
                         const SizedBox(height: 12),
                         _buildTotalsSummary(),
+                        const SizedBox(height: 14),
+                        _buildPrimaryConfirmButton(isEditing: isEditing),
                       ],
                     ),
                   ),
@@ -1229,27 +1270,73 @@ class _CreateGRNScreenState extends ConsumerState<CreateGRNScreen> {
                   ),
                   const SizedBox(height: 16),
                   _buildTotalsSummary(),
-                  const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isEditing ? const Color(0xFF6366F1) : Colors.green.shade700,
-                      minimumSize: const Size(double.infinity, 52),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: _items.isEmpty || _isSubmitting ? null : _submitGRN,
-                    icon: _isSubmitting
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Icon(isEditing ? Icons.save : Icons.inventory, color: Colors.white),
-                    label: Text(
-                      _isSubmitting
-                          ? "PROCESSING..."
-                          : (isEditing ? "UPDATE GRN" : "CONFIRM & INWARD STOCK"),
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                  ),
+                  const SizedBox(height: 20),
+                  _buildPrimaryConfirmButton(isEditing: isEditing),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildPrimaryConfirmButton({required bool isEditing}) {
+    final isEnabled = _items.isNotEmpty && !_isSubmitting;
+    final primaryColor = isEditing ? const Color(0xFF6366F1) : const Color(0xFF10B981);
+    final borderColor = isEditing ? const Color(0xFF818CF8) : const Color(0xFF34D399);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: isEnabled
+            ? [
+                BoxShadow(
+                  color: primaryColor.withValues(alpha: 0.35),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : [],
+      ),
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryColor,
+          disabledBackgroundColor: Colors.white.withValues(alpha: 0.08),
+          disabledForegroundColor: Colors.white38,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(double.infinity, 52),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          elevation: isEnabled ? 2 : 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: isEnabled ? borderColor : Colors.white.withValues(alpha: 0.12),
+              width: 1.2,
+            ),
+          ),
+        ),
+        onPressed: isEnabled ? _submitGRN : null,
+        icon: _isSubmitting
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+              )
+            : Icon(
+                isEditing ? Icons.save_rounded : Icons.inventory_2_rounded,
+                color: isEnabled ? Colors.white : Colors.white38,
+                size: 22,
+              ),
+        label: Text(
+          _isSubmitting
+              ? "PROCESSING GRN..."
+              : (isEditing ? "UPDATE GRN" : "CONFIRM & INWARD STOCK"),
+          style: TextStyle(
+            color: isEnabled ? Colors.white : Colors.white38,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ),
     );
   }
 
