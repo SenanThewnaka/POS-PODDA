@@ -560,7 +560,7 @@ void main() {
     });
 
     testWidgets('TC-PRC-13: Add Line Item Modal Validation requires valid quantity and cost', (tester) async {
-      tester.view.physicalSize = const Size(800 * 2.0, 1200 * 2.0);
+      tester.view.physicalSize = const Size(1280 * 2.0, 1200 * 2.0);
       tester.view.devicePixelRatio = 2.0;
       addTearDown(() {
         tester.view.resetPhysicalSize();
@@ -571,6 +571,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Open Add Item Dialog
+      await tester.ensureVisible(find.text('ADD ITEM'));
       await tester.tap(find.text('ADD ITEM'));
       await tester.pumpAndSettle();
 
@@ -581,19 +582,21 @@ void main() {
       await tester.pumpAndSettle();
 
       // Clear quantity to 0
-      final qtyField = find.widgetWithText(TextFormField, '1');
+      final qtyField = find.widgetWithText(TextFormField, 'Received Qty *');
       await tester.enterText(qtyField, '0');
       await tester.pumpAndSettle();
 
       // Tap Add to GRN
-      await tester.tap(find.text('Add to GRN'));
+      final addBtn = find.widgetWithText(ElevatedButton, 'Add to GRN');
+      await tester.ensureVisible(addBtn);
+      await tester.tap(addBtn);
       await tester.pumpAndSettle();
 
       expect(find.text('Valid qty required'), findsOneWidget);
     });
 
     testWidgets('TC-PRC-14: Adding Line Item updates item list and financial summary', (tester) async {
-      tester.view.physicalSize = const Size(800 * 2.0, 1200 * 2.0);
+      tester.view.physicalSize = const Size(1280 * 2.0, 1200 * 2.0);
       tester.view.devicePixelRatio = 2.0;
       addTearDown(() {
         tester.view.resetPhysicalSize();
@@ -604,6 +607,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Open Add Item Dialog
+      await tester.ensureVisible(find.text('ADD ITEM'));
       await tester.tap(find.text('ADD ITEM'));
       await tester.pumpAndSettle();
 
@@ -612,12 +616,14 @@ void main() {
       await tester.pumpAndSettle();
 
       // Set Qty: 10, Cost: 400, Sell: 500
-      final qtyField = find.widgetWithText(TextFormField, '1');
+      final qtyField = find.widgetWithText(TextFormField, 'Received Qty *');
       await tester.enterText(qtyField, '10');
       await tester.pumpAndSettle();
 
       // Cost price is already populated with 420.00
-      await tester.tap(find.text('Add to GRN'));
+      final addBtn = find.widgetWithText(ElevatedButton, 'Add to GRN');
+      await tester.ensureVisible(addBtn);
+      await tester.tap(addBtn);
       await tester.pumpAndSettle();
 
       // Item should appear in list: 10 × 420 = 4200.00
@@ -627,7 +633,7 @@ void main() {
     });
 
     testWidgets('TC-PRC-15: Removing Line Item removes it from list and recomputes total', (tester) async {
-      tester.view.physicalSize = const Size(800 * 2.0, 1200 * 2.0);
+      tester.view.physicalSize = const Size(1280 * 2.0, 1200 * 2.0);
       tester.view.devicePixelRatio = 2.0;
       addTearDown(() {
         tester.view.resetPhysicalSize();
@@ -638,17 +644,20 @@ void main() {
       await tester.pumpAndSettle();
 
       // Add item
+      await tester.ensureVisible(find.text('ADD ITEM'));
       await tester.tap(find.text('ADD ITEM'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Highland Fresh Milk 1L'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Add to GRN'));
+      final addBtn = find.widgetWithText(ElevatedButton, 'Add to GRN');
+      await tester.ensureVisible(addBtn);
+      await tester.tap(addBtn);
       await tester.pumpAndSettle();
 
       expect(find.text('Highland Fresh Milk 1L'), findsOneWidget);
 
       // Remove item
-      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.tap(find.byIcon(Icons.delete_outline).first);
       await tester.pumpAndSettle();
 
       expect(find.text('Highland Fresh Milk 1L'), findsNothing);
@@ -710,7 +719,7 @@ void main() {
     testWidgets('TC-PRC-18: Submitting GRN invokes procurementRepo.receiveGRN', (tester) async {
       final repo = FakeProcurementRepository();
 
-      tester.view.physicalSize = const Size(800 * 2.0, 1200 * 2.0);
+      tester.view.physicalSize = const Size(1280 * 2.0, 1200 * 2.0);
       tester.view.devicePixelRatio = 2.0;
       addTearDown(() {
         tester.view.resetPhysicalSize();
@@ -724,11 +733,14 @@ void main() {
       await tester.pumpAndSettle();
 
       // Add Item
+      await tester.ensureVisible(find.text('ADD ITEM'));
       await tester.tap(find.text('ADD ITEM'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Highland Fresh Milk 1L'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Add to GRN'));
+      final addBtn = find.widgetWithText(ElevatedButton, 'Add to GRN');
+      await tester.ensureVisible(addBtn);
+      await tester.tap(addBtn);
       await tester.pumpAndSettle();
 
       // Enter invoice
@@ -830,7 +842,7 @@ void main() {
   group('Category F: Inline Product Creation from GRN', () {
     testWidgets('TC-PRC-21: Inline product creation modal allows toggling, margins calculation, and prefilling', (tester) async {
       final pRepo = FakeProductRepository(initialProducts: _sampleProducts);
-      tester.view.physicalSize = const Size(800 * 2.0, 1200 * 2.0);
+      tester.view.physicalSize = const Size(1280 * 2.0, 1200 * 2.0);
       tester.view.devicePixelRatio = 2.0;
       addTearDown(() {
         tester.view.resetPhysicalSize();
@@ -844,6 +856,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 1. Open modal via ADD ITEM
+      await tester.ensureVisible(find.text('ADD ITEM'));
       await tester.tap(find.text('ADD ITEM'));
       await tester.pumpAndSettle();
 
@@ -900,7 +913,7 @@ void main() {
 
     testWidgets('TC-PRC-22: Submitting inline product creation saves product with 0 stock and adds to GRN items', (tester) async {
       final pRepo = FakeProductRepository(initialProducts: _sampleProducts);
-      tester.view.physicalSize = const Size(800 * 2.0, 1200 * 2.0);
+      tester.view.physicalSize = const Size(1280 * 2.0, 1200 * 2.0);
       tester.view.devicePixelRatio = 2.0;
       addTearDown(() {
         tester.view.resetPhysicalSize();
@@ -914,6 +927,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Open Add Item modal
+      await tester.ensureVisible(find.text('ADD ITEM'));
       await tester.tap(find.text('ADD ITEM'));
       await tester.pumpAndSettle();
 
@@ -1265,7 +1279,7 @@ void main() {
 
       await repo.receiveGRN(sampleGRN);
 
-      tester.view.physicalSize = const Size(1200 * 2.0, 900 * 2.0);
+      tester.view.physicalSize = const Size(1280 * 2.0, 1000 * 2.0);
       tester.view.devicePixelRatio = 2.0;
       addTearDown(() {
         tester.view.resetPhysicalSize();
@@ -1281,8 +1295,8 @@ void main() {
       // Verify title shows Edit mode with GRN Number
       expect(find.text('Edit Goods Received Note (GRN-9988)'), findsOneWidget);
 
-      // Verify Action button says UPDATE GRN
-      expect(find.text('UPDATE GRN'), findsOneWidget);
+      // Verify Action button says UPDATE GRN (appears in AppBar and/or action bar)
+      expect(find.text('UPDATE GRN'), findsWidgets);
 
       // Verify pre-filled invoice and line item
       expect(find.text('INV-4455'), findsOneWidget);
