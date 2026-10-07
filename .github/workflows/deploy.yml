@@ -17,6 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_POS_PODDA }}
+      FIREBASE_CLI_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
     steps:
       - name: 📥 Check out repository
         uses: actions/checkout@v4
@@ -37,7 +41,7 @@ jobs:
         run: flutter build web --release --no-wasm-dry-run
 
       - name: 🚀 Deploy to Firebase Hosting (Service Account)
-        if: secrets.FIREBASE_SERVICE_ACCOUNT_POS_PODDA != ''
+        if: env.FIREBASE_SERVICE_ACCOUNT != ''
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: "${{ secrets.GITHUB_TOKEN }}"
@@ -46,5 +50,11 @@ jobs:
           projectId: pos-podda
 
       - name: 🚀 Deploy to Firebase Hosting (Token Fallback)
-        if: secrets.FIREBASE_SERVICE_ACCOUNT_POS_PODDA == '' && secrets.FIREBASE_TOKEN != ''
+        if: env.FIREBASE_SERVICE_ACCOUNT == '' && env.FIREBASE_CLI_TOKEN != ''
         run: npx firebase-tools deploy --only hosting --token "${{ secrets.FIREBASE_TOKEN }}"
+
+      - name: ⚠️ Deployment Notice (Missing Secrets)
+        if: env.FIREBASE_SERVICE_ACCOUNT == '' && env.FIREBASE_CLI_TOKEN == ''
+        run: |
+          echo "::warning::Firebase deployment credentials not configured yet in GitHub Secrets."
+          echo "Build and tests succeeded! To enable automatic deployment to Firebase, add 'FIREBASE_SERVICE_ACCOUNT_POS_PODDA' or 'FIREBASE_TOKEN' in GitHub Repository Settings -> Secrets and variables -> Actions."
