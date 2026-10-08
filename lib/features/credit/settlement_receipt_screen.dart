@@ -34,7 +34,7 @@ class SettlementReceiptScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(userProfileProvider).value;
+    final user = ref.watch(shopOwnerProfileProvider).value ?? ref.watch(userProfileProvider).value;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -110,8 +110,18 @@ class SettlementReceiptScreen extends ConsumerWidget {
                           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
                           textAlign: TextAlign.center,
                         ),
-                        if (user?.shopAddress != null)
+                        if (user?.shopAddress != null && user!.shopAddress!.isNotEmpty)
                           Text(user!.shopAddress!, textAlign: TextAlign.center, style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
+                        if (user?.shopMobile != null && user!.shopMobile!.isNotEmpty)
+                          Text("Tel: ${user!.shopMobile!}", textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black54)),
+                        if (user?.vatNumber != null && user!.vatNumber!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              user!.isVatRegistered ? "VAT Reg: ${user!.vatNumber}" : "Reg No: ${user!.vatNumber}",
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.black87),
+                            ),
+                          ),
                         const SizedBox(height: 16),
                         Text(
                           isHistoryView ? "Bill Statement" : "Payment Successful", 
@@ -234,7 +244,11 @@ class SettlementReceiptScreen extends ConsumerWidget {
   Future<void> _shareSms(BuildContext context, UserModel? user) async {
      final sb = StringBuffer();
      sb.writeln("*${user?.shopName ?? "POS Podda"}*");
-     if (user?.shopAddress != null) sb.writeln(user!.shopAddress!);
+     if (user?.shopAddress != null && user!.shopAddress!.isNotEmpty) sb.writeln(user!.shopAddress!);
+     if (user?.shopMobile != null && user!.shopMobile!.isNotEmpty) sb.writeln("Tel: ${user!.shopMobile}");
+     if (user?.vatNumber != null && user!.vatNumber!.isNotEmpty) {
+       sb.writeln(user!.isVatRegistered ? "VAT Reg: ${user!.vatNumber}" : "Reg No: ${user!.vatNumber}");
+     }
      sb.writeln("----------------");
      sb.writeln(isHistoryView ? "BILL STATEMENT" : "PAYMENT RECEIPT");
      sb.writeln("Date: ${DateFormat("yyyy-MM-dd HH:mm").format(timestamp)}");
@@ -267,6 +281,21 @@ class SettlementReceiptScreen extends ConsumerWidget {
     final margin = is58 ? 4.0 : 8.0;
     final titleSize = is58 ? 13.0 : 16.0;
     final bodySize = is58 ? 8.0 : 9.5;
+
+    pw.ThemeData? theme;
+    try {
+      final baseFont = await PdfGoogleFonts.robotoRegular();
+      final boldFont = await PdfGoogleFonts.robotoBold();
+      final sinhalaFont = await PdfGoogleFonts.notoSansSinhalaRegular();
+      final sinhalaBold = await PdfGoogleFonts.notoSansSinhalaBold();
+      theme = pw.ThemeData.withFont(
+        base: baseFont,
+        bold: boldFont,
+        fontFallback: [sinhalaFont, sinhalaBold],
+      );
+    } catch (e) {
+      debugPrint("PdfGoogleFonts note: $e");
+    }
     
     // Attempt to load logo if available
     pw.ImageProvider? logoImage;
@@ -282,6 +311,7 @@ class SettlementReceiptScreen extends ConsumerWidget {
       pw.Page(
         pageFormat: pageFormat, 
         margin: pw.EdgeInsets.all(margin), 
+        theme: theme,
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -292,10 +322,15 @@ class SettlementReceiptScreen extends ConsumerWidget {
               
               pw.SizedBox(height: 6),
               pw.Text(user?.shopName ?? "POS Podda", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: titleSize)),
-              if (user?.shopAddress != null)
+              if (user?.shopAddress != null && user!.shopAddress!.isNotEmpty)
                  pw.Text(user!.shopAddress!, textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: bodySize - 1)),
-              if (user?.shopMobile != null)
+              if (user?.shopMobile != null && user!.shopMobile!.isNotEmpty)
                  pw.Text("Tel: ${user!.shopMobile}", style: pw.TextStyle(fontSize: bodySize - 1)),
+              if (user?.vatNumber != null && user!.vatNumber!.isNotEmpty)
+                 pw.Text(
+                   user!.isVatRegistered ? "VAT Reg: ${user!.vatNumber}" : "Reg No: ${user!.vatNumber}",
+                   style: pw.TextStyle(fontSize: bodySize - 1, fontWeight: pw.FontWeight.bold),
+                 ),
               
               pw.Divider(thickness: 0.5), 
 

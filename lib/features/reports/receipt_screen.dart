@@ -38,7 +38,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
         final settings = ref.read(printerSettingsProvider);
         if (settings.autoPrint) {
           _hasAutoPrinted = true;
-          final user = ref.read(userProfileProvider).value;
+          final user = ref.read(shopOwnerProfileProvider).value ?? ref.read(userProfileProvider).value;
           _printReceipt(context, user);
         }
       }
@@ -56,7 +56,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
       if (event.logicalKey == LogicalKeyboardKey.enter ||
           event.logicalKey == LogicalKeyboardKey.numpadEnter ||
           event.logicalKey == LogicalKeyboardKey.keyP) {
-        final user = ref.read(userProfileProvider).value;
+        final user = ref.read(shopOwnerProfileProvider).value ?? ref.read(userProfileProvider).value;
         _printReceipt(context, user);
       } else if (event.logicalKey == LogicalKeyboardKey.escape ||
           event.logicalKey == LogicalKeyboardKey.keyN) {
@@ -223,7 +223,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
   @override
   Widget build(BuildContext context) {
     final sale = _currentSale;
-    final user = ref.watch(userProfileProvider).value;
+    final user = ref.watch(shopOwnerProfileProvider).value ?? ref.watch(userProfileProvider).value;
     final printerSettings = ref.watch(printerSettingsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isDesktopOrTablet = context.isTabletOrDesktop;
@@ -556,6 +556,15 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                                       color: isDark ? Colors.white54 : Colors.black54,
                                     ),
                                   ),
+                                if (user.shopMobile != null && user.shopMobile!.isNotEmpty)
+                                  Text(
+                                    "Tel: ${user.shopMobile!}",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: isDark ? Colors.white54 : Colors.black54,
+                                    ),
+                                  ),
                                 if (user.isVatRegistered) ...[
                                   const SizedBox(height: 8),
                                   Center(
@@ -590,6 +599,18 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                                               ),
                                             ),
                                         ],
+                                      ),
+                                    ),
+                                  ),
+                                ] else if (user.vatNumber != null && user.vatNumber!.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Center(
+                                    child: Text(
+                                      "Reg No: ${user.vatNumber}",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? Colors.white70 : Colors.black87,
                                       ),
                                     ),
                                   ),
@@ -975,7 +996,15 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
   String _generateReceiptText(UserModel? user) {
     final sb = StringBuffer();
     sb.writeln("*${user?.shopName ?? "POS Podda Receipt"}*");
-    if (user?.shopAddress != null) sb.writeln(user!.shopAddress!);
+    if (user?.shopAddress != null && user!.shopAddress!.isNotEmpty) sb.writeln(user!.shopAddress!);
+    if (user?.shopMobile != null && user!.shopMobile!.isNotEmpty) sb.writeln("Tel: ${user!.shopMobile}");
+    if (user?.vatNumber != null && user!.vatNumber!.isNotEmpty) {
+      if (user.isVatRegistered) {
+        sb.writeln("VAT Reg No: ${user.vatNumber}");
+      } else {
+        sb.writeln("Reg No: ${user.vatNumber}");
+      }
+    }
     sb.writeln("Bill #: ${_currentSale.id}");
     sb.writeln("Date: ${DateFormat('dd MMM yyyy, hh:mm a').format(_currentSale.timestamp)}");
     sb.writeln("----------------");
@@ -1070,6 +1099,21 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     final bodySize = is58 ? 8.0 : 9.5;
     final totalSize = is58 ? 11.5 : 14.0;
 
+    pw.ThemeData? theme;
+    try {
+      final baseFont = await PdfGoogleFonts.robotoRegular();
+      final boldFont = await PdfGoogleFonts.robotoBold();
+      final sinhalaFont = await PdfGoogleFonts.notoSansSinhalaRegular();
+      final sinhalaBold = await PdfGoogleFonts.notoSansSinhalaBold();
+      theme = pw.ThemeData.withFont(
+        base: baseFont,
+        bold: boldFont,
+        fontFallback: [sinhalaFont, sinhalaBold],
+      );
+    } catch (e) {
+      debugPrint("PdfGoogleFonts note: $e");
+    }
+
     pw.ImageProvider? logoImage;
     if (user?.shopLogo != null && user!.shopLogo!.isNotEmpty) {
       try {
@@ -1083,6 +1127,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
       pw.Page(
         pageFormat: pageFormat,
         margin: pw.EdgeInsets.all(margin),
+        theme: theme,
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -1134,6 +1179,15 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                       style: pw.TextStyle(fontSize: bodySize - 1, fontWeight: pw.FontWeight.bold),
                     ),
                   ),
+                pw.SizedBox(height: 2),
+              ] else if (user != null && user.vatNumber != null && user.vatNumber!.isNotEmpty) ...[
+                pw.SizedBox(height: 2),
+                pw.Center(
+                  child: pw.Text(
+                    "Reg No: ${user.vatNumber}",
+                    style: pw.TextStyle(fontSize: bodySize - 1, fontWeight: pw.FontWeight.bold),
+                  ),
+                ),
                 pw.SizedBox(height: 2),
               ],
               pw.SizedBox(height: 3),

@@ -160,7 +160,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             );
           }
         }
-        }
       } else if (char != null && char.isNotEmpty && !HardwareKeyboard.instance.isControlPressed) {
         _barcodeBuffer.write(char);
         _barcodeBufferTimer?.cancel();

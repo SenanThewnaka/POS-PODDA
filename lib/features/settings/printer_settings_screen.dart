@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:sme_buddy/features/settings/printer_settings_service.dart';
+import 'package:sme_buddy/features/settings/invoice_settings_screen.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
@@ -46,17 +46,33 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
 
   Future<void> _printTestReceipt() async {
     final settings = ref.read(printerSettingsProvider);
-    final user = ref.read(userProfileProvider).value;
+    final user = ref.read(shopOwnerProfileProvider).value ?? ref.read(userProfileProvider).value;
 
     final doc = pw.Document();
     final is58 = settings.paperSize == '58mm';
     final fontSizeTitle = is58 ? 13.0 : 16.0;
     final fontSizeBody = is58 ? 8.5 : 10.0;
 
+    pw.ThemeData? theme;
+    try {
+      final baseFont = await PdfGoogleFonts.robotoRegular();
+      final boldFont = await PdfGoogleFonts.robotoBold();
+      final sinhalaFont = await PdfGoogleFonts.notoSansSinhalaRegular();
+      final sinhalaBold = await PdfGoogleFonts.notoSansSinhalaBold();
+      theme = pw.ThemeData.withFont(
+        base: baseFont,
+        bold: boldFont,
+        fontFallback: [sinhalaFont, sinhalaBold],
+      );
+    } catch (e) {
+      debugPrint("PdfGoogleFonts note: $e");
+    }
+
     doc.addPage(
       pw.Page(
         pageFormat: settings.pageFormat,
         margin: pw.EdgeInsets.all(is58 ? 4 : 8),
+        theme: theme,
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -69,7 +85,31 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
                 ),
                 textAlign: pw.TextAlign.center,
               ),
-              pw.SizedBox(height: 2),
+              if (user?.shopAddress != null && user!.shopAddress!.isNotEmpty) ...[
+                pw.SizedBox(height: 1),
+                pw.Text(
+                  user.shopAddress!,
+                  style: pw.TextStyle(fontSize: fontSizeBody - 1),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ],
+              if (user?.shopMobile != null && user!.shopMobile!.isNotEmpty) ...[
+                pw.SizedBox(height: 1),
+                pw.Text(
+                  "Tel: ${user.shopMobile}",
+                  style: pw.TextStyle(fontSize: fontSizeBody - 1),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ],
+              if (user?.vatNumber != null && user!.vatNumber!.isNotEmpty) ...[
+                pw.SizedBox(height: 1),
+                pw.Text(
+                  user.isVatRegistered ? "VAT Reg: ${user.vatNumber}" : "Reg No: ${user.vatNumber}",
+                  style: pw.TextStyle(fontSize: fontSizeBody - 1, fontWeight: pw.FontWeight.bold),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ],
+              pw.SizedBox(height: 4),
               pw.Text(
                 "*** HARDWARE TEST RECEIPT ***",
                 style: pw.TextStyle(
@@ -120,10 +160,18 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
               ),
               pw.SizedBox(height: 6),
               pw.Text(
-                "Thermal Printer Configured Successfully!",
+                user?.invoiceFooterMessage ?? "Thermal Printer Configured Successfully!",
                 style: pw.TextStyle(fontSize: fontSizeBody - 1, fontStyle: pw.FontStyle.italic),
                 textAlign: pw.TextAlign.center,
               ),
+              if (user?.invoiceContactInfo != null && user!.invoiceContactInfo!.isNotEmpty) ...[
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  user.invoiceContactInfo!,
+                  style: pw.TextStyle(fontSize: fontSizeBody - 1.5),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ],
               pw.SizedBox(height: 10),
             ],
           );
@@ -170,6 +218,49 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
+              // Banner linking to Receipt Content Customization
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const InvoiceSettingsScreen()),
+                  );
+                },
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.cyanAccent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.receipt_long, color: Colors.cyanAccent, size: 22),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Bill & Receipt Customization",
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.cyanAccent),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              "Edit store name, address, phone & Sinhala/English footer",
+                              style: TextStyle(fontSize: 12, color: Colors.white70),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.cyanAccent),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
               // SECTION 1: Paper Roll Format
               _buildSectionHeader("Thermal Paper Roll Width"),
               const SizedBox(height: 8),
