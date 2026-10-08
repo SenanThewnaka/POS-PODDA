@@ -20,6 +20,28 @@ class CartItem {
   });
 
   double get subTotal => quantity * effectivePrice;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'product': product.toMap(),
+      'quantity': quantity,
+      'effectivePrice': effectivePrice,
+      'costPrice': costPrice,
+      'description': description,
+    };
+  }
+
+  factory CartItem.fromMap(Map<String, dynamic> map) {
+    return CartItem(
+      id: map['id'] ?? '',
+      product: Product.fromMap(Map<String, dynamic>.from(map['product'] as Map)),
+      quantity: (map['quantity'] ?? 1.0).toDouble(),
+      effectivePrice: (map['effectivePrice'] ?? 0.0).toDouble(),
+      costPrice: (map['costPrice'] ?? 0.0).toDouble(),
+      description: map['description'],
+    );
+  }
 }
 
 // Key: CartItem ID (Unique), Value: CartItem
@@ -51,27 +73,19 @@ class CartNotifier extends StateNotifier<Map<String, CartItem>> {
   }
 
   void addToCart(Product product, {double quantity = 1, double? overridePrice, double? overrideCostPrice, String? description}) {
-    state = {...state};
+    if (quantity <= 0) return;
+    final updated = Map<String, CartItem>.from(state);
     
     final priceToUse = overridePrice ?? product.sellingPrice;
     final costToUse = overrideCostPrice ?? product.costPrice;
     
-    // Check if an IDENTICAL item exists (Product + Price + Description match)
-    // We iterate existing items to find a match.
-    // Exception: If product is SERVICE, and user wants distinct items, they might provide different descriptions?
-    // If description is same and price is same, we merge.
-    
     String? existingKey;
     
-    for (var entry in state.entries) {
+    for (var entry in updated.entries) {
       final item = entry.value;
       if (item.product.id == product.id) {
-         // Potential match. Check specific attributes.
-         // 1. Price match (allowing small float diff)
          bool priceMatch = (item.effectivePrice - priceToUse).abs() < 0.01;
-         // 2. Cost match (allowing small float diff) - Variable services need distinct costs
          bool costMatch = (item.costPrice - costToUse).abs() < 0.01;
-         // 3. Description match
          bool descMatch = item.description == description;
          
          if (priceMatch && costMatch && descMatch) {
@@ -82,9 +96,8 @@ class CartNotifier extends StateNotifier<Map<String, CartItem>> {
     }
 
     if (existingKey != null) {
-      // MERGE: Update quantity
-      final currentItem = state[existingKey]!;
-      state[existingKey] = CartItem(
+      final currentItem = updated[existingKey]!;
+      updated[existingKey] = CartItem(
         id: currentItem.id,
         product: product, 
         quantity: currentItem.quantity + quantity,
@@ -93,9 +106,8 @@ class CartNotifier extends StateNotifier<Map<String, CartItem>> {
         description: currentItem.description,
       );
     } else {
-      // NEW ENTRY
       final newId = _generateId();
-      state[newId] = CartItem(
+      updated[newId] = CartItem(
         id: newId,
         product: product, 
         quantity: quantity,
@@ -104,50 +116,67 @@ class CartNotifier extends StateNotifier<Map<String, CartItem>> {
         description: description,
       );
     }
+    state = updated;
   }
 
   // Update Quantity by CartItemID
   void updateQuantity(String cartItemId, double quantity) {
-    state = {...state};
-     if (state.containsKey(cartItemId)) {
-       final current = state[cartItemId]!;
-       if (quantity <= 0) {
-         state.remove(cartItemId);
-       } else {
-         state[cartItemId] = CartItem(
-           id: current.id,
-           product: current.product,
-           quantity: quantity,
-           effectivePrice: current.effectivePrice,
-           costPrice: current.costPrice,
-           description: current.description,
-         );
-       }
-     }
+    if (!state.containsKey(cartItemId)) return;
+    final updated = Map<String, CartItem>.from(state);
+    if (quantity <= 0) {
+      updated.remove(cartItemId);
+    } else {
+      final current = updated[cartItemId]!;
+      updated[cartItemId] = CartItem(
+        id: current.id,
+        product: current.product,
+        quantity: quantity,
+        effectivePrice: current.effectivePrice,
+        costPrice: current.costPrice,
+        description: current.description,
+      );
+    }
+    state = updated;
   }
   
   // Update Price/Description logic (from Edit Sheet)
   void updateItemDetails(String cartItemId, {double? newPrice, String? newDescription, double? newQuantity}) {
-    state = {...state};
-    if (state.containsKey(cartItemId)) {
-      final current = state[cartItemId]!;
-      state[cartItemId] = CartItem(
+    if (!state.containsKey(cartItemId)) return;
+    final updated = Map<String, CartItem>.from(state);
+    if (newQuantity != null && newQuantity <= 0) {
+      updated.remove(cartItemId);
+    } else {
+      final current = updated[cartItemId]!;
+      updated[cartItemId] = CartItem(
         id: current.id,
         product: current.product,
         quantity: newQuantity ?? current.quantity,
         effectivePrice: newPrice ?? current.effectivePrice,
-        costPrice: current.costPrice, // Preserve cost
+        costPrice: current.costPrice,
         description: newDescription ?? current.description,
       );
     }
+    state = updated;
   }
 
   void removeFromCart(String cartItemId) {
-    state = {...state};
-    state.remove(cartItemId);
+    if (!state.containsKey(cartItemId)) return;
+    final updated = Map<String, CartItem>.from(state);
+    updated.remove(cartItemId);
+    state = updated;
   }
 
   void clearCart() {
     state = {};
+  }
+
+  void replaceCart(Map<String, CartItem> newCart) {
+    final validMap = <String, CartItem>{};
+    newCart.forEach((k, v) {
+      if (v.quantity > 0) {
+        validMap[k] = v;
+      }
+    });
+    state = validMap;
   }
 }

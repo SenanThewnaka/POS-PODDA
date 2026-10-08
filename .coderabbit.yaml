@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+version: "2"
+language: "en-US"
+tone_instructions: "Expert Senior Flutter & Dart Architect and QA Lead. Focus on preventing RenderFlex overflows, Riverpod lifecycle, checkout accuracy, and edge-case test coverage. Be concise, constructive, and provide actionable snippets."
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: true
+    base_branches:
+      - "main"
+      - "master"
+      - "v1.0-pre-modernization"
+  path_filters:
+    - "!**/*.lock"
+    - "!**/*.png"
+    - "!**/*.jpg"
+    - "!**/*.jpeg"
+    - "!**/*.svg"
+    - "!**/*.ico"
+    - "!android/**"
+    - "!ios/**"
+    - "!macos/**"
+    - "!web/**"
+
+chat:
+  auto_reply: true

@@ -15,6 +15,7 @@ class Product {
   final bool isVariablePrice; // If true, prompt for price at checkout
   final double? lowStockThreshold; // Alert threshold
   final bool isActive; // Logic deletion logic
+  final bool isTaxable; 
   final DateTime createdAt;
 
   Product({
@@ -31,8 +32,11 @@ class Product {
     this.isVariablePrice = false,
     this.lowStockThreshold,
     this.isActive = true,
+    this.isTaxable = true,
     required this.createdAt,
   });
+
+  bool get isService => productType == 'SERVICE' || stockType == 'service';
 
   Product copyWith({
     String? id,
@@ -48,6 +52,7 @@ class Product {
     bool? isVariablePrice,
     double? lowStockThreshold,
     bool? isActive,
+    bool? isTaxable,
     DateTime? createdAt,
   }) {
     return Product(
@@ -64,6 +69,7 @@ class Product {
       isVariablePrice: isVariablePrice ?? this.isVariablePrice,
       lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
       isActive: isActive ?? this.isActive,
+      isTaxable: isTaxable ?? this.isTaxable,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -83,6 +89,7 @@ class Product {
       'isVariablePrice': isVariablePrice,
       'lowStockThreshold': lowStockThreshold,
       'isActive': isActive,
+      'isTaxable': isTaxable,
       'createdAt': createdAt.millisecondsSinceEpoch,
     };
   }
@@ -106,6 +113,7 @@ class Product {
       isVariablePrice: map['isVariablePrice'] ?? false,
       lowStockThreshold: (map['lowStockThreshold'] as num?)?.toDouble(),
       isActive: map['isActive'] ?? true,
+      isTaxable: map['isTaxable'] ?? true,
       createdAt: map['createdAt'] != null ? DateTime.fromMillisecondsSinceEpoch(map['createdAt']) : DateTime.now(),
     );
   }

@@ -5,6 +5,8 @@ import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
 import 'package:sme_buddy/features/auth/verification_service.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:intl/intl.dart';
+import 'package:sme_buddy/features/subscription/plans_screen.dart';
 import 'dart:math';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -33,6 +35,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _emailCtrl = TextEditingController(); // Added
     _shopNameCtrl = TextEditingController();
     _shopAddressCtrl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _mobileCtrl.dispose();
+    _emailCtrl.dispose();
+    _shopNameCtrl.dispose();
+    _shopAddressCtrl.dispose();
+    super.dispose();
   }
 
   void _initData(UserModel user) {
@@ -77,8 +89,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     
     final newEmail = _emailCtrl.text.trim();
     final emailChanged = newEmail != originalUser.email;
-    String? newCode;
-    
     // 1. Handle Email Change
     if (emailChanged) {
        try {
@@ -86,10 +96,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
          if (user == null) throw "No Auth User";
          
          await user.updateEmail(newEmail);
-         newCode = (100000 + Random().nextInt(900000)).toString();
-         
-         // Send Verification
-         await VerificationService.sendCode(newEmail, newCode);
        } catch (e) {
           String msg = "Email Update Failed: $e";
           if (e.toString().contains("email-already-in-use")) msg = "Email already in use.";
@@ -112,8 +118,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       shopName: originalUser.isAdmin ? _shopNameCtrl.text.trim() : originalUser.shopName,
       shopAddress: originalUser.isAdmin ? _shopAddressCtrl.text.trim() : originalUser.shopAddress,
       // Verification Status Update
-      isVerified: emailChanged ? false : originalUser.isVerified,
-      verificationCode: emailChanged ? newCode : originalUser.verificationCode,
+      isVerified: true,
+      verificationCode: null,
       // Preserve others (Wait, if I use constructor I MUST providing others or defaults?)
       // Ah, UserModel constructor uses defaults for optional fields.
       // But fields like `welcomeSent`, `billingCycle`, etc. might be lost if not passed?
@@ -139,15 +145,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
        mobile: _mobileCtrl.text.trim(),
        shopName: originalUser.isAdmin ? _shopNameCtrl.text.trim() : originalUser.shopName,
        shopAddress: originalUser.isAdmin ? _shopAddressCtrl.text.trim() : originalUser.shopAddress,
-       isVerified: emailChanged ? false : originalUser.isVerified,
-       verificationCode: emailChanged ? newCode : originalUser.verificationCode,
+       isVerified: true,
+       verificationCode: null,
     );
 
     // Save
     await ref.read(userProfileRepositoryProvider).saveUserProfile(finalUser);
     
     setState(() => _isEditing = false);
-    if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(emailChanged ? "Email Updated! Please Verify." : "Profile Updated!")));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile Updated!")));
   }
 
   @override
@@ -231,6 +237,72 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                      title: Text(user.role.toUpperCase()),
                      subtitle: const Text("Role"),
                    ),
+                   const SizedBox(height: 24),
+                   _buildSectionHeader("Subscription & Plan"),
+                   ListTile(
+                     leading: const Icon(Icons.workspace_premium_rounded, color: Colors.amberAccent),
+                     title: Text(user.plan.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                     subtitle: Text(
+                       user.expiryDate != null
+                           ? (DateTime.now().isAfter(user.expiryDate!)
+                               ? "Expired on ${DateFormat('MMM dd, yyyy').format(user.expiryDate!)}"
+                               : "Expires on ${DateFormat('MMM dd, yyyy').format(user.expiryDate!)}")
+                           : "No active subscription / Inactive",
+                       style: TextStyle(
+                         color: (user.expiryDate == null || DateTime.now().isAfter(user.expiryDate!))
+                             ? Colors.redAccent
+                             : null,
+                       ),
+                     ),
+                     trailing: ElevatedButton(
+                       style: ElevatedButton.styleFrom(
+                         backgroundColor: Colors.cyanAccent.withValues(alpha: 0.2),
+                         foregroundColor: Colors.cyanAccent,
+                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                       ),
+                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlansScreen())),
+                       child: const Text("MANAGE / EXTEND"),
+                     ),
+                   ),
+                   const SizedBox(height: 32),
+                   _buildSectionHeader("Danger Zone", isDestructive: true),
+                   Container(
+                     padding: const EdgeInsets.all(16),
+                     decoration: BoxDecoration(
+                       color: Colors.redAccent.withValues(alpha: 0.08),
+                       borderRadius: BorderRadius.circular(12),
+                       border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+                     ),
+                     child: Column(
+                       crossAxisAlignment: CrossAxisAlignment.start,
+                       children: [
+                         const Text(
+                           "Delete Account",
+                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.redAccent),
+                         ),
+                         const SizedBox(height: 6),
+                         Text(
+                           "Permanently remove your account and all associated shop data. This action is irreversible.",
+                           style: TextStyle(
+                             fontSize: 13,
+                             color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87,
+                           ),
+                         ),
+                         const SizedBox(height: 16),
+                         OutlinedButton.icon(
+                           style: OutlinedButton.styleFrom(
+                             foregroundColor: Colors.redAccent,
+                             side: const BorderSide(color: Colors.redAccent),
+                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                           ),
+                           icon: const Icon(Icons.delete_forever, size: 18),
+                           label: const Text("DELETE ACCOUNT"),
+                           onPressed: () => _confirmDeleteAccount(user),
+                         ),
+                       ],
+                     ),
+                   ),
+                   const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -242,10 +314,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(String title, {bool isDestructive = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.cyanAccent)),
+      child: Text(
+        title, 
+        style: TextStyle(
+          fontSize: 18, 
+          fontWeight: FontWeight.bold, 
+          color: isDestructive ? Colors.redAccent : Colors.cyanAccent,
+        ),
+      ),
     );
   }
 
@@ -266,5 +345,132 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         validator: (v) => v!.isEmpty ? "Required" : null,
       ),
     );
+  }
+
+  Future<void> _confirmDeleteAccount(UserModel user) async {
+    final passwordCtrl = TextEditingController();
+    final authUser = ref.read(authRepositoryProvider).currentUser;
+    final isGoogleUser = authUser?.providerData
+        .any((p) => p.providerId == 'google.com') ?? false;
+    bool isDeleting = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
+              SizedBox(width: 8),
+              Text("Delete Account?", style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Are you sure you want to permanently delete your account?",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "• All your shop data, inventory, sales, and employee accounts will be permanently deactivated.\n"
+                "• You will lose any remaining days on your trial or subscription.\n"
+                "• Note: Creating another account with this email will NOT grant a new free trial.",
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              if (!isGoogleUser) ...[
+                const SizedBox(height: 16),
+                const Text(
+                  "Enter your password to confirm:",
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: passwordCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: "Password",
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isDeleting ? null : () => Navigator.pop(dialogContext),
+              child: const Text("CANCEL"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: isDeleting
+                  ? null
+                  : () async {
+                      if (!isGoogleUser && passwordCtrl.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Please enter your password to confirm deletion.")),
+                        );
+                        return;
+                      }
+
+                      setDialogState(() => isDeleting = true);
+                      try {
+                        final authRepo = ref.read(authRepositoryProvider);
+                        final userProfileRepo = ref.read(userProfileRepositoryProvider);
+
+                        // 1. Record deletion in trial_history and deactivate profile
+                        await userProfileRepo.deleteUserAccount(user: user);
+
+                        // 2. Delete Firebase Auth account
+                        await authRepo.deleteCurrentUserAccount(
+                          currentPassword: isGoogleUser ? null : passwordCtrl.text.trim(),
+                        );
+
+                        if (mounted) {
+                          Navigator.pop(dialogContext);
+                          Navigator.of(context).popUntil((route) => route.isFirst);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Your account has been permanently deleted."),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setDialogState(() => isDeleting = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text("Deletion failed: ${e.toString().replaceAll('Exception:', '').trim()}"),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              child: isDeleting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text("PERMANENTLY DELETE"),
+            ),
+          ],
+        ),
+      ),
+    );
+    passwordCtrl.dispose();
   }
 }

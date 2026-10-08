@@ -1,3 +1,4 @@
+import 'package:sme_buddy/utils/responsive_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/inventory/add_product_screen.dart';
@@ -9,11 +10,14 @@ import 'package:sme_buddy/features/inventory/product_dashboard_screen.dart';
 import 'package:sme_buddy/utils/unit_formatter.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/users/app_permissions.dart';
-import 'package:sme_buddy/features/subscription/subscription_guard.dart';
+import 'package:sme_buddy/features/procurement/grn_history_screen.dart';
+import 'package:sme_buddy/features/procurement/suppliers_screen.dart';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/shimmer_skeletons.dart';
 import 'package:sme_buddy/features/inventory/simple_scanner_screen.dart'; // Add Scanner
+import 'package:sme_buddy/features/inventory/services/barcode_lookup_service.dart';
+import 'package:sme_buddy/features/inventory/sri_lanka_catalog_sheet.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
@@ -34,12 +38,100 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
     if (barcode != null && barcode.isNotEmpty && mounted) {
       final product = await ref.read(productRepositoryProvider).getProductByBarcode(barcode);
-      if (mounted) {
-        if (product != null) {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => ProductDashboardScreen(product: product)));
+      if (!mounted) return;
+
+      if (product != null) {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => ProductDashboardScreen(product: product)));
+      } else {
+        // Live auto-lookup in Sri Lanka catalog and Open Food Facts API
+        final lookupResult = await ref.read(barcodeLookupServiceProvider).lookup(barcode);
+        if (!mounted) return;
+
+        if (lookupResult != null) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: Colors.cyanAccent),
+                  SizedBox(width: 8),
+                  Text("Found in Catalog"),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    lookupResult.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.qr_code, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(barcode, style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: Colors.grey)),
+                    ],
+                  ),
+                  if (lookupResult.brand != null) ...[
+                    const SizedBox(height: 4),
+                    Text("Brand: ${lookupResult.brand}", style: const TextStyle(fontSize: 13)),
+                  ],
+                  if (lookupResult.suggestedPrice != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      "Suggested MRP: Rs. ${lookupResult.suggestedPrice!.toStringAsFixed(0)}",
+                      style: const TextStyle(fontSize: 13, color: Colors.greenAccent, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  const Text("This product is not in your store yet. Would you like to add it to your inventory?"),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("CANCEL"),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AddProductScreen(
+                          initialBarcode: lookupResult.barcode,
+                          initialName: lookupResult.name,
+                          initialPrice: lookupResult.suggestedPrice,
+                          initialCost: lookupResult.suggestedCost,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text("ADD TO STORE"),
+                ),
+              ],
+            ),
+          );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text("No product found for barcode: $barcode"), backgroundColor: Colors.orange)
+            SnackBar(
+              content: Text("No product found for barcode: $barcode"),
+              action: SnackBarAction(
+                label: "ADD NEW",
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AddProductScreen(initialBarcode: barcode),
+                    ),
+                  );
+                },
+              ),
+              backgroundColor: Colors.orange,
+            ),
           );
         }
       }
@@ -49,17 +141,38 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(productsStreamProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent, // Transparent to show Dashboard Gradient
+    return GlassScaffold(
       appBar: AppBar(
         title: const Text("Inventory", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         actions: [
           IconButton(
+            icon: const Icon(Icons.storefront_outlined),
+            tooltip: 'Sri Lanka Starter Pack',
+            onPressed: () => SriLankaCatalogSheet.show(context),
+          ),
+          IconButton(
             icon: const Icon(Icons.qr_code_scanner),
             tooltip: 'Scan Barcode',
             onPressed: _scanAndFindProduct,
+          ),
+          IconButton(
+            icon: const Icon(Icons.receipt_long),
+            tooltip: 'GRN Inward Stocking',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const GRNHistoryScreen()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.business_outlined),
+            tooltip: 'Suppliers Directory',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SuppliersScreen()),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.compare_arrows),
@@ -73,6 +186,104 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       ),
       body: Column(
         children: [
+            // Quick ERP Access (Mobile & Desktop)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const GRNHistoryScreen()),
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF1E293B)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.cyanAccent.withValues(alpha: 0.35),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.local_shipping_outlined, size: 18, color: Colors.cyanAccent),
+                            SizedBox(width: 8),
+                            Text(
+                              "GRN Inward",
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.cyanAccent),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SuppliersScreen()),
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF1E293B)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white.withValues(alpha: 0.1)
+                                : Colors.black12,
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.business_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54),
+                            const SizedBox(width: 8),
+                            Text(
+                              "Suppliers",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             // FILTERS (Glass Card)
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -136,7 +347,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       const SizedBox(height: 16),
                       Text("Failed to load inventory", style: TextStyle(color: Colors.red.shade300, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
-                      const Text("Check your connection.", style: TextStyle(color: Colors.white54)),
+                      Text("Check your connection.", style: TextStyle(color: isDark ? Colors.white54 : Colors.black45)),
                     ],
                   ),
                 ),
@@ -172,22 +383,58 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   }).toList();
 
                   if (filtered.isEmpty) {
+                    if (products.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.inventory_2_outlined, size: 72, color: Colors.cyanAccent.withValues(alpha: 0.6)),
+                              const SizedBox(height: 16),
+                              Text(
+                                "Your Inventory is Empty",
+                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                "Start quickly by preloading the Sri Lanka Starter Pack (Munchee, Maliban, Anchor, Sunlight, etc.) with real barcodes in 1 tap!",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton.icon(
+                                onPressed: () => SriLankaCatalogSheet.show(context),
+                                icon: const Icon(Icons.storefront),
+                                label: const Text("PRELOAD SRI LANKA STARTER PACK"),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.cyanAccent,
+                                  foregroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.inventory_2_outlined, size: 80, color: Colors.white30),
+                          Icon(Icons.inventory_2_outlined, size: 80, color: isDark ? Colors.white30 : Colors.black26),
                           const SizedBox(height: 16),
-                          const Text("No Items Found", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white70)),
+                          Text("No Items Found", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white70 : Colors.black87)),
                           const SizedBox(height: 8),
-                          Text("Try adjusting your filters.", style: TextStyle(color: Colors.white.withValues(alpha: 0.38))),
+                          Text("Try adjusting your filters.", style: TextStyle(color: isDark ? Colors.white38 : Colors.black38)),
                         ],
                       ),
                     );
                   }
                   
                   return GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 180), // Increased to clear lifted FAB
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, context.isTabletOrDesktop ? 24 : 180),
                     gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 200, // Responsive: ~2 cols on phone, 4+ on tablet
                       childAspectRatio: 0.75, 
@@ -212,8 +459,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       String unit = "unit";
                       if (product.stockType == 'weight') {
                          if (product.baseUnit == 'g') { price *= 1000; unit = "Kg"; }
+                         else if (product.baseUnit == 'kg') { unit = "Kg"; }
                          else if (product.baseUnit == 'ml') { price *= 1000; unit = "L"; }
+                         else if (product.baseUnit == 'l') { unit = "L"; }
                          else if (product.baseUnit == 'cm') { price *= 100; unit = "M"; }
+                         else if (product.baseUnit == 'm') { unit = "M"; }
                       }
 
                       return GlassCard(
@@ -249,10 +499,27 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                       decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)),
                                       child: const Text("INACTIVE", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.redAccent)),
                                     )
-                                  else if (isOut)
-                                    const Icon(Icons.error_outline, color: Colors.redAccent, size: 18)
-                                  else if (isLow)
-                                    const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 18)
+                                  else
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (!product.isTaxable)
+                                          Container(
+                                            margin: const EdgeInsets.only(right: 4),
+                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.teal.withValues(alpha: 0.2),
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(color: Colors.teal.withValues(alpha: 0.4), width: 0.8),
+                                            ),
+                                            child: const Text("EXEMPT", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                                          ),
+                                        if (isOut)
+                                          const Icon(Icons.error_outline, color: Colors.redAccent, size: 18)
+                                        else if (isLow)
+                                          const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 18)
+                                      ],
+                                    )
                                ],
                              ),
                              const Spacer(),
@@ -301,7 +568,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                         ),
                                         alignment: Alignment.center,
                                         child: Text(
-                                          product.productType == 'SERVICE' ? "SERVICE" : UnitFormatter.format(product.currentStock, product.baseUnit),
+                                          product.isService ? "SERVICE" : UnitFormatter.format(product.currentStock < 0 ? 0.0 : product.currentStock, product.baseUnit),
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold, 
                                             fontSize: 16,
@@ -353,14 +620,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             return Padding(
               padding: const EdgeInsets.only(bottom: 80), // Raise above Bottom Nav
               child: FloatingActionButton.extended(
-              onPressed: () async {
-                 // ... (Add item logic)
-                if (await SubscriptionGuard.check(context, ref, SubscriptionAction.addItem)) {
-                  Navigator.push(
-                    context, 
-                    MaterialPageRoute(builder: (_) => const AddProductScreen()),
-                  );
-                }
+              onPressed: () {
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(builder: (_) => const AddProductScreen()),
+                );
               },
               backgroundColor: Colors.cyanAccent,
               foregroundColor: Colors.black,

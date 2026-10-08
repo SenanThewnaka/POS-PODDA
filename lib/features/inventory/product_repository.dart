@@ -11,9 +11,7 @@ final productRepositoryProvider = Provider((ref) {
   if (userProfile == null) {
      throw Exception("ProductRepository accessed without user profile");
   }
-  final repo = ProductRepository(userProfile.shopId);
-  repo.performIntegrityCheck(); // Self-healing
-  return repo;
+  return ProductRepository(userProfile.shopId);
 });
 
 final productsStreamProvider = StreamProvider<List<Product>>((ref) {
@@ -30,7 +28,7 @@ class ProductRepository {
       FirebaseFirestore.instance.collection('users').doc(userId).collection('products');
   
   // NOTE: Original _firestore reference for transactions is fine, but we need updated paths inside transactions.
-  final _firestore = FirebaseFirestore.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   Stream<List<Product>> productsStream() {
     // Fetch ALL and filter client-side to handle legacy data (missing isActive field implies true)
@@ -149,6 +147,60 @@ class ProductRepository {
     }
     
     return product.copyWith(id: docRef.id);
+  }
+
+  Future<int> batchAddProducts(List<Product> products) async {
+    if (products.isEmpty) return 0;
+
+    // 1. Fetch existing barcodes in this shop to avoid inserting duplicates
+    final existingSnap = await _collection.get();
+    final existingBarcodes = <String>{};
+    for (final doc in existingSnap.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final bc = data['barcode'];
+      if (bc != null && bc.toString().trim().isNotEmpty) {
+        existingBarcodes.add(bc.toString().trim());
+      }
+    }
+
+    final toAdd = products.where((p) {
+      if (p.barcode == null || p.barcode!.trim().isEmpty) return true;
+      return !existingBarcodes.contains(p.barcode!.trim());
+    }).toList();
+
+    if (toAdd.isEmpty) return 0;
+
+    // Chunk in batches of 200 (Firestore limit is 500 operations per batch)
+    const chunkSize = 200;
+    for (var i = 0; i < toAdd.length; i += chunkSize) {
+      final end = (i + chunkSize < toAdd.length) ? i + chunkSize : toAdd.length;
+      final chunk = toAdd.sublist(i, end);
+      final writeBatch = _firestore.batch();
+
+      for (final prod in chunk) {
+        final docRef = _collection.doc();
+        final data = prod.toMap();
+        data['id'] = docRef.id;
+        writeBatch.set(docRef, data);
+
+        if (prod.currentStock > 0) {
+          final batchRef = docRef.collection('batches').doc();
+          final stockBatch = StockBatch(
+            id: batchRef.id,
+            productId: docRef.id,
+            costPrice: prod.costPrice,
+            sellingPrice: prod.sellingPrice,
+            currentStock: prod.currentStock,
+            createdAt: DateTime.now(),
+            isActive: true,
+          );
+          writeBatch.set(batchRef, stockBatch.toMap());
+        }
+      }
+      await writeBatch.commit();
+    }
+
+    return toAdd.length;
   }
 
   Future<void> migrateLegacyStock(String productId, StockBatch batch) async {
@@ -317,30 +369,26 @@ class ProductRepository {
   }
 
   Future<void> processSale(List<BatchSaleItem> items) async {
-    // 1. PRE-FETCH: Get all active batches for involved products
+    // 1. PRE-FETCH: Get all active batches and product states concurrently
     Map<String, List<StockBatch>> productBatches = {};
-    
-    // We need to fetch batches AND products to do logic
-    // Let's fetch them now.
-    
-    for (var item in items) {
-       // Get active batches sorted by date (FIFO)
-       final batches = await getPosBatches(item.productId);
-       // FIX: Do NOT filter by price. Stock is physical. Deduct from oldest batch.
-       productBatches[item.productId] = batches;
-    }
-
-    // 2. READ CURRENT PRODUCT STATES (Aggregates)
-    // We need this to update the total 'currentStock'
     Map<String, Product> productMap = {};
-    for (var item in items) {
-       final doc = await _collection.doc(item.productId).get();
+
+    // Deduplicate in case multiple cart items point to the same product
+    final uniqueProductIds = items.map((e) => e.productId).toSet();
+
+    await Future.wait(uniqueProductIds.map((productId) async {
+       // A. Fetch active batches sorted by date (FIFO)
+       final batches = await getPosBatches(productId);
+       productBatches[productId] = batches;
+
+       // B. Fetch product state (Aggregate)
+       final doc = await _collection.doc(productId).get();
        if (doc.exists) {
           final data = doc.data() as Map<String, dynamic>;
           data['id'] = doc.id;
-          productMap[item.productId] = Product.fromMap(data);
+          productMap[productId] = Product.fromMap(data);
        }
-    }
+    }));
 
     // 3. PREPARE WRITE BATCH
     final writeBatch = _firestore.batch();
@@ -348,6 +396,11 @@ class ProductRepository {
     for (var item in items) {
        if (!productMap.containsKey(item.productId)) continue;
        Product product = productMap[item.productId]!;
+       
+       // Non-inventory / Service items do not track physical stock and should never go negative
+       if (product.isService) {
+         continue;
+       }
        
        // A. Deduct Aggregate
        // We can use FieldValue.increment for safety, no need to calc manually from 'product' snapshot 
