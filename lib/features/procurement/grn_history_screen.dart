@@ -8,6 +8,10 @@ import 'package:sme_buddy/features/procurement/suppliers_screen.dart';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/responsive_layout.dart';
+import 'package:sme_buddy/features/inventory/barcode_print_screen.dart';
+import 'package:sme_buddy/features/inventory/product_model.dart';
+import 'package:sme_buddy/features/inventory/product_repository.dart';
+import 'package:sme_buddy/features/inventory/services/barcode_sticker_service.dart';
 
 class GRNHistoryScreen extends ConsumerStatefulWidget {
   const GRNHistoryScreen({super.key});
@@ -24,6 +28,48 @@ class _GRNHistoryScreenState extends ConsumerState<GRNHistoryScreen> {
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _printLabelsForGRN(GRNModel grn) async {
+    final prodRepo = ref.read(productRepositoryProvider);
+    final List<BarcodeLabelItem> labelItems = [];
+
+    for (final item in grn.items) {
+      Product? prod;
+      try {
+        prod = await prodRepo.getProductById(item.productId);
+      } catch (_) {}
+
+      final qty = item.quantity.toInt().clamp(1, 9999);
+      if (prod != null) {
+        labelItems.add(BarcodeLabelItem.fromProduct(prod, quantity: qty));
+      } else {
+        labelItems.add(BarcodeLabelItem(
+          productId: item.productId,
+          productName: item.productName,
+          barcode: item.productId,
+          price: item.sellingPrice,
+          quantity: qty,
+        ));
+      }
+    }
+
+    if (!mounted) return;
+    if (labelItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No items to print in this GRN")),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BarcodePrintScreen(
+          initialItems: labelItems,
+        ),
+      ),
+    );
   }
 
   void _showGRNDetails(GRNModel grn) {
@@ -147,6 +193,18 @@ class _GRNHistoryScreenState extends ConsumerState<GRNHistoryScreen> {
           ),
         ),
         actions: [
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.cyanAccent,
+              side: const BorderSide(color: Colors.cyanAccent),
+            ),
+            icon: const Icon(Icons.qr_code_2, size: 16),
+            label: const Text("Print Labels"),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _printLabelsForGRN(grn);
+            },
+          ),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF6366F1),
@@ -402,6 +460,18 @@ class _GRNHistoryScreenState extends ConsumerState<GRNHistoryScreen> {
                 const SizedBox(width: 8),
                 _buildStatusChip(grn.paymentStatus),
                 const SizedBox(width: 4),
+                IconButton(
+                  icon: Icon(
+                    Icons.qr_code_2,
+                    size: 18,
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : Colors.cyan.shade700,
+                  ),
+                  tooltip: "Print Barcode Labels",
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(4),
+                  onPressed: () => _printLabelsForGRN(grn),
+                ),
+                const SizedBox(width: 2),
                 IconButton(
                   icon: Icon(Icons.edit_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54),
                   tooltip: "Edit GRN",

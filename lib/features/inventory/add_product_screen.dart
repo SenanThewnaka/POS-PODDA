@@ -15,6 +15,7 @@ import 'package:sme_buddy/features/subscription/subscription_guard.dart';
 import 'package:sme_buddy/utils/barcode_utils.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/inventory/services/barcode_lookup_service.dart';
+import 'package:sme_buddy/features/inventory/barcode_print_screen.dart';
 
 class AddProductScreen extends ConsumerStatefulWidget {
   final String? initialBarcode;
@@ -618,37 +619,35 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> with Single
     });
   }
 
-  Future<void> _printBarcode(String barcodeData) async {
-     // Generate PDF
-     final pdf = pw.Document();
-     final productName = _nameController.text.isEmpty ? "Product" : _nameController.text;
+  void _printBarcode(String barcodeData) {
+    final name = _nameController.text.trim().isEmpty ? "New Product" : _nameController.text.trim();
+    final isMeasurable = _tabController.index == 1;
+    final price = double.tryParse((isMeasurable ? _measPriceController : _unitPriceController).text.trim()) ?? 0.0;
+    final cost = double.tryParse((isMeasurable ? _measCostController : _unitCostController).text.trim()) ?? 0.0;
+    final baseUnit = isMeasurable
+        ? (_measureType == 'weight' ? 'g' : (_measureType == 'volume' ? 'ml' : 'cm'))
+        : null;
 
-     pdf.addPage(
-       pw.Page(
-         pageFormat: PdfPageFormat.roll80, // Receipt style width
-         build: (pw.Context context) {
-           return pw.Center(
-             child: pw.Column(
-               mainAxisSize: pw.MainAxisSize.min,
-               children: [
-                 pw.Text(productName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                 pw.SizedBox(height: 5),
-                 pw.BarcodeWidget(
-                   data: barcodeData,
-                   barcode: pw.Barcode.code128(),
-                   width: 150,
-                   height: 50,
-                 ),
-                 pw.SizedBox(height: 5),
-                 pw.Text(barcodeData, style: const pw.TextStyle(fontSize: 8)),
-               ],
-             )
-           );
-         }
-       )
-     );
+    final tempProduct = Product(
+      id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+      name: name,
+      sellingPrice: price,
+      costPrice: cost,
+      barcode: barcodeData,
+      stockType: isMeasurable ? 'weight' : 'unit',
+      baseUnit: baseUnit,
+      createdAt: DateTime.now(),
+    );
 
-     await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BarcodePrintScreen(
+          initialProducts: [tempProduct],
+          initialBarcode: barcodeData,
+        ),
+      ),
+    );
   }
 
   Future<void> _saveProduct({required bool isMeasurable}) async {

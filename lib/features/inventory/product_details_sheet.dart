@@ -12,6 +12,7 @@ import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/users/app_permissions.dart';
 import 'package:sme_buddy/features/reports/sales_repository.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:sme_buddy/features/inventory/barcode_print_screen.dart';
 
 class ProductDetailsSheet extends ConsumerStatefulWidget {
   final Product product;
@@ -357,55 +358,20 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
      }
   }
 
-  Future<void> _printBarcode() async {
-    final pdf = pw.Document();
-    pdf.addPage(pw.Page(
-      pageFormat: PdfPageFormat.roll80,
-      build: (pw.Context context) {
-        return pw.Center(
-          child: pw.Column(
-            mainAxisSize: pw.MainAxisSize.min,
-            children: [
-               pw.Text(widget.product.name, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-               pw.SizedBox(height: 5),
-               pw.BarcodeWidget(
-                 data: widget.product.barcode!,
-                 barcode: pw.Barcode.code128(),
-                 width: 150, height: 50
-               ),
-               pw.Text(widget.product.barcode!, style: const pw.TextStyle(fontSize: 8)),
-            ],
-          )
-        );
-      }
-    ));
-    await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+  void _printBarcode() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BarcodePrintScreen(
+          initialProducts: [widget.product],
+          initialBarcode: widget.product.barcode,
+        ),
+      ),
+    );
   }
 
-  Future<void> _shareBarcode() async {
-    final pdf = pw.Document();
-    // Same PDF generation
-    pdf.addPage(pw.Page(
-      pageFormat: PdfPageFormat.roll80,
-      build: (pw.Context context) {
-        return pw.Center(
-          child: pw.Column(
-            mainAxisSize: pw.MainAxisSize.min,
-            children: [
-               pw.Text(widget.product.name, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-               pw.SizedBox(height: 5),
-               pw.BarcodeWidget(
-                 data: widget.product.barcode!,
-                 barcode: pw.Barcode.code128(),
-                 width: 150, height: 50
-               ),
-               pw.Text(widget.product.barcode!, style: const pw.TextStyle(fontSize: 8)),
-            ],
-          )
-        );
-      }
-    ));
-    await Printing.sharePdf(bytes: await pdf.save(), filename: 'barcode_${widget.product.name}.pdf');
+  void _shareBarcode() {
+    _printBarcode();
   }
 
 

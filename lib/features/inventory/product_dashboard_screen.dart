@@ -19,6 +19,7 @@ import 'dart:math';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/barcode_utils.dart';
+import 'package:sme_buddy/features/inventory/barcode_print_screen.dart';
 
 class ProductDashboardScreen extends ConsumerStatefulWidget {
   final Product product;
@@ -798,33 +799,17 @@ class _ProductDashboardScreenState extends ConsumerState<ProductDashboardScreen>
     if (result != null) setState(() => _barcodeController.text = result);
   }
   
-  Future<void> _printBarcode(String barcodeData) async {
-     final pdf = pw.Document();
-     pdf.addPage(
-       pw.Page(
-         pageFormat: PdfPageFormat.roll80, 
-         build: (pw.Context context) {
-           return pw.Center(
-             child: pw.Column(
-               mainAxisSize: pw.MainAxisSize.min,
-               children: [
-                 pw.Text(widget.product.name, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                 pw.SizedBox(height: 5),
-                 pw.BarcodeWidget(
-                   data: barcodeData,
-                   barcode: pw.Barcode.code128(),
-                   width: 150,
-                   height: 50,
-                 ),
-                 pw.SizedBox(height: 5),
-                 pw.Text(barcodeData, style: const pw.TextStyle(fontSize: 8)),
-               ],
-             )
-           );
-         }
-       )
-     );
-     await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
+  void _printBarcode(String barcodeData) {
+    final effectiveProduct = widget.product.copyWith(barcode: barcodeData);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BarcodePrintScreen(
+          initialProducts: [effectiveProduct],
+          initialBarcode: barcodeData,
+        ),
+      ),
+    );
   }
 
   Future<void> _saveProductDetails() async {

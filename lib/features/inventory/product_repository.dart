@@ -62,6 +62,16 @@ class ProductRepository {
     return null;
   }
 
+  Future<Product?> getProductById(String id) async {
+    final doc = await _collection.doc(id).get();
+    if (doc.exists) {
+      final data = doc.data() as Map<String, dynamic>;
+      data['id'] = doc.id;
+      return Product.fromMap(data);
+    }
+    return null;
+  }
+
   // Cost-Optimized Count for Quota Check
   Future<int> productsCount() async {
      final countQuery = await _collection.count().get();

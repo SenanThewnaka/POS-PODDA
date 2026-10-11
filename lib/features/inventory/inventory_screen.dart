@@ -18,6 +18,7 @@ import 'package:sme_buddy/utils/shimmer_skeletons.dart';
 import 'package:sme_buddy/features/inventory/simple_scanner_screen.dart'; // Add Scanner
 import 'package:sme_buddy/features/inventory/services/barcode_lookup_service.dart';
 import 'package:sme_buddy/features/inventory/sri_lanka_catalog_sheet.dart';
+import 'package:sme_buddy/features/inventory/barcode_print_screen.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
@@ -159,6 +160,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             onPressed: _scanAndFindProduct,
           ),
           IconButton(
+            icon: const Icon(Icons.label_outlined),
+            tooltip: 'Barcode Stickers',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BarcodePrintScreen()),
+            ),
+          ),
+          IconButton(
             icon: const Icon(Icons.receipt_long),
             tooltip: 'GRN Inward Stocking',
             onPressed: () => Navigator.push(
@@ -199,7 +208,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       ),
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                         decoration: BoxDecoration(
                           color: Theme.of(context).brightness == Brightness.dark
                               ? const Color(0xFF1E293B)
@@ -221,18 +230,66 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.local_shipping_outlined, size: 18, color: Colors.cyanAccent),
-                            SizedBox(width: 8),
-                            Text(
-                              "GRN Inward",
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.cyanAccent),
+                            Icon(Icons.local_shipping_outlined, size: 16, color: Colors.cyanAccent),
+                            SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                "GRN Inward",
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.cyanAccent),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ],
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const BarcodePrintScreen()),
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF1E293B)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFF818CF8).withValues(alpha: 0.35),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.label_outlined, size: 16, color: Color(0xFF818CF8)),
+                            SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                "Stickers",
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF818CF8)),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: InkWell(
                       onTap: () => Navigator.push(
@@ -241,7 +298,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       ),
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                         decoration: BoxDecoration(
                           color: Theme.of(context).brightness == Brightness.dark
                               ? const Color(0xFF1E293B)
@@ -265,14 +322,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.business_outlined, size: 18, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54),
-                            const SizedBox(width: 8),
-                            Text(
-                              "Suppliers",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87,
+                            Icon(Icons.business_outlined, size: 16, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                "Suppliers",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
