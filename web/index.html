@@ -277,7 +277,8 @@
         "Loading POS Podda...",
         "Connecting to cloud...",
         "Syncing local database...",
-        "Preparing register..."
+        "Preparing register...",
+        "Almost ready..."
       ];
       let idx = 0;
       const statusEl = document.getElementById('loading-status');
@@ -293,7 +294,10 @@
         }, 300);
       }, 2600);
 
+      window._loaderRemoved = false;
       function removeLoader() {
+        if (window._loaderRemoved) return;
+        window._loaderRemoved = true;
         clearInterval(interval);
         const loader = document.getElementById('app-loading');
         if (loader) {
@@ -305,20 +309,14 @@
         }
       }
 
-      // Hide loader the microsecond Flutter paints its first frame
+      // Expose to Flutter Dart app (called from WidgetsBinding postFrameCallback on frame 1)
+      window.hideAppLoading = removeLoader;
+
+      // Also listen to flutter-first-frame event dispatched by Flutter web engine
       window.addEventListener('flutter-first-frame', removeLoader);
 
-      // Fallback: observe DOM for Flutter view/canvas insertion
-      const observer = new MutationObserver(function() {
-        if (document.querySelector('flutter-view, flt-glass-pane')) {
-          removeLoader();
-          observer.disconnect();
-        }
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
-
-      // Safety timeout
-      setTimeout(removeLoader, 35000);
+      // Safety timeout: 45 seconds in case connection dropped
+      setTimeout(removeLoader, 45000);
     })();
 
     // High-performance, zero-latency Web Audio POS beep synthesizer

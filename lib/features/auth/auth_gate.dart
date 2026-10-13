@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
@@ -10,6 +11,7 @@ import 'package:sme_buddy/utils/biometric_lock_service.dart';
 import 'package:sme_buddy/utils/analytics_service.dart';
 import 'package:sme_buddy/utils/device_session_service.dart';
 import 'package:sme_buddy/features/auth/session_conflict_screen.dart';
+import 'package:sme_buddy/utils/web_loader.dart';
 
 class AuthGate extends ConsumerStatefulWidget {
   const AuthGate({super.key});
@@ -26,6 +28,9 @@ class _AuthGateState extends ConsumerState<AuthGate> with WidgetsBindingObserver
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WebLoader.hide();
+    });
     _checkInitialLockState();
     DeviceSessionService.getLocalSessionId().then((id) {
       if (mounted) setState(() => _localSessionId = id);
@@ -36,7 +41,7 @@ class _AuthGateState extends ConsumerState<AuthGate> with WidgetsBindingObserver
     final enabled = await BiometricLockService.isEnabled();
     if (enabled && mounted) {
       setState(() => _isLocked = true);
-      _unlock();
+      await _unlock();
     }
   }
 
