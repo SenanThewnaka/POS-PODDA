@@ -23,6 +23,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="POS Podda">
+  <meta name="theme-color" content="#080b11">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Open Graph / Facebook -->
@@ -294,19 +295,28 @@
         }, 300);
       }, 2600);
 
+      const startTime = Date.now();
+      const MIN_DISPLAY_MS = 1000;
       window._loaderRemoved = false;
+
       function removeLoader() {
         if (window._loaderRemoved) return;
         window._loaderRemoved = true;
         clearInterval(interval);
-        const loader = document.getElementById('app-loading');
-        if (loader) {
-          loader.style.opacity = '0';
-          loader.style.pointerEvents = 'none';
-          setTimeout(function() {
-            if (loader.parentNode) loader.parentNode.removeChild(loader);
-          }, 450);
-        }
+
+        const elapsed = Date.now() - startTime;
+        const delay = Math.max(0, MIN_DISPLAY_MS - elapsed);
+
+        setTimeout(function() {
+          const loader = document.getElementById('app-loading');
+          if (loader) {
+            loader.style.opacity = '0';
+            loader.style.pointerEvents = 'none';
+            setTimeout(function() {
+              if (loader.parentNode) loader.parentNode.removeChild(loader);
+            }, 450);
+          }
+        }, delay);
       }
 
       // Expose to Flutter Dart app (called from WidgetsBinding postFrameCallback on frame 1)
