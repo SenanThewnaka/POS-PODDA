@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:sme_buddy/features/checkout/checkout_screen.dart';
 import 'package:sme_buddy/features/home/cart_provider.dart';
 import 'package:sme_buddy/features/home/home_screen.dart';
+import 'package:sme_buddy/features/home/add_to_cart_sheet.dart';
 import 'package:sme_buddy/features/inventory/product_model.dart';
 import 'package:sme_buddy/features/inventory/product_repository.dart';
 import 'package:sme_buddy/features/inventory/stock_batch_model.dart';
@@ -349,6 +350,74 @@ void main() {
 
       expect(container.read(cartProvider).isEmpty, isTrue);
       expect(container.read(cartTotalProvider), 0.0);
+    });
+
+    test('TC-POS-14A: getTotalQuantityForProduct aggregates across separate lines of same product', () {
+      final container = ProviderContainer();
+      final product = _testProducts[0];
+
+      container.read(cartProvider.notifier).addToCart(product, quantity: 2, description: 'Line 1');
+      container.read(cartProvider.notifier).addToCart(product, quantity: 3, description: 'Line 2');
+
+      final totalQty = container.read(cartProvider.notifier).getTotalQuantityForProduct(product.id);
+      expect(totalQty, 5.0);
+    });
+
+    testWidgets('TC-POS-14B: Single tap on countable product directly adds 1 quantity and second tap increments to 2', (tester) async {
+      final cartNotifier = CartNotifier();
+      await tester.pumpWidget(_createTestWidget(cartNotifier: cartNotifier));
+      await tester.pumpAndSettle();
+
+      // Tap on 'White Bread 450g' (unit product)
+      final breadFinder = find.text('White Bread 450g').first;
+      await tester.tap(breadFinder);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+
+      // Verify it was added directly without opening AddToCartSheet
+      expect(find.byType(AddToCartSheet), findsNothing);
+      expect(cartNotifier.getTotalQuantityForProduct('prod_bread'), 1.0);
+
+      // Tap again to increment
+      await tester.tap(breadFinder);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AddToCartSheet), findsNothing);
+      expect(cartNotifier.getTotalQuantityForProduct('prod_bread'), 2.0);
+    });
+
+    testWidgets('TC-POS-14C: Single tap on out-of-stock product does not add to cart and warns user', (tester) async {
+      final cartNotifier = CartNotifier();
+      await tester.pumpWidget(_createTestWidget(cartNotifier: cartNotifier));
+      await tester.pumpAndSettle();
+
+      // Tap on 'Fresh Milk 1L' (currentStock == 0)
+      final milkFinder = find.text('Fresh Milk 1L').first;
+      await tester.tap(milkFinder);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+
+      // Verify not added to cart
+      expect(cartNotifier.getTotalQuantityForProduct('prod_out_of_stock'), 0.0);
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('Out of stock! (Fresh Milk 1L)'), findsOneWidget);
+    });
+
+    testWidgets('TC-POS-14D: Single tap on measurable product opens AddToCartSheet', (tester) async {
+      final cartNotifier = CartNotifier();
+      await tester.pumpWidget(_createTestWidget(cartNotifier: cartNotifier));
+      await tester.pumpAndSettle();
+
+      // Tap on 'White Sugar' (weight product)
+      final sugarFinder = find.text('White Sugar').first;
+      await tester.tap(sugarFinder);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+
+      // Verify AddToCartSheet opened
+      expect(find.byType(AddToCartSheet), findsOneWidget);
+      expect(cartNotifier.getTotalQuantityForProduct('prod_sugar'), 0.0);
     });
   });
 

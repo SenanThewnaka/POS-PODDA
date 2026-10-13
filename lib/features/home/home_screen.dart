@@ -3,6 +3,7 @@ import 'package:sme_buddy/features/subscription/subscription_guard.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/home/cart_provider.dart'; // import cart provider
+import 'package:sme_buddy/features/inventory/product_model.dart';
 import 'package:sme_buddy/features/inventory/product_repository.dart';
 import 'package:sme_buddy/features/checkout/checkout_screen.dart';
 import 'package:sme_buddy/features/inventory/inventory_screen.dart';
@@ -291,6 +292,103 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
     );
+  }
+
+  Future<void> _handleProductTap(Product product) async {
+    final isCountable = product.stockType == 'unit' && product.productType != 'SERVICE';
+    final isFixedPriceService = product.productType == 'SERVICE' && !product.isVariablePrice && product.sellingPrice > 0;
+    final canDirectAdd = isCountable || isFixedPriceService;
+
+    if (!canDirectAdd) {
+      // Measurable product or variable-price service: must open AddToCartSheet for custom weight/price
+      await _handleProductDoubleTap(product);
+      return;
+    }
+
+    // Stock boundary check for non-service items
+    if (product.productType != 'SERVICE') {
+      final currentInCart = ref.read(cartProvider.notifier).getTotalQuantityForProduct(product.id);
+      if (currentInCart + 1 > product.currentStock) {
+        SoundService.playScanError();
+        HapticFeedback.heavyImpact();
+        if (mounted) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      product.currentStock <= 0
+                          ? "Out of stock! (${product.name})"
+                          : "Only ${UnitFormatter.format(product.currentStock, product.baseUnit)} in stock!",
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: isDark ? const Color(0xFF1E222B) : const Color(0xFF2D3748),
+              duration: const Duration(milliseconds: 1200),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    // FIFO Batch price lookup
+    double priceToUse = product.sellingPrice;
+    double costToUse = product.costPrice;
+    try {
+      final batches = await ref.read(productRepositoryProvider).getPosBatches(product.id);
+      if (batches.isNotEmpty) {
+        priceToUse = batches.first.sellingPrice;
+        costToUse = batches.first.costPrice;
+      }
+    } catch (_) {}
+
+    // Add to cart (+1 qty or increment existing item)
+    ref.read(cartProvider.notifier).addToCart(
+      product,
+      quantity: 1,
+      overridePrice: priceToUse,
+      overrideCostPrice: costToUse,
+    );
+
+    // Audio & tactile feedback
+    SoundService.playScanSuccess();
+    HapticFeedback.lightImpact();
+  }
+
+  Future<void> _handleProductDoubleTap(Product product) async {
+    // Check for Multi-Batch Prices
+    double? selectedBatchPrice;
+    try {
+      final batches = await ref.read(productRepositoryProvider).getPosBatches(product.id);
+      if (batches.isNotEmpty) {
+        final uniquePrices = batches.map((b) => b.sellingPrice).toSet().toList();
+        if (uniquePrices.length > 1) {
+          selectedBatchPrice = await BatchPriceSelectionDialog.show(context, product, batches);
+          if (selectedBatchPrice == null) return;
+        } else {
+          selectedBatchPrice = uniquePrices.first;
+        }
+      }
+    } catch (_) {}
+
+    if (mounted) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => AddToCartSheet(product: product, overridePrice: selectedBatchPrice),
+      );
+    }
   }
 
   void _promptHoldCart(double total) async {
@@ -1071,29 +1169,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        product.name,
+                                InkWell(
+                                  onTap: () {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (_) => EditCartItemSheet(cartItem: item, cartItemId: cartItemId),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          product.name,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                            color: isDark ? Colors.white : Colors.black87,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        "Rs. ${item.subTotal.toStringAsFixed(2)}",
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 13,
-                                          color: isDark ? Colors.white : Colors.black87,
+                                          color: activeColor,
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                    Text(
-                                      "Rs. ${item.subTotal.toStringAsFixed(2)}",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                        color: activeColor,
-                                      ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                                 if (item.description != null && item.description!.isNotEmpty)
                                   Padding(
@@ -1168,14 +1278,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                             child: Icon(Icons.add, size: 16, color: isDark ? Colors.white : Colors.black87),
                                           ),
                                         ),
-                                        const SizedBox(width: 4),
-                                        IconButton(
-                                          icon: const Icon(Icons.edit_note, size: 17),
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
-                                          color: isDark ? Colors.white60 : Colors.black54,
-                                          tooltip: "Edit Item",
-                                          onPressed: () {
+                                        const SizedBox(width: 6),
+                                        InkWell(
+                                          onTap: () {
                                             showModalBottomSheet(
                                               context: context,
                                               isScrollControlled: true,
@@ -1183,6 +1288,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                               builder: (_) => EditCartItemSheet(cartItem: item, cartItemId: cartItemId),
                                             );
                                           },
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                            decoration: BoxDecoration(
+                                              color: Colors.cyanAccent.withValues(alpha: isDark ? 0.15 : 0.2),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: Colors.cyanAccent.withValues(alpha: 0.35),
+                                                width: 1,
+                                              ),
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: Icon(
+                                              Icons.edit_outlined,
+                                              size: 16,
+                                              color: isDark ? Colors.cyanAccent : Colors.cyan.shade800,
+                                            ),
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -1532,30 +1656,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               borderRadius: 16,
               padding: const EdgeInsets.all(8),
               border: Border.all(color: borderColor, width: 1.5),
-              onTap: () async {
-                 // 1. Check for Multi-Batch Prices
-                 final batches = await ref.read(productRepositoryProvider).getPosBatches(product.id);
-                 double? selectedBatchPrice;
-                 
-                 if (batches.isNotEmpty) {
-                    final uniquePrices = batches.map((b) => b.sellingPrice).toSet().toList();
-                    if (uniquePrices.length > 1) {
-                       selectedBatchPrice = await BatchPriceSelectionDialog.show(context, product, batches);
-                       if (selectedBatchPrice == null) return; 
-                    } else {
-                       selectedBatchPrice = uniquePrices.first;
-                    }
-                 }
-
-                 if (context.mounted) {
-                   showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (_) => AddToCartSheet(product: product, overridePrice: selectedBatchPrice),
-                   );
-                 }
-              },
+              onTap: () => _handleProductTap(product),
+              onDoubleTap: () => _handleProductDoubleTap(product),
               onLongPress: () {
                  if (product.productType == 'SERVICE') {
                     showModalBottomSheet(
@@ -1884,7 +1986,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       if (isDiscounted)
                                         const Text("(Discounted)", style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontStyle: FontStyle.italic)),
                                       
-                                      const SizedBox(height: 8),
+                                      const SizedBox(height: 10),
                                       // Explicit Actions
                                       Row(
                                         children: [
@@ -1897,31 +1999,60 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                                   builder: (_) => EditCartItemSheet(cartItem: item, cartItemId: cartItemId),
                                               );
                                             },
-                                            child: Padding(
-                                              padding: const EdgeInsets.fromLTRB(0, 4, 8, 4),
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                              decoration: BoxDecoration(
+                                                color: Colors.cyanAccent.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.15 : 0.18),
+                                                borderRadius: BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: Colors.cyanAccent.withValues(alpha: 0.35),
+                                                  width: 1,
+                                                ),
+                                              ),
                                               child: Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  Icon(Icons.edit, size: 14, color: Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : Colors.blue),
+                                                  Icon(
+                                                    Icons.edit_outlined, 
+                                                    size: 15, 
+                                                    color: Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : Colors.cyan.shade800,
+                                                  ),
                                                   const SizedBox(width: 4),
-                                                  Text("Edit", style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : Colors.blue, fontWeight: FontWeight.bold)),
+                                                  Text(
+                                                    "Edit", 
+                                                    style: TextStyle(
+                                                      fontSize: 12, 
+                                                      color: Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : Colors.cyan.shade800, 
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
                                                 ],
                                               ),
                                             ),
                                           ),
-                                          Container(height: 12, width: 1, color: Colors.grey.withValues(alpha: 0.5)),
+                                          const SizedBox(width: 8),
                                           InkWell(
                                             onTap: () {
                                                ref.read(cartProvider.notifier).removeFromCart(cartItemId);
                                             },
-                                            child: Padding(
-                                              padding: const EdgeInsets.fromLTRB(8, 4, 0, 4),
-                                              child: Row(
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                              decoration: BoxDecoration(
+                                                color: Colors.redAccent.withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: Colors.redAccent.withValues(alpha: 0.3),
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              child: const Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  const Icon(Icons.delete, size: 14, color: Colors.redAccent),
-                                                  const SizedBox(width: 4),
-                                                  const Text("Remove", style: TextStyle(fontSize: 12, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                                                  Icon(Icons.delete_outline, size: 15, color: Colors.redAccent),
+                                                  SizedBox(width: 4),
+                                                  Text("Remove", style: TextStyle(fontSize: 12, color: Colors.redAccent, fontWeight: FontWeight.bold)),
                                                 ],
                                               ),
                                             ),

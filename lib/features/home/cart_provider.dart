@@ -179,4 +179,14 @@ class CartNotifier extends StateNotifier<Map<String, CartItem>> {
     });
     state = validMap;
   }
+
+  double getTotalQuantityForProduct(String productId) {
+    double total = 0.0;
+    for (final item in state.values) {
+      if (item.product.id == productId) {
+        total += item.quantity;
+      }
+    }
+    return total;
+  }
 }

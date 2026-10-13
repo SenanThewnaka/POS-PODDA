@@ -8,6 +8,7 @@ class GlassCard extends StatefulWidget {
   final double? height;
   final VoidCallback? onLongPress;
   final VoidCallback? onTap;
+  final VoidCallback? onDoubleTap;
   final Color? color;
   final double borderRadius;
   final BoxBorder? border;
@@ -20,6 +21,7 @@ class GlassCard extends StatefulWidget {
     this.width,
     this.height,
     this.onTap,
+    this.onDoubleTap,
     this.onLongPress,
     this.borderRadius = 20.0,
     this.border,
@@ -96,7 +98,7 @@ class _GlassCardState extends State<GlassCard> {
       ),
     );
 
-    if (widget.onTap != null || widget.onLongPress != null) {
+    if (widget.onTap != null || widget.onLongPress != null || widget.onDoubleTap != null) {
       return GestureDetector(
         onTapDown: (_) {
           if (mounted) setState(() => _isPressed = true);
@@ -108,6 +110,7 @@ class _GlassCardState extends State<GlassCard> {
           if (mounted) setState(() => _isPressed = false);
         },
         onTap: widget.onTap,
+        onDoubleTap: widget.onDoubleTap,
         onLongPress: widget.onLongPress,
         child: content,
       );
