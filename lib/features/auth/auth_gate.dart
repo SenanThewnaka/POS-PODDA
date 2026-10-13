@@ -153,7 +153,13 @@ class _AuthGateState extends ConsumerState<AuthGate> with WidgetsBindingObserver
           error: (e, st) => Scaffold(body: Center(child: Text('Profile Error: $e'))),
         );
       },
-      loading: () => const ShimmerFullPage(),
+      loading: () {
+        // Fast-path: if no user session is cached, render LoginScreen immediately without waiting
+        if (ref.read(authRepositoryProvider).currentUser == null) {
+          return const LoginScreen();
+        }
+        return const ShimmerFullPage();
+      },
       error: (e, st) => Scaffold(body: Center(child: Text('Auth Error: $e'))),
     );
   }

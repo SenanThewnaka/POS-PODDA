@@ -73,9 +73,183 @@
   <link rel="preconnect" href="https://firestore.googleapis.com">
   <link rel="manifest" href="manifest.json">
   <meta name="google-site-verification" content="TDC6WNr8TdBKxuvsVwPfmRtJT8jIHbLLT2j3diyUEdo" />
+
+  <style>
+    /* Critical Instant Styles - Painted by browser in < 50ms */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #080b11;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    #app-loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 99999;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at 50% 35%, #101c2e 0%, #080b11 70%, #030407 100%);
+      color: #ffffff;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: opacity 0.4s ease-out, visibility 0.4s ease-out;
+    }
+
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 24px;
+      max-width: 360px;
+    }
+
+    .logo-wrapper {
+      position: relative;
+      width: 96px;
+      height: 96px;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-pulse-ring {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: rgba(0, 242, 254, 0.12);
+      border: 2px solid rgba(0, 242, 254, 0.45);
+      box-shadow: 0 0 35px rgba(0, 242, 254, 0.35);
+      animation: ring-pulse 2.4s ease-in-out infinite;
+    }
+
+    .logo-pulse-ring-outer {
+      position: absolute;
+      width: 122%;
+      height: 122%;
+      border-radius: 50%;
+      border: 1px dashed rgba(0, 242, 254, 0.25);
+      animation: rotate-slow 14s linear infinite;
+    }
+
+    .logo-img {
+      width: 58px;
+      height: 58px;
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      z-index: 2;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    .app-title {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      margin: 0 0 6px 0;
+      background: linear-gradient(135deg, #ffffff 30%, #00f2fe 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .app-subtitle {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.45);
+      margin: 0 0 28px 0;
+      letter-spacing: 0.5px;
+    }
+
+    .progress-bar-container {
+      width: 190px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 99px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+
+    .progress-beam {
+      position: absolute;
+      top: 0;
+      left: -60%;
+      width: 60%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, #00f2fe, #4facfe, transparent);
+      border-radius: 99px;
+      box-shadow: 0 0 14px #00f2fe;
+      animation: slide-beam 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+
+    .status-text {
+      font-size: 12.5px;
+      color: #00f2fe;
+      opacity: 0.85;
+      margin-top: 14px;
+      height: 18px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+      transition: opacity 0.3s ease;
+    }
+
+    @keyframes ring-pulse {
+      0%, 100% {
+        transform: scale(0.96);
+        opacity: 0.75;
+        box-shadow: 0 0 20px rgba(0, 242, 254, 0.25);
+      }
+      50% {
+        transform: scale(1.05);
+        opacity: 1;
+        box-shadow: 0 0 38px rgba(0, 242, 254, 0.55);
+      }
+    }
+
+    @keyframes rotate-slow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-4px); }
+    }
+
+    @keyframes slide-beam {
+      0% { left: -60%; }
+      100% { left: 100%; }
+    }
+  </style>
 </head>
 
 <body>
+  <!-- Animated Loading Screen (Rendered instantaneously before Flutter downloads) -->
+  <div id="app-loading">
+    <div class="loading-container">
+      <div class="logo-wrapper">
+        <div class="logo-pulse-ring-outer"></div>
+        <div class="logo-pulse-ring"></div>
+        <img class="logo-img" src="icons/Icon-192.png" alt="POS Podda" onerror="this.style.display='none'" />
+      </div>
+      <h1 class="app-title">POS Podda</h1>
+      <p class="app-subtitle">Point of Sale System</p>
+      <div class="progress-bar-container">
+        <div class="progress-beam"></div>
+      </div>
+      <div id="loading-status" class="status-text">Loading POS Podda...</div>
+    </div>
+  </div>
+
   <!-- 
     SEO Semantic HTML Content (Visually hidden for users, readable by Googlebot).
     Flutter Web replaces the body, but search engine crawlers will scrape this before JS fully runs.
@@ -97,6 +271,56 @@
   </div>
 
   <script>
+    // Rotating status messages to engage users on mobile connections
+    (function() {
+      const messages = [
+        "Loading POS Podda...",
+        "Connecting to cloud...",
+        "Syncing local database...",
+        "Preparing register..."
+      ];
+      let idx = 0;
+      const statusEl = document.getElementById('loading-status');
+      const interval = setInterval(function() {
+        if (!statusEl) return;
+        idx = (idx + 1) % messages.length;
+        statusEl.style.opacity = '0';
+        setTimeout(function() {
+          if (statusEl) {
+            statusEl.textContent = messages[idx];
+            statusEl.style.opacity = '0.85';
+          }
+        }, 300);
+      }, 2600);
+
+      function removeLoader() {
+        clearInterval(interval);
+        const loader = document.getElementById('app-loading');
+        if (loader) {
+          loader.style.opacity = '0';
+          loader.style.pointerEvents = 'none';
+          setTimeout(function() {
+            if (loader.parentNode) loader.parentNode.removeChild(loader);
+          }, 450);
+        }
+      }
+
+      // Hide loader the microsecond Flutter paints its first frame
+      window.addEventListener('flutter-first-frame', removeLoader);
+
+      // Fallback: observe DOM for Flutter view/canvas insertion
+      const observer = new MutationObserver(function() {
+        if (document.querySelector('flutter-view, flt-glass-pane')) {
+          removeLoader();
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+
+      // Safety timeout
+      setTimeout(removeLoader, 35000);
+    })();
+
     // High-performance, zero-latency Web Audio POS beep synthesizer
     window.posPlayBeep = function(isSuccess) {
       try {
