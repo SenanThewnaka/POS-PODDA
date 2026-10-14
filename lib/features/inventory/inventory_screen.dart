@@ -139,10 +139,261 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     }
   }
 
+  void _showInventoryToolsSheet(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0F172A) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Drag handle
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.inventory_2_rounded, color: Color(0xFF6366F1), size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Inventory Tools & Operations",
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            "Procurement, labeling, repacking & suppliers",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white60 : Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, size: 20, color: isDark ? Colors.white60 : Colors.black54),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Tool Items
+                _buildToolItem(
+                  context: ctx,
+                  isDark: isDark,
+                  icon: Icons.receipt_long,
+                  iconColor: const Color(0xFF06B6D4),
+                  title: "GRN Inward Stocking",
+                  subtitle: "Receive stock shipments from suppliers and update cost prices",
+                  badgeText: "ERP",
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const GRNHistoryScreen()));
+                  },
+                ),
+                const SizedBox(height: 10),
+                _buildToolItem(
+                  context: ctx,
+                  isDark: isDark,
+                  icon: Icons.business_outlined,
+                  iconColor: const Color(0xFF6366F1),
+                  title: "Suppliers Directory",
+                  subtitle: "View vendor contacts, outstanding payables, and order history",
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SuppliersScreen()));
+                  },
+                ),
+                const SizedBox(height: 10),
+                _buildToolItem(
+                  context: ctx,
+                  isDark: isDark,
+                  icon: Icons.label_outlined,
+                  iconColor: const Color(0xFFF59E0B),
+                  title: "Barcode Stickers",
+                  subtitle: "Generate and print thermal barcode labels for items and shelves",
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const BarcodePrintScreen()));
+                  },
+                ),
+                const SizedBox(height: 10),
+                _buildToolItem(
+                  context: ctx,
+                  isDark: isDark,
+                  icon: Icons.compare_arrows,
+                  iconColor: const Color(0xFFA855F7),
+                  title: "Break Bulk",
+                  subtitle: "Convert bulk sacks or cartons into individual retail units",
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const BreakBulkScreen()));
+                  },
+                ),
+                const SizedBox(height: 10),
+                _buildToolItem(
+                  context: ctx,
+                  isDark: isDark,
+                  icon: Icons.storefront_outlined,
+                  iconColor: const Color(0xFF10B981),
+                  title: "Sri Lanka Starter Catalog",
+                  subtitle: "Browse and import pre-configured local retail items & barcodes",
+                  badgeText: "Quick Setup",
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    SriLankaCatalogSheet.show(context);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToolItem({
+    required BuildContext context,
+    required bool isDark,
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    String? badgeText,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                        if (badgeText != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: iconColor.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              badgeText,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: iconColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.white60 : Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: isDark ? Colors.white38 : Colors.black38,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(productsStreamProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryAccent = isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5);
 
     return GlassScaffold(
       appBar: AppBar(
@@ -150,200 +401,53 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         backgroundColor: Colors.transparent,
         actions: [
           IconButton(
-            icon: const Icon(Icons.storefront_outlined),
-            tooltip: 'Sri Lanka Starter Pack',
-            onPressed: () => SriLankaCatalogSheet.show(context),
-          ),
-          IconButton(
             icon: const Icon(Icons.qr_code_scanner),
             tooltip: 'Scan Barcode',
             onPressed: _scanAndFindProduct,
           ),
-          IconButton(
-            icon: const Icon(Icons.label_outlined),
-            tooltip: 'Barcode Stickers',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const BarcodePrintScreen()),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.receipt_long),
-            tooltip: 'GRN Inward Stocking',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const GRNHistoryScreen()),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.business_outlined),
-            tooltip: 'Suppliers Directory',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SuppliersScreen()),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.compare_arrows),
-            tooltip: 'Break Bulk',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const BreakBulkScreen()), // BreakBulk might need Glass updates too later
+          Padding(
+            padding: const EdgeInsets.only(right: 12.0),
+            child: Center(
+              child: InkWell(
+                onTap: () => _showInventoryToolsSheet(context),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: primaryAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: primaryAccent.withValues(alpha: 0.4),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.tune_rounded,
+                        size: 16,
+                        color: primaryAccent,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        "Tools",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: primaryAccent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ],
       ),
       body: Column(
         children: [
-            // Quick ERP Access (Mobile & Desktop)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const GRNHistoryScreen()),
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF1E293B)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.cyanAccent.withValues(alpha: 0.35),
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 6,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.local_shipping_outlined, size: 16, color: Colors.cyanAccent),
-                            SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                "GRN Inward",
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.cyanAccent),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const BarcodePrintScreen()),
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF1E293B)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: const Color(0xFF818CF8).withValues(alpha: 0.35),
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 6,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.label_outlined, size: 16, color: Color(0xFF818CF8)),
-                            SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                "Stickers",
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF818CF8)),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const SuppliersScreen()),
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF1E293B)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Theme.of(context).brightness == Brightness.dark
-                                ? Colors.white.withValues(alpha: 0.1)
-                                : Colors.black12,
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 6,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.business_outlined, size: 16, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                "Suppliers",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
             // FILTERS (Glass Card)
             Padding(
               padding: const EdgeInsets.all(16.0),
