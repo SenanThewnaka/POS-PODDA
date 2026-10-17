@@ -25,11 +25,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Set up Java 17 for the Firestore Emulator
+      - name: Set up Java 21 for the Firestore Emulator
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - name: Set up pinned Flutter SDK
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
