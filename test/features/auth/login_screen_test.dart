@@ -64,6 +64,9 @@ class FakeAuthRepository implements AuthRepository {
   Future<void> sendEmailVerification() async {}
 
   @override
+  Future<void> reauthenticateCurrentUser({String? currentPassword}) async {}
+
+  @override
   Future<void> changePassword(String currentPassword, String newPassword) async {}
 
   @override

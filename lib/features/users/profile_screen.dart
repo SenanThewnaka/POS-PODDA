@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
+import 'package:sme_buddy/features/users/user_model.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:intl/intl.dart';
