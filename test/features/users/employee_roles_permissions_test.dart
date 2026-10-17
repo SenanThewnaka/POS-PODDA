@@ -144,7 +144,7 @@ void main() {
       expect(owner.hasPermission('ANY_UNKNOWN_PERMISSION'), isTrue);
     });
 
-    test('Manager has admin privileges', () {
+    test('Manager requires explicitly granted feature permissions', () {
       final manager = UserModel(
         uid: 'mgr-1',
         email: 'mgr@shop.com',
@@ -155,8 +155,14 @@ void main() {
         permissions: {},
       );
 
-      expect(manager.isAdmin, isTrue);
-      expect(manager.hasPermission(AppPermissions.canViewCostPrice), isTrue);
+      expect(manager.isAdmin, isFalse);
+      expect(manager.hasPermission(AppPermissions.canViewCostPrice), isFalse);
+
+      final configuredManager = manager.copyWith(
+        permissions: AppPermissions.defaultManagerPermissions,
+      );
+      expect(configuredManager.isAdmin, isFalse);
+      expect(configuredManager.hasPermission(AppPermissions.canViewCostPrice), isTrue);
     });
 
     test('Cashier is strictly evaluated against permissions map', () {
