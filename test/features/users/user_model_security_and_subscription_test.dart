@@ -6,7 +6,7 @@ import 'package:sme_buddy/features/users/user_repository.dart';
 
 void main() {
   group('UserModel Security & Credential Protection', () {
-    test('toCacheMap strips storedPassword to prevent plaintext credential caching in SharedPreferences', () {
+    test('Firestore and cache serialization never expose plaintext employee passwords', () {
       final user = UserModel(
         uid: 'emp-101',
         email: 'cashier@shop1.sme',
@@ -14,24 +14,41 @@ void main() {
         mobile: '0712345678',
         role: 'cashier',
         shopId: 'owner-shop-1',
-        storedPassword: 'superSecretPassword123',
         expiryDate: DateTime(2027, 1, 1),
         lastSessionClaimedAt: DateTime(2026, 10, 1),
       );
 
+      final profileMap = user.toMap();
       final cacheMap = user.toCacheMap();
-
-      // storedPassword MUST be stripped from local cache representation
+      expect(profileMap.containsKey('storedPassword'), isFalse);
       expect(cacheMap.containsKey('storedPassword'), isFalse);
-      expect(cacheMap['storedPassword'], isNull);
-
-      // Safe identity and configuration fields must be preserved
+      expect(profileMap.containsKey('verificationCode'), isFalse);
+      expect(cacheMap.containsKey('verificationCode'), isFalse);
       expect(cacheMap['uid'], 'emp-101');
       expect(cacheMap['name'], 'Sunil Perera');
       expect(cacheMap['role'], 'cashier');
       expect(cacheMap['shopId'], 'owner-shop-1');
       expect(cacheMap['expiryDate'], isNotNull);
       expect(cacheMap['lastSessionClaimedAt'], isNotNull);
+    });
+    test('manager permissions are explicit and do not receive an owner bypass', () {
+      final manager = UserModel(
+        uid: 'manager-1',
+        email: 'manager@shop.sme',
+        name: 'Manager',
+        mobile: '',
+        role: 'manager',
+        shopId: 'owner-1',
+        permissions: {
+          'CAN_CHECKOUT': true,
+          'CAN_DELETE_EMPLOYEES': false,
+        },
+      );
+
+      expect(manager.isAdmin, isFalse);
+      expect(manager.hasPermission('CAN_CHECKOUT'), isTrue);
+      expect(manager.hasPermission('CAN_DELETE_EMPLOYEES'), isFalse);
+      expect(manager.hasPermission('CAN_MANAGE_GRN'), isFalse);
     });
 
     test('fromMap restores user model properties faithfully', () {
@@ -43,13 +60,16 @@ void main() {
         'role': 'cashier',
         'shopId': 'shop-1',
         'plan': 'pro',
+        'storedPassword': 'legacy-secret',
+        'verificationCode': '123456',
       };
 
       final user = UserModel.fromMap(map);
       expect(user.uid, 'emp-102');
       expect(user.role, 'cashier');
       expect(user.plan, 'pro');
-      expect(user.storedPassword, isNull);
+      expect(user.toMap().containsKey('storedPassword'), isFalse);
+      expect(user.toMap().containsKey('verificationCode'), isFalse);
     });
   });
 
@@ -135,6 +155,52 @@ void main() {
       expect(subState.isReadOnly, isTrue);
       expect(subState.canAddItems, isFalse);
       expect(subState.expirationReason, contains('expired'));
+    });
+
+    test('missing paid expiry is expired rather than an unlimited implicit trial', () async {
+      final ownerUser = UserModel(
+        uid: 'owner-no-expiry',
+        email: 'owner@example.com',
+        name: 'Owner',
+        mobile: '',
+        role: 'owner',
+        shopId: 'owner-no-expiry',
+        plan: 'trial',
+        subscriptionStatus: 'active',
+      );
+      final container = ProviderContainer(overrides: [
+        userProfileProvider.overrideWith((ref) => Stream.value(ownerUser)),
+      ]);
+
+      await container.read(userProfileProvider.future);
+      final state = container.read(subscriptionProvider);
+      expect(state.isExpired, isTrue);
+      expect(state.canAddItems, isFalse);
+      expect(state.isReadOnly, isTrue);
+      container.dispose();
+    });
+
+    test('inactive status stays expired even with a future expiry date', () async {
+      final ownerUser = UserModel(
+        uid: 'owner-inactive',
+        email: 'owner@example.com',
+        name: 'Owner',
+        mobile: '',
+        role: 'owner',
+        shopId: 'owner-inactive',
+        plan: 'pro',
+        subscriptionStatus: 'inactive',
+        expiryDate: DateTime.now().add(const Duration(days: 30)),
+      );
+      final container = ProviderContainer(overrides: [
+        userProfileProvider.overrideWith((ref) => Stream.value(ownerUser)),
+      ]);
+
+      await container.read(userProfileProvider.future);
+      final state = container.read(subscriptionProvider);
+      expect(state.isExpired, isTrue);
+      expect(state.isReadOnly, isTrue);
+      container.dispose();
     });
 
     test('Owner user uses their own profile directly without needing shopOwnerProfileProvider override', () async {

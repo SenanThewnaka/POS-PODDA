@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
 import 'package:sme_buddy/features/auth/login_screen.dart';
+import 'package:sme_buddy/features/auth/verify_email_screen.dart';
 import 'package:sme_buddy/features/home/dashboard_screen.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/auth/setup_shop_screen.dart';
@@ -114,7 +115,9 @@ class _AuthGateState extends ConsumerState<AuthGate> with WidgetsBindingObserver
 
         return userProfileAsync.when(
           data: (profile) {
-            if (profile == null) return const SetupShopScreen();
+            if (profile == null) {
+              return user.emailVerified ? const SetupShopScreen() : const VerifyEmailScreen();
+            }
             if (!profile.isActive) {
               return const Scaffold(
                 body: Center(
@@ -128,6 +131,12 @@ class _AuthGateState extends ConsumerState<AuthGate> with WidgetsBindingObserver
                   ),
                 ),
               );
+            }
+
+            // Staff accounts use synthetic shop email addresses without inboxes.
+            // Only owner accounts require Firebase Auth email verification.
+            if (profile.role == 'owner' && !user.emailVerified) {
+              return const VerifyEmailScreen();
             }
 
             // Set Analytics user properties on every app open

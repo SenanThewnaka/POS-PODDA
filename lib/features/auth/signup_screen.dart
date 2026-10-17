@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
 import 'package:sme_buddy/features/auth/widgets/google_sign_in_button.dart';
-import 'package:sme_buddy/features/users/user_model.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
-import 'dart:math';
-import 'package:sme_buddy/features/auth/verification_service.dart';
 
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
@@ -21,7 +18,6 @@ class SignupScreen extends ConsumerStatefulWidget {
 class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _emailCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
-  final _mobileCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _confirmPassCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -34,7 +30,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   void dispose() {
     _emailCtrl.dispose();
     _nameCtrl.dispose();
-    _mobileCtrl.dispose();
     _passCtrl.dispose();
     _confirmPassCtrl.dispose();
     super.dispose();
@@ -50,84 +45,28 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     setState(() => _isLoading = true);
     try {
       final repo = ref.read(authRepositoryProvider);
-      final userProfileRepo = ref.read(userProfileRepositoryProvider);
-      final rawEmail = _emailCtrl.text.trim();
-      final hasUsedTrial = await userProfileRepo.checkEmailHasUsedTrial(rawEmail);
+      final user = await repo.signUpWithEmail(_emailCtrl.text.trim(), _passCtrl.text.trim());
+      if (user == null) throw StateError('Account could not be created.');
 
-      final user = await repo.signUpWithEmail(
-        rawEmail, 
-        _passCtrl.text.trim()
-      );
-      
-      if (user != null) {
-        if (hasUsedTrial) {
-          // Trial already used or account previously deleted: mark trial expired
-          final pastDate = DateTime.now().subtract(const Duration(days: 1));
-          final userModel = UserModel(
-            uid: user.uid,
-            email: user.email!,
-            name: _nameCtrl.text.trim(),
-            mobile: _mobileCtrl.text.trim(),
-            role: 'owner',
-            shopId: user.uid,
-            shopName: "${_nameCtrl.text.trim()}'s Shop",
-            plan: 'trial',
-            subscriptionStatus: 'expired',
-            billingCycle: 'trial',
-            expiryDate: pastDate,
-            isVerified: true,
-            verificationCode: null,
-            welcomeSent: false,
-          );
-          await userProfileRepo.saveUserProfile(userModel);
-        } else {
-          // New user: grant 14-day free trial
-          final trialExpiry = DateTime.now().add(const Duration(days: 14));
-          final userModel = UserModel(
-            uid: user.uid,
-            email: user.email!,
-            name: _nameCtrl.text.trim(),
-            mobile: _mobileCtrl.text.trim(),
-            role: 'owner',
-            shopId: user.uid,
-            shopName: "${_nameCtrl.text.trim()}'s Shop",
-            plan: 'trial',
-            subscriptionStatus: 'active',
-            billingCycle: 'trial',
-            expiryDate: trialExpiry,
-            isVerified: true,
-            verificationCode: null,
-            welcomeSent: false,
-          );
-          await userProfileRepo.saveUserProfile(userModel);
-          await userProfileRepo.recordTrialGranted(user.email!, uid: user.uid, expiryDate: trialExpiry);
-        }
-      }
-      
-      // Auto-send verification email -> REPLACED WITH OTP
-      // await repo.sendEmailVerification();
-
+      await user.updateDisplayName(_nameCtrl.text.trim());
+      await repo.sendEmailVerification();
       if (mounted) {
-         // Pop back to let AuthGate handle the flow (it will see user is logged in, then check verified)
-         // Actually, if we just registered, AuthGate will trigger.
-         // We should just close this screen if pushed, or let AuthGate replace logic.
-         // Since Signup was Pushed from Login, we can pop to ensure we are back at root which is controlled by Gate?
-         // No, AuthGate is the root. If we are pushed, we are on top.
-         // We should pop all the way back.
-         Navigator.of(context).popUntil((route) => route.isFirst);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Verification link sent. Verify your email to finish setting up your shop.')),
+        );
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (e) {
       if (mounted) {
-         String message = "Signup Failed: ${e.toString()}";
-         if (e.toString().contains("email-already-in-use")) {
-            message = "This email is already registered.";
-         } else if (e.toString().contains("weak-password")) {
-            message = "Password is too weak.";
-         } else if (e.toString().contains("invalid-email")) {
-            message = "Invalid email address.";
-         }
-         
-         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
+        String message = "Signup Failed: ${e.toString()}";
+        if (e.toString().contains("email-already-in-use")) {
+          message = "This email is already registered.";
+        } else if (e.toString().contains("weak-password")) {
+          message = "Password is too weak.";
+        } else if (e.toString().contains("invalid-email")) {
+          message = "Invalid email address.";
+        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -214,8 +153,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   const SizedBox(height: 32),
 
                   _buildTextField(_nameCtrl, "Full Name", Icons.person, isDark),
-                  const SizedBox(height: 16),
-                  _buildTextField(_mobileCtrl, "Mobile Number", Icons.phone, isDark, isPhone: true),
                   const SizedBox(height: 16),
                   _buildTextField(_emailCtrl, "Email", Icons.email, isDark),
                   const SizedBox(height: 16),

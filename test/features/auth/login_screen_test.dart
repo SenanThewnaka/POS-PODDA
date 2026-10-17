@@ -49,6 +49,9 @@ class FakeAuthRepository implements AuthRepository {
   Stream<User?> get authStateChanges => const Stream.empty();
 
   @override
+  Future<User?> reloadCurrentUser() async => null;
+
+  @override
   User? get currentUser => null;
 
   @override
@@ -66,9 +69,6 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<String?> createEmployeeAccount(String email, String password) async => 'emp_123';
 
-  @override
-  Future<void> updateEmployeePassword(String email, String oldPassword, String newPassword) async {}
-
   bool signInWithGoogleCalled = false;
   UserCredential? googleCredentialToReturn;
   Object? googleErrorToThrow;
@@ -83,12 +83,10 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   bool deleteAccountCalled = false;
-  String? lastDeletePassword;
 
   @override
-  Future<void> deleteCurrentUserAccount({String? currentPassword}) async {
+  Future<void> deleteCurrentUserAccount() async {
     deleteAccountCalled = true;
-    lastDeletePassword = currentPassword;
   }
 }
 

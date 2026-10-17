@@ -70,9 +70,10 @@ tests/selenium/fail_*.png
 
 # Node / Cloud Functions
 functions/node_modules/
+tests/firestore/node_modules/
 functions/.runtimeconfig.json
 .env
 functions/.env
+functions/.secret.local
 firebase-debug.log
 firebase-debug.*.log
-

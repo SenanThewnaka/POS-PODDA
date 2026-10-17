@@ -11,7 +11,6 @@ class UserModel {
   final String? roleId; // Link to custom role
   final String? shopCode; // Unique short code for shop login (Owner only)
   final String? username; // Simplify login for employees
-  final String? storedPassword; // Stored for simple employee management (Owner reset)
   final Map<String, bool> permissions; // Feature flags
   
   final String? shopName;
@@ -38,7 +37,6 @@ class UserModel {
   final String billingCycle; // 'monthly', 'quarterly', 'yearly', 'trial'
   final DateTime? expiryDate; // Nullable to handle legacy/loading, but logic should treat null as expired or trial? Best to default.
   final bool isVerified;
-  final String? verificationCode;
   final bool welcomeSent;
 
   // Active Device Session (Single Device Enforcement for Plus Plan)
@@ -56,7 +54,6 @@ class UserModel {
     this.roleId,
     this.shopCode,
     this.username,
-    this.storedPassword,
     this.permissions = const {},
     this.shopName,
     this.shopAddress,
@@ -75,7 +72,6 @@ class UserModel {
     this.billingCycle = 'trial',
     this.expiryDate,
     this.isVerified = true,
-    this.verificationCode,
     this.welcomeSent = false,
     this.activeSessionId,
     this.activeDeviceName,
@@ -83,7 +79,7 @@ class UserModel {
   });
 
   bool hasPermission(String permission) {
-    if (isAdmin) return true; // Owners have all permissions
+    if (role == 'owner') return true;
     return permissions[permission] == true;
   }
 
@@ -98,7 +94,6 @@ class UserModel {
       'roleId': roleId,
       'shopCode': shopCode,
       'username': username,
-      'storedPassword': storedPassword,
       'permissions': permissions,
       'shopName': shopName,
       'shopAddress': shopAddress,
@@ -118,7 +113,6 @@ class UserModel {
       'billingCycle': billingCycle,
       'expiryDate': expiryDate != null ? Timestamp.fromDate(expiryDate!) : null,
       'isVerified': isVerified,
-      'verificationCode': verificationCode,
       'welcomeSent': welcomeSent,
       'activeSessionId': activeSessionId,
       'activeDeviceName': activeDeviceName,
@@ -128,8 +122,6 @@ class UserModel {
 
   Map<String, dynamic> toCacheMap() {
     final map = toMap();
-    // Do not cache sensitive credentials locally in SharedPreferences
-    map.remove('storedPassword');
     map['isDeleted'] = isDeleted;
     if (deletedAt != null) {
       map['deletedAt'] = deletedAt!.toIso8601String();
@@ -178,7 +170,6 @@ class UserModel {
       roleId: map['roleId'],
       shopCode: map['shopCode'],
       username: map['username'],
-      storedPassword: map['storedPassword'],
       permissions: Map<String, bool>.from(map['permissions'] ?? {}),
       shopName: map['shopName'],
       shopAddress: map['shopAddress'],
@@ -197,7 +188,6 @@ class UserModel {
       billingCycle: map['billingCycle'] ?? 'trial',
       expiryDate: parsedExpiry,
       isVerified: map['isVerified'] ?? true,
-      verificationCode: map['verificationCode'],
       welcomeSent: map['welcomeSent'] ?? false,
       activeSessionId: map['activeSessionId'],
       activeDeviceName: map['activeDeviceName'],
@@ -206,7 +196,7 @@ class UserModel {
   }
 
   // Helper to check if user has admin privileges
-  bool get isAdmin => role == 'owner' || role == 'manager';
+  bool get isAdmin => role == 'owner';
 
   UserModel copyWith({
     String? uid,
@@ -218,7 +208,6 @@ class UserModel {
     String? roleId,
     String? shopCode,
     String? username,
-    String? storedPassword,
     Map<String, bool>? permissions,
     String? shopName,
     String? shopAddress,
@@ -237,7 +226,6 @@ class UserModel {
     bool? isDeleted,
     DateTime? deletedAt,
     bool? isVerified,
-    String? verificationCode,
     bool? welcomeSent,
     String? activeSessionId,
     String? activeDeviceName,
@@ -253,7 +241,6 @@ class UserModel {
       roleId: roleId ?? this.roleId,
       shopCode: shopCode ?? this.shopCode,
       username: username ?? this.username,
-      storedPassword: storedPassword ?? this.storedPassword,
       permissions: permissions ?? this.permissions,
       shopName: shopName ?? this.shopName,
       shopAddress: shopAddress ?? this.shopAddress,
@@ -272,7 +259,6 @@ class UserModel {
       billingCycle: billingCycle ?? this.billingCycle,
       expiryDate: expiryDate ?? this.expiryDate,
       isVerified: isVerified ?? this.isVerified,
-      verificationCode: verificationCode ?? this.verificationCode,
       welcomeSent: welcomeSent ?? this.welcomeSent,
       activeSessionId: activeSessionId ?? this.activeSessionId,
       activeDeviceName: activeDeviceName ?? this.activeDeviceName,

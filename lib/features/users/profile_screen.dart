@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sme_buddy/features/users/user_model.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
-import 'package:sme_buddy/features/auth/verification_service.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:intl/intl.dart';
 import 'package:sme_buddy/features/subscription/plans_screen.dart';
-import 'dart:math';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -23,7 +20,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   // Controllers
   late TextEditingController _nameCtrl;
   late TextEditingController _mobileCtrl;
-  late TextEditingController _emailCtrl; // Added
+  late TextEditingController _emailCtrl;
   late TextEditingController _shopNameCtrl;
   late TextEditingController _shopAddressCtrl;
 
@@ -32,7 +29,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.initState();
     _nameCtrl = TextEditingController();
     _mobileCtrl = TextEditingController();
-    _emailCtrl = TextEditingController(); // Added
+    _emailCtrl = TextEditingController();
     _shopNameCtrl = TextEditingController();
     _shopAddressCtrl = TextEditingController();
   }
@@ -51,7 +48,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (_nameCtrl.text.isEmpty) {
         _nameCtrl.text = user.name;
         _mobileCtrl.text = user.mobile;
-        _emailCtrl.text = user.email; // Added
+        _emailCtrl.text = user.email;
         _shopNameCtrl.text = user.shopName ?? "";
         _shopAddressCtrl.text = user.shopAddress ?? "";
         
@@ -68,18 +65,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
      final rnd = DateTime.now().microsecondsSinceEpoch;
      final code = List.generate(6, (index) => chars[(rnd >> (index * 5)) % chars.length]).join();
      
-     final updated = UserModel(
-       uid: user.uid,
-       email: user.email,
-       name: user.name,
-       mobile: user.mobile,
-       role: user.role,
-       shopId: user.shopId,
-       shopName: user.shopName,
-       shopAddress: user.shopAddress,
-       shopCode: code, // Set code
-     );
-     
+     final updated = user.copyWith(shopCode: code);
+
      await ref.read(userProfileRepositoryProvider).saveUserProfile(updated);
      setState(() {}); // Refresh
   }
@@ -89,71 +76,51 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     
     final newEmail = _emailCtrl.text.trim();
     final emailChanged = newEmail != originalUser.email;
-    // 1. Handle Email Change
+    var verificationSendFailed = false;
     if (emailChanged) {
-       try {
-         final user = ref.read(authRepositoryProvider).currentUser;
-         if (user == null) throw "No Auth User";
-         
-         await user.updateEmail(newEmail);
-       } catch (e) {
-          String msg = "Email Update Failed: $e";
-          if (e.toString().contains("email-already-in-use")) msg = "Email already in use.";
-          if (e.toString().contains("requires-recent-login")) msg = "Please re-login to change email.";
-          
-          if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
-          return; // Abort
-       }
+      if (originalUser.role != 'owner') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Employee login email addresses cannot be changed here.')),
+        );
+        return;
+      }
+      try {
+        final user = ref.read(authRepositoryProvider).currentUser;
+        if (user == null) throw StateError("No Auth User");
+        await user.updateEmail(newEmail);
+        await user.getIdToken(true);
+        try {
+          await user.sendEmailVerification();
+        } catch (_) {
+          // The Auth email is already changed. The verification screen can resend later.
+          verificationSendFailed = true;
+        }
+      } catch (e) {
+        String msg = "Email Update Failed: $e";
+        if (e.toString().contains("email-already-in-use")) msg = "Email already in use.";
+        if (e.toString().contains("requires-recent-login")) msg = "Please re-login to change email.";
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+        return;
+      }
     }
 
-    final updatedUser = UserModel(
-      uid: originalUser.uid,
-      email: newEmail,
-      role: originalUser.role,
-      shopId: originalUser.shopId,
-      shopCode: originalUser.shopCode, 
-      permissions: originalUser.permissions, // Keep existing permissions
-      name: _nameCtrl.text.trim(),
-      mobile: _mobileCtrl.text.trim(),
-      shopName: originalUser.isAdmin ? _shopNameCtrl.text.trim() : originalUser.shopName,
-      shopAddress: originalUser.isAdmin ? _shopAddressCtrl.text.trim() : originalUser.shopAddress,
-      // Verification Status Update
-      isVerified: true,
-      verificationCode: null,
-      // Preserve others (Wait, if I use constructor I MUST providing others or defaults?)
-      // Ah, UserModel constructor uses defaults for optional fields.
-      // But fields like `welcomeSent`, `billingCycle`, etc. might be lost if not passed?
-      // YES! The current `_saveProfile` was LOSING data because it wasn't passing everything.
-      // The previous implementation was:
-      /*
-        final updatedUser = UserModel(
-           uid: originalUser.uid,
-           email: originalUser.email,
-           role: originalUser.role,
-      */
-      // Wait, `UserModel` fields are final.
-      // If `expiryDate`, `welcomeSent`, etc. are not passed, they use defaults (null or false).
-      // EXISTING BUG: `_saveProfile` was resetting `welcomeSent` to false and `expiryDate` to null (or default) if not copied!
-      // I MUST FIX THIS using `.copyWith`.
-      // The original code was potentially destructive for fields not in constructor call.
-    );
-     // BUT `copyWith` is safer. Let's use `copyWith`.
-     
     final finalUser = originalUser.copyWith(
        email: newEmail,
        name: _nameCtrl.text.trim(),
        mobile: _mobileCtrl.text.trim(),
        shopName: originalUser.isAdmin ? _shopNameCtrl.text.trim() : originalUser.shopName,
        shopAddress: originalUser.isAdmin ? _shopAddressCtrl.text.trim() : originalUser.shopAddress,
-       isVerified: true,
-       verificationCode: null,
+       isVerified: emailChanged ? false : originalUser.isVerified,
     );
 
-    // Save
     await ref.read(userProfileRepositoryProvider).saveUserProfile(finalUser);
-    
     setState(() => _isEditing = false);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile Updated!")));
+    if (mounted) {
+      final message = verificationSendFailed
+          ? "Profile updated. Verification email could not be sent; use the verification screen to resend."
+          : (emailChanged ? "Profile updated. Verify the new email to continue as shop owner." : "Profile Updated!");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   @override
@@ -231,7 +198,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                    const SizedBox(height: 24),
                    _buildSectionHeader("Account Info"),
-                   _buildTextField("Email", _emailCtrl, Icons.email, inputType: TextInputType.emailAddress), // Made editable
+                   _buildTextField(
+                     "Email",
+                     _emailCtrl,
+                     Icons.email,
+                     inputType: TextInputType.emailAddress,
+                     canEdit: user.role == 'owner',
+                     helperText: user.role == 'owner'
+                         ? 'Changing this address requires re-verification.'
+                         : 'Employee login email addresses are fixed.',
+                   ),
                    ListTile(
                      leading: const Icon(Icons.badge),
                      title: Text(user.role.toUpperCase()),
@@ -328,19 +304,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController ctrl, IconData icon, {TextInputType inputType = TextInputType.text}) {
+  Widget _buildTextField(
+    String label,
+    TextEditingController ctrl,
+    IconData icon, {
+    TextInputType inputType = TextInputType.text,
+    bool canEdit = true,
+    String? helperText,
+  }) {
+    final isEnabled = _isEditing && canEdit;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
         controller: ctrl,
-        enabled: _isEditing,
+        enabled: isEnabled,
         keyboardType: inputType,
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon),
+          helperText: helperText,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          filled: !_isEditing,
-          fillColor: _isEditing ? null : Theme.of(context).colorScheme.surfaceVariant.withValues(alpha: 0.5),
+          filled: !isEnabled,
+          fillColor: isEnabled ? null : Theme.of(context).colorScheme.surfaceVariant.withValues(alpha: 0.5),
         ),
         validator: (v) => v!.isEmpty ? "Required" : null,
       ),
@@ -429,13 +414,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         final authRepo = ref.read(authRepositoryProvider);
                         final userProfileRepo = ref.read(userProfileRepositoryProvider);
 
+                        // Verify fresh credentials before making any irreversible account-state changes.
+                        await authRepo.reauthenticateCurrentUser(
+                          currentPassword: isGoogleUser ? null : passwordCtrl.text.trim(),
+                        );
+
                         // 1. Record deletion in trial_history and deactivate profile
                         await userProfileRepo.deleteUserAccount(user: user);
 
                         // 2. Delete Firebase Auth account
-                        await authRepo.deleteCurrentUserAccount(
-                          currentPassword: isGoogleUser ? null : passwordCtrl.text.trim(),
-                        );
+                        await authRepo.deleteCurrentUserAccount();
 
                         if (mounted) {
                           Navigator.pop(dialogContext);
