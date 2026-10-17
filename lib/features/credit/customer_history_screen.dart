@@ -12,10 +12,11 @@ import 'package:url_launcher/url_launcher_string.dart';
 
 import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/users/app_permissions.dart';
+import 'package:sme_buddy/features/shifts/shift_repository.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/shimmer_skeletons.dart';
 
-final customerSalesProvider = StreamProvider.family<List<Sale>, String>((ref, customerId) {
+final customerSalesProvider = StreamProvider.family.autoDispose<List<Sale>, String>((ref, customerId) {
   return ref.watch(salesRepositoryProvider).getSalesByCustomer(customerId);
 });
 
@@ -296,6 +297,16 @@ class _CustomerHistoryScreenState extends ConsumerState<CustomerHistoryScreen> w
                     String custName = widget.customer.name;
                     
                     await ref.read(salesRepositoryProvider).recordPayment(sale.id, customerId, amount);
+
+                    // Record cash settlement into active shift cash drawer if one is open
+                    try {
+                      final shortBillId = sale.id.length > 6 ? sale.id.substring(0, 6) : sale.id;
+                      await ref.read(shiftRepositoryProvider).addCashTransaction(
+                        type: 'IN',
+                        amount: amount,
+                        reason: 'Credit Settlement: $custName (#$shortBillId)',
+                      );
+                    } catch (_) {}
                     
                     if (innerContext.mounted) {
                        // Use pushReplacement to replace the Dialog with the Receipt Screen

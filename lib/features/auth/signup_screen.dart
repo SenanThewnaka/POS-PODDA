@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
-import 'package:sme_buddy/features/users/user_model.dart';
+import 'package:sme_buddy/features/auth/widgets/google_sign_in_button.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
-import 'dart:math';
-import 'package:sme_buddy/features/auth/verification_service.dart';
 
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
@@ -20,13 +18,22 @@ class SignupScreen extends ConsumerStatefulWidget {
 class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _emailCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
-  final _mobileCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _confirmPassCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _nameCtrl.dispose();
+    _passCtrl.dispose();
+    _confirmPassCtrl.dispose();
+    super.dispose();
+  }
 
   void _signup() async {
     if (!_formKey.currentState!.validate()) return;
@@ -38,64 +45,79 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     setState(() => _isLoading = true);
     try {
       final repo = ref.read(authRepositoryProvider);
-      final user = await repo.signUpWithEmail(
-        _emailCtrl.text.trim(), 
-        _passCtrl.text.trim()
-      );
-      
-      final code = (100000 + Random().nextInt(900000)).toString();
-      
-      if (user != null) {
-         // Create Firestore Profile with Verification Code
-         final userModel = UserModel(
-           uid: user.uid,
-           email: user.email!, // Email is non-null after signup
-           name: _nameCtrl.text.trim(),
-           mobile: _mobileCtrl.text.trim(),
-           role: 'owner', // Default to owner for new signups
-           shopId: user.uid, // Owner's Shop ID is their own UID
-           shopName: "${_nameCtrl.text.trim()}'s Shop", // Default Shop Name
-           plan: 'trial',
-           subscriptionStatus: 'active',
-           billingCycle: 'trial',
-           expiryDate: DateTime.now().add(const Duration(days: 15)),
-           isVerified: false,
-           verificationCode: code,
-           welcomeSent: false,
-         );
-         await ref.read(userProfileRepositoryProvider).saveUserProfile(userModel);
-         
-         // Send OTP
-         await VerificationService.sendCode(user.email!, code);
-      }
-      
-      // Auto-send verification email -> REPLACED WITH OTP
-      // await repo.sendEmailVerification();
+      final user = await repo.signUpWithEmail(_emailCtrl.text.trim(), _passCtrl.text.trim());
+      if (user == null) throw StateError('Account could not be created.');
 
+      await user.updateDisplayName(_nameCtrl.text.trim());
+      await repo.sendEmailVerification();
       if (mounted) {
-         // Pop back to let AuthGate handle the flow (it will see user is logged in, then check verified)
-         // Actually, if we just registered, AuthGate will trigger.
-         // We should just close this screen if pushed, or let AuthGate replace logic.
-         // Since Signup was Pushed from Login, we can pop to ensure we are back at root which is controlled by Gate?
-         // No, AuthGate is the root. If we are pushed, we are on top.
-         // We should pop all the way back.
-         Navigator.of(context).popUntil((route) => route.isFirst);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Verification link sent. Verify your email to finish setting up your shop.')),
+        );
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (e) {
       if (mounted) {
-         String message = "Signup Failed: ${e.toString()}";
-         if (e.toString().contains("email-already-in-use")) {
-            message = "This email is already registered.";
-         } else if (e.toString().contains("weak-password")) {
-            message = "Password is too weak.";
-         } else if (e.toString().contains("invalid-email")) {
-            message = "Invalid email address.";
-         }
-         
-         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
+        String message = "Signup Failed: ${e.toString()}";
+        if (e.toString().contains("email-already-in-use")) {
+          message = "This email is already registered.";
+        } else if (e.toString().contains("weak-password")) {
+          message = "Password is too weak.";
+        } else if (e.toString().contains("invalid-email")) {
+          message = "Invalid email address.";
+        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleGoogleSignUp() async {
+    setState(() => _isGoogleLoading = true);
+    try {
+      final authRepo = ref.read(authRepositoryProvider);
+      final cred = await authRepo.signInWithGoogle();
+      if (cred == null || cred.user == null) {
+        // User cancelled the sign-in flow
+        return;
+      }
+
+      // Automatically provision owner profile if this is a first-time sign-in
+      final userProfileRepo = ref.read(userProfileRepositoryProvider);
+      await userProfileRepo.ensureUserProfileForGoogle(cred.user!);
+
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('popup_closed_by_user') ||
+          errorStr.contains('cancelled') ||
+          errorStr.contains('canceled') ||
+          errorStr.contains('sign_in_canceled')) {
+        return;
+      }
+
+      String message = "Google Sign-Up Failed";
+      if (errorStr.contains("network")) {
+        message = "Network error. Please check your internet connection.";
+      } else if (errorStr.contains("account-exists-with-different-credential")) {
+        message = "An account already exists with this email using another method.";
+      } else {
+        message = "Sign up failed: ${e.toString().replaceAll(RegExp(r'\[.*?\]'), '').trim()}";
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -131,8 +153,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   const SizedBox(height: 32),
 
                   _buildTextField(_nameCtrl, "Full Name", Icons.person, isDark),
-                  const SizedBox(height: 16),
-                  _buildTextField(_mobileCtrl, "Mobile Number", Icons.phone, isDark, isPhone: true),
                   const SizedBox(height: 16),
                   _buildTextField(_emailCtrl, "Email", Icons.email, isDark),
                   const SizedBox(height: 16),
@@ -175,7 +195,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   const SizedBox(height: 32),
 
                   ElevatedButton(
-                    onPressed: _isLoading ? null : _signup,
+                    onPressed: (_isLoading || _isGoogleLoading) ? null : _signup,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.cyanAccent,
                       foregroundColor: Colors.black,
@@ -189,6 +209,33 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       : const Text("CREATE ACCOUNT", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   ),
                   
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: isDark ? Colors.white24 : Colors.black12)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          "OR",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white54 : Colors.black45,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: isDark ? Colors.white24 : Colors.black12)),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  GoogleSignInButton(
+                    onPressed: (_isLoading || _isGoogleLoading) ? null : _handleGoogleSignUp,
+                    isLoading: _isGoogleLoading,
+                    label: "Sign up with Google",
+                  ),
+
                   const SizedBox(height: 16),
                   TextButton(
                     onPressed: () => Navigator.pop(context),

@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sme_buddy/features/home/cart_provider.dart';
 import 'package:sme_buddy/features/inventory/product_model.dart';
+import 'package:sme_buddy/utils/quantity_parser.dart';
+import 'package:sme_buddy/utils/unit_formatter.dart';
 
 // Helper to build a test product
 Product _makeProduct({
@@ -124,6 +126,62 @@ void main() {
       notifier.addToCart(product, quantity: 1);
 
       expect(container.read(cartProvider).values.first.effectivePrice, 100.0);
+    });
+
+    test('does NOT add item when quantity is 0', () {
+      final product = _makeProduct(price: 100.0);
+      notifier.addToCart(product, quantity: 0);
+
+      expect(container.read(cartProvider).isEmpty, true);
+    });
+
+    test('does NOT add item when quantity is negative', () {
+      final product = _makeProduct(price: 100.0);
+      notifier.addToCart(product, quantity: -2);
+
+      expect(container.read(cartProvider).isEmpty, true);
+    });
+  });
+
+  group('CartNotifier.updateItemDetails', () {
+    late ProviderContainer container;
+    late CartNotifier notifier;
+
+    setUp(() {
+      container = ProviderContainer();
+      notifier = container.read(cartProvider.notifier);
+    });
+
+    tearDown(() => container.dispose());
+
+    test('removes item when updated quantity is 0', () {
+      final product = _makeProduct();
+      notifier.addToCart(product, quantity: 2);
+      final itemId = container.read(cartProvider).keys.first;
+
+      notifier.updateItemDetails(itemId, newQuantity: 0);
+      expect(container.read(cartProvider).isEmpty, true);
+    });
+
+    test('removes item when updated quantity is negative', () {
+      final product = _makeProduct();
+      notifier.addToCart(product, quantity: 2);
+      final itemId = container.read(cartProvider).keys.first;
+
+      notifier.updateItemDetails(itemId, newQuantity: -1);
+      expect(container.read(cartProvider).isEmpty, true);
+    });
+
+    test('updates item details when quantity is positive', () {
+      final product = _makeProduct(price: 100.0);
+      notifier.addToCart(product, quantity: 1);
+      final itemId = container.read(cartProvider).keys.first;
+
+      notifier.updateItemDetails(itemId, newQuantity: 3, newPrice: 90.0, newDescription: 'Discounted');
+      final updated = container.read(cartProvider)[itemId]!;
+      expect(updated.quantity, 3.0);
+      expect(updated.effectivePrice, 90.0);
+      expect(updated.description, 'Discounted');
     });
   });
 
@@ -283,6 +341,71 @@ void main() {
       notifier.addToCart(_makeProduct(id: 'p2', name: 'B'));
 
       expect(container.read(cartItemCountProvider), 2);
+    });
+  });
+
+  // ─── Measurable & Variable Quantity Parsing & Formatting ──────────────────
+
+  group('QuantityParser & UnitFormatter for Measurable Products', () {
+    test('TC-QP-01: Parses weight input for baseUnit "kg"', () {
+      expect(QuantityParser.parse('500g', 'kg'), 0.5);
+      expect(QuantityParser.parse('1kg 500g', 'kg'), 1.5);
+      expect(QuantityParser.parse('2kg', 'kg'), 2.0);
+      expect(QuantityParser.parse('250g', 'kg'), 0.25);
+      expect(QuantityParser.parse('0.5', 'kg'), 0.5);
+      expect(QuantityParser.parse('1.5', 'kg'), 1.5);
+    });
+
+    test('TC-QP-02: Parses weight input for baseUnit "g"', () {
+      expect(QuantityParser.parse('500g', 'g'), 500.0);
+      expect(QuantityParser.parse('1kg', 'g'), 1000.0);
+      expect(QuantityParser.parse('1kg 500g', 'g'), 1500.0);
+      expect(QuantityParser.parse('1.5', 'g'), 1500.0);
+    });
+
+    test('TC-QP-03: Parses volume input for baseUnit "l" and "ml"', () {
+      expect(QuantityParser.parse('500ml', 'l'), 0.5);
+      expect(QuantityParser.parse('1l 250ml', 'l'), 1.25);
+      expect(QuantityParser.parse('250ml', 'ml'), 250.0);
+      expect(QuantityParser.parse('1.5l', 'ml'), 1500.0);
+    });
+
+    test('TC-QP-04: UnitFormatter formats quantities for kg and g', () {
+      expect(UnitFormatter.format(0.5, 'kg'), '500g');
+      expect(UnitFormatter.format(1.5, 'kg'), '1kg 500g');
+      expect(UnitFormatter.format(10.0, 'kg'), '10kg');
+      expect(UnitFormatter.format(500.0, 'g'), '500g');
+      expect(UnitFormatter.format(1500.0, 'g'), '1kg 500g');
+      expect(UnitFormatter.format(0.25, 'l'), '250ml');
+      expect(UnitFormatter.format(1.5, 'l'), '1L 500ml');
+    });
+
+    test('TC-QP-05: Cart calculations with baseUnit "kg" product when customer enters 500g', () {
+      final product = Product(
+        id: 'sugar-kg-1',
+        name: 'White Sugar',
+        sellingPrice: 300.0, // Rs. 300 per kg
+        costPrice: 200.0,
+        currentStock: 10.0, // 10 kg
+        stockType: 'weight',
+        baseUnit: 'kg',
+        isActive: true,
+        createdAt: DateTime(2026, 1, 1),
+      );
+
+      final parsedQty = QuantityParser.parse('500g', product.baseUnit);
+      expect(parsedQty, 0.5); // 0.5 kg
+
+      final cartItem = CartItem(
+        id: 'cart-1',
+        product: product,
+        quantity: parsedQty,
+        effectivePrice: product.sellingPrice, // 300.0
+        costPrice: product.costPrice,
+      );
+
+      // Price for 500g of sugar at Rs. 300/kg should be exactly Rs. 150.00
+      expect(cartItem.subTotal, 150.0);
     });
   });
 }

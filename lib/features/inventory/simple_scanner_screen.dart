@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:sme_buddy/utils/sound_service.dart';
 
 class SimpleScannerScreen extends StatefulWidget {
   const SimpleScannerScreen({super.key});
@@ -25,6 +26,7 @@ class _SimpleScannerScreenState extends State<SimpleScannerScreen> {
                setState(() {
                  _hasScanned = true;
                });
+               SoundService.playScanSuccess();
                Navigator.pop(context, barcode.rawValue);
                return; 
              }

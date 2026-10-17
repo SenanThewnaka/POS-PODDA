@@ -7,7 +7,7 @@ final roleRepositoryProvider = Provider<RoleRepository>((ref) {
   return RoleRepository(FirebaseFirestore.instance);
 });
 
-final shopRolesStreamProvider = StreamProvider.family<List<RoleModel>, String>((ref, shopId) {
+final shopRolesStreamProvider = StreamProvider.family.autoDispose<List<RoleModel>, String>((ref, shopId) {
   final repo = ref.watch(roleRepositoryProvider);
   return repo.getRolesStream(shopId);
 });

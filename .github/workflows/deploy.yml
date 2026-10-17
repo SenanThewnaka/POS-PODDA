@@ -1,0 +1,66 @@
+name: POS Podda CI validation
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Test and build without production credentials
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+
+      - name: Set up Java 21 for the Firestore Emulator
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up pinned Flutter SDK
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.35.6'
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Analyze Flutter application
+        # Keep warning/info diagnostics visible while making analyzer errors fatal.
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+
+      - name: Run Flutter tests
+        run: flutter test
+
+      - name: Build Flutter Web without deployment credentials
+        run: flutter build web --release --no-wasm-dry-run
+
+      - name: Install Functions dependencies
+        run: npm ci --prefix functions
+
+      - name: Test Cloud Functions validation
+        run: npm test --prefix functions
+
+      - name: Audit production Functions dependencies
+        run: npm audit --prefix functions --omit=dev --audit-level=moderate
+
+      - name: Install Firestore rules test dependencies
+        run: npm ci --prefix tests/firestore
+
+      - name: Run Firestore Emulator rules tests
+        run: npm test --prefix tests/firestore

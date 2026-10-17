@@ -1,3 +1,4 @@
+import 'package:sme_buddy/utils/responsive_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/credit/customer_model.dart';
@@ -53,7 +54,7 @@ class CustomerListScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               Text("Failed to load customers", style: TextStyle(color: Colors.red.shade300, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              const Text("Check your connection and try again.", style: TextStyle(color: Colors.white54)),
+              Text("Check your connection and try again.", style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black54)),
             ],
           ),
         ),
@@ -62,17 +63,17 @@ class CustomerListScreen extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.people_outline, size: 80, color: Colors.white30),
+                Icon(Icons.people_outline, size: 80, color: Theme.of(context).brightness == Brightness.dark ? Colors.white30 : Colors.black26),
                 const SizedBox(height: 16),
-                const Text("No Customers Yet", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white70)),
+                Text("No Customers Yet", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87)),
                 const SizedBox(height: 8),
-                const Text("Tap the + button to add your first customer.", style: TextStyle(color: Colors.white38)),
+                Text("Tap the + button to add your first customer.", style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.black54)),
               ],
             ),
           );
           
           return ListView.builder(
-            padding: const EdgeInsets.only(bottom: 300), // Increased to 300 to clear lifted FAB (Aggressive fix)
+            padding: EdgeInsets.only(bottom: context.isTabletOrDesktop ? 24 : 100),
             itemCount: customers.length,
             itemBuilder: (context, index) {
               final customer = customers[index];
