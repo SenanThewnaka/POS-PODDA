@@ -331,6 +331,13 @@ Widget _wrapWithProviders({
   );
 }
 
+Finder _buttonWithText<T extends Widget>(String text) {
+  return find.ancestor(
+    of: find.text(text),
+    matching: find.byWidgetPredicate((widget) => widget is T),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Test Suite Execution
 // ---------------------------------------------------------------------------
@@ -555,7 +562,9 @@ void main() {
       final confirmBtn = find.text('CONFIRM & INWARD');
       expect(confirmBtn, findsOneWidget);
 
-      final textButton = tester.widget<TextButton>(find.widgetWithText(TextButton, 'CONFIRM & INWARD'));
+      final textButton = tester.widget<TextButton>(
+        _buttonWithText<TextButton>('CONFIRM & INWARD'),
+      );
       expect(textButton.onPressed, isNull); // Disabled when items empty
     });
 
@@ -749,7 +758,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap CONFIRM & INWARD
-      await tester.tap(find.widgetWithText(TextButton, 'CONFIRM & INWARD'));
+      await tester.tap(_buttonWithText<TextButton>('CONFIRM & INWARD'));
       await tester.pumpAndSettle();
 
       expect(repo.receivedGRNs.length, 1);
@@ -945,7 +954,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Submit
-      final createButton = find.widgetWithText(ElevatedButton, 'Create & Add to GRN');
+      final createButton = _buttonWithText<ElevatedButton>('Create & Add to GRN');
       expect(createButton, findsOneWidget);
       await tester.ensureVisible(createButton);
       await tester.tap(createButton);
@@ -1353,8 +1362,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Details dialog should have "Edit GRN" button
-      expect(find.widgetWithText(ElevatedButton, 'Edit GRN'), findsOneWidget);
+      expect(_buttonWithText<ElevatedButton>('Edit GRN'), findsOneWidget);
     });
   });
 }
-

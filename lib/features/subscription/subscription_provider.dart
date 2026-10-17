@@ -72,8 +72,13 @@ final subscriptionProvider = Provider<SubscriptionState>((ref) {
   final effectiveUser = ownerProfile ?? user;
 
   final now = DateTime.now();
-  final isExpired = effectiveUser.expiryDate != null && effectiveUser.expiryDate!.isBefore(now);
   final plan = effectiveUser.plan.toLowerCase(); // 'trial', 'plus', 'pro', 'free'
+  final status = effectiveUser.subscriptionStatus.toLowerCase();
+  final hasSupportedPlan = const {'free', 'trial', 'plus', 'pro'}.contains(plan);
+  final hasActiveStatus = status == 'active' || status == 'trial';
+  final hasExpiredDate = effectiveUser.expiryDate != null && effectiveUser.expiryDate!.isBefore(now);
+  final missingRequiredExpiry = plan != 'free' && effectiveUser.expiryDate == null;
+  final isExpired = !hasSupportedPlan || !hasActiveStatus || hasExpiredDate || missingRequiredExpiry;
 
   if (isExpired) {
     return SubscriptionState.expired(plan, "Your $plan subscription has expired. Please renew to continue adding data.");

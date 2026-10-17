@@ -98,7 +98,7 @@ void main() {
 
       expect(find.text('Start your journey'), findsOneWidget);
       expect(find.text('Full Name'), findsOneWidget);
-      expect(find.text('Mobile Number'), findsOneWidget);
+      expect(find.text('Mobile Number'), findsNothing);
       expect(find.text('Email'), findsOneWidget);
       expect(find.text('Password'), findsOneWidget);
       expect(find.text('Confirm Password'), findsOneWidget);

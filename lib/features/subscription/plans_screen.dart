@@ -76,148 +76,32 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     if (user == null) return;
 
     setState(() => _isLoading = true);
-
     try {
       final paymentsService = ref.read(paymentsLkServiceProvider);
-      PaymentsLkCheckoutResult? checkout;
-
-      // 1. Prefer secure Cloud Function (Universal: Web, PWA, Android, iOS with no CORS)
-      try {
-        checkout = await paymentsService.createCheckoutViaCloudFunction(
-          tier: _selectedTier,
-          cycleKey: _selectedOption.cycleKey,
-        );
-      } catch (cloudErr) {
-        debugPrint("Cloud function checkout attempt: $cloudErr");
-        // Fallback: If running offline or Cloud Function is not yet deployed,
-        // native platforms can call direct gateway, while Web shows the sandbox dialog
-        if (!kIsWeb) {
-          final refId = 'sub_${user.shopId}_${DateTime.now().millisecondsSinceEpoch}';
-          final tierName = _selectedTier == 'plus' ? 'Plus' : 'Pro';
-          checkout = await paymentsService.createCheckout(
-            amountCents: _selectedOption.amountCents,
-            description: 'POS Podda $tierName - ${_selectedOption.label} Subscription',
-            reference: refId,
-            customerEmail: user.email,
-            customerName: user.name,
-            customerPhone: user.mobile,
-          );
-        } else {
-          rethrow;
-        }
-      }
+      final checkout = await paymentsService.createCheckoutViaCloudFunction(
+        tier: _selectedTier,
+        cycleKey: _selectedOption.cycleKey,
+      );
 
       if (mounted) setState(() => _isLoading = false);
+      if (checkout.checkoutId.isEmpty || checkout.url.isEmpty) {
+        throw StateError('The payment service returned an invalid checkout.');
+      }
 
-      if (checkout != null && checkout.url.isNotEmpty) {
-        await launchUrlString(checkout.url, mode: LaunchMode.externalApplication);
-
-        if (mounted && (checkout.paymentId != null || checkout.checkoutId.isNotEmpty)) {
-          _showVerificationModal(checkout.paymentId ?? '', checkout.url, checkout.checkoutId);
-        }
+      await launchUrlString(checkout.url, mode: LaunchMode.externalApplication);
+      if (mounted) {
+        _showVerificationModal(checkout.paymentId ?? '', checkout.url, checkout.checkoutId);
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        final isCorsOrFunctionError =
-            e.toString().contains('Failed to fetch') ||
-            e.toString().contains('ClientException') ||
-            e.toString().contains('UNAVAILABLE') ||
-            e.toString().contains('unavailable');
-        if (isCorsOrFunctionError) {
-          _showWebCorsTestingDialog(_selectedOption);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Payment initiation failed: $e"),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
-      }
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment could not be started or verified. Please try again later.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     }
-  }
-
-  void _showWebCorsTestingDialog(SubscriptionBillingOption option) {
-    final tierName = _selectedTier == 'plus' ? 'Plus (+)' : 'Pro';
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.info_outline, color: Colors.amber, size: 28),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                "Web Browser Notice",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "You are testing POS Podda inside a Web Browser (Chrome/Edge/Safari).",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              "Web browsers enforce strict CORS (Cross-Origin Resource Sharing) security that blocks direct client-side checkout calls to the Payments.lk API.",
-              style: TextStyle(fontSize: 13, height: 1.4),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.check_circle_outline, color: Colors.green, size: 22),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "On Android & iPhone (iOS), the payment gateway connects natively with 0 CORS issues!",
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              "To test your subscription upgrade flow right now on Web, you can activate $tierName (${option.label}) in Sandbox Mode:",
-              style: const TextStyle(fontSize: 13),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.bolt, color: Colors.white, size: 18),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _tierColor,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _activateSubscription(option);
-            },
-            label: const Text("Activate Plan (Sandbox)", style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showVerificationModal(String paymentId, String checkoutUrl, [String? checkoutId]) {
@@ -269,32 +153,20 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                               final paymentsService = ref.read(paymentsLkServiceProvider);
                               bool isSucceeded = false;
 
-                              // Try Cloud Function verification first
-                              try {
-                                final res = await paymentsService.verifyPaymentViaCloudFunction(
-                                  paymentId: paymentId.isNotEmpty ? paymentId : null,
-                                  checkoutId: checkoutId,
-                                );
-                                if (res['status'] == 'succeeded') {
-                                  isSucceeded = true;
-                                  final verifiedTier = res['tier'] as String?;
-                                  if (verifiedTier != null && verifiedTier.isNotEmpty) {
-                                    _selectedTier = verifiedTier.toLowerCase();
-                                  }
-                                }
-                              } catch (_) {
-                                // Fallback to direct gateway check if available
-                                if (paymentId.isNotEmpty) {
-                                  final payment = await paymentsService.getPayment(paymentId);
-                                  if (payment.status == 'succeeded') {
-                                    isSucceeded = true;
-                                  }
-                                }
-                              }
+                              final res = await paymentsService.verifyPaymentViaCloudFunction(
+                                paymentId: paymentId.isNotEmpty ? paymentId : null,
+                                checkoutId: checkoutId,
+                              );
+                              isSucceeded = res['status'] == 'succeeded';
 
                               if (isSucceeded) {
-                                if (context.mounted) Navigator.pop(sheetContext);
-                                await _activateSubscription(_selectedOption);
+                                if (context.mounted) {
+                                  Navigator.pop(sheetContext);
+                                  ref.invalidate(userProfileProvider);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Payment verified and subscription activated.')),
+                                  );
+                                }
                               } else {
                                 setModalState(() => isChecking = false);
                                 if (context.mounted) {
@@ -355,55 +227,6 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         );
       },
     );
-  }
-
-  Future<void> _activateSubscription(SubscriptionBillingOption option) async {
-    final user = ref.read(userProfileProvider).value;
-    if (user == null) return;
-
-    final now = DateTime.now();
-    final baseDate = (user.expiryDate != null && user.expiryDate!.isAfter(now))
-        ? user.expiryDate!
-        : now;
-    final newExpiry = baseDate.add(Duration(days: option.durationDays));
-    final tierName = _selectedTier == 'plus' ? 'Plus (+)' : 'Pro';
-
-    final updated = user.copyWith(
-      plan: _selectedTier,
-      subscriptionStatus: 'active',
-      billingCycle: option.cycleKey,
-      expiryDate: newExpiry,
-    );
-
-    await ref.read(userProfileRepositoryProvider).saveUserProfile(updated);
-
-    if (mounted) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(
-            children: [
-              Icon(Icons.stars, color: Colors.amber, size: 28),
-              SizedBox(width: 8),
-              Text("Plan Activated!"),
-            ],
-          ),
-          content: Text(
-            "Congratulations! Your shop has been upgraded to POS Podda $tierName for ${option.label}.\n\nValid until: ${DateFormat('MMM dd, yyyy').format(newExpiry)}.",
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                Navigator.pop(context);
-              },
-              child: const Text("OK, LET'S GO"),
-            ),
-          ],
-        ),
-      );
-    }
   }
 
   @override

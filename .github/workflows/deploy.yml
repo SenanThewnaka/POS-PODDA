@@ -1,60 +1,66 @@
-name: Deploy POS Podda Web to Firebase
+name: POS Podda CI validation
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
-  workflow_dispatch:
 
-# Ensure only one deploy runs at a time to prevent race conditions
-concurrency:
-  group: production-deploy
-  cancel-in-progress: false
+permissions:
+  contents: read
 
 jobs:
-  test_build_and_deploy:
-    name: Build & Deploy to Firebase Hosting
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-
-    env:
-      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_POS_PODDA }}
-      FIREBASE_CLI_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-
+  validate:
+    name: Test and build without production credentials
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
     steps:
-      - name: 📥 Check out repository
-        uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - name: 🐦 Set up Flutter SDK
-        uses: subosito/flutter-action@v2
+      - name: Set up Node.js 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          channel: 'stable'
+          node-version: '22'
+
+      - name: Set up Java 21 for the Firestore Emulator
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up pinned Flutter SDK
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.35.6'
           cache: true
 
-      - name: 📦 Install Flutter Dependencies
+      - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: 🧪 Run Automated Tests
+      - name: Analyze Flutter application
+        # Keep warning/info diagnostics visible while making analyzer errors fatal.
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+
+      - name: Run Flutter tests
         run: flutter test
 
-      - name: 🔨 Build Flutter Web (Production Release)
+      - name: Build Flutter Web without deployment credentials
         run: flutter build web --release --no-wasm-dry-run
 
-      - name: 🚀 Deploy to Firebase Hosting (Service Account)
-        if: env.FIREBASE_SERVICE_ACCOUNT != ''
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: "${{ secrets.GITHUB_TOKEN }}"
-          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT_POS_PODDA }}"
-          channelId: live
-          projectId: pos-podda
+      - name: Install Functions dependencies
+        run: npm ci --prefix functions
 
-      - name: 🚀 Deploy to Firebase Hosting (Token Fallback)
-        if: env.FIREBASE_SERVICE_ACCOUNT == '' && env.FIREBASE_CLI_TOKEN != ''
-        run: npx firebase-tools deploy --only hosting --token "${{ secrets.FIREBASE_TOKEN }}"
+      - name: Test Cloud Functions validation
+        run: npm test --prefix functions
 
-      - name: ⚠️ Deployment Notice (Missing Secrets)
-        if: env.FIREBASE_SERVICE_ACCOUNT == '' && env.FIREBASE_CLI_TOKEN == ''
-        run: |
-          echo "::warning::Firebase deployment credentials not configured yet in GitHub Secrets."
-          echo "Build and tests succeeded! To enable automatic deployment to Firebase, add 'FIREBASE_SERVICE_ACCOUNT_POS_PODDA' or 'FIREBASE_TOKEN' in GitHub Repository Settings -> Secrets and variables -> Actions."
+      - name: Audit production Functions dependencies
+        run: npm audit --prefix functions --omit=dev --audit-level=moderate
+
+      - name: Install Firestore rules test dependencies
+        run: npm ci --prefix tests/firestore
+
+      - name: Run Firestore Emulator rules tests
+        run: npm test --prefix tests/firestore

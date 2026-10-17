@@ -21,6 +21,12 @@ class EmployeeManagementScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           actions: [
+            if (userAsync.value?.role == 'owner')
+              IconButton(
+                icon: const Icon(Icons.delete_sweep_outlined),
+                tooltip: 'Remove legacy plaintext passwords',
+                onPressed: () => _cleanupLegacyPasswords(context, ref),
+              ),
             IconButton(
               icon: const Icon(Icons.admin_panel_settings),
               tooltip: "Manage Roles",
@@ -68,6 +74,46 @@ class EmployeeManagementScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _cleanupLegacyPasswords(BuildContext context, WidgetRef ref) async {
+  final user = ref.read(userProfileProvider).value;
+  if (user == null || user.role != 'owner' || user.uid != user.shopId) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Only the shop owner can remove legacy passwords.')),
+    );
+    return;
+  }
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Remove stored passwords?'),
+      content: const Text(
+        'This permanently removes old plaintext password copies from employee profiles. '
+        'Employees can keep signing in with their existing accounts; use Reset if anyone forgets a password.',
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('CANCEL')),
+        FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('REMOVE')),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+
+  try {
+    final count = await ref.read(userProfileRepositoryProvider).cleanupLegacyEmployeePasswords();
+    if (context.mounted) {
+      final message = count == 0
+          ? 'No legacy plaintext passwords were found.'
+          : 'Removed legacy plaintext passwords from $count profile${count == 1 ? '' : 's'}.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    }
+  } catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Cleanup failed: $error')));
+    }
   }
 }
 

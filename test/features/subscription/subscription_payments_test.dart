@@ -300,7 +300,7 @@ void main() {
       expect(find.text("No active subscription / Inactive"), findsOneWidget);
     });
 
-    testWidgets('shows Web CORS notice dialog when client exception occurs and activates plan in sandbox mode', (tester) async {
+    testWidgets('does not grant a subscription locally when server payment is unavailable', (tester) async {
       final fakeRepo = FakeUserProfileRepository();
       final testUser = UserModel(
         uid: 'owner-web',
@@ -315,12 +315,12 @@ void main() {
         expiryDate: DateTime.now().add(const Duration(days: 5)),
       );
 
-      final mockFailingClient = MockClient((request) async {
-        throw http.ClientException("Failed to fetch", Uri.parse("https://api.payments.lk/v1/checkouts"));
-      });
       final failingPaymentsService = PaymentsLkService(
         apiKey: 'sk_test_mock',
-        client: mockFailingClient,
+        client: MockClient((request) async => throw http.ClientException(
+          'Failed to fetch',
+          Uri.parse('https://api.payments.lk/v1/checkouts'),
+        )),
       );
 
       await tester.pumpWidget(
@@ -330,40 +330,19 @@ void main() {
             userProfileRepositoryProvider.overrideWithValue(fakeRepo),
             paymentsLkServiceProvider.overrideWithValue(failingPaymentsService),
           ],
-          child: const MaterialApp(
-            home: PlansScreen(),
-          ),
+          child: const MaterialApp(home: PlansScreen()),
         ),
       );
-
       await tester.pumpAndSettle();
 
-      // Tap the checkout button (default Pro 3 Months)
-      final payBtn = find.text("PAY RS. 7,900 • 3 MONTHS PRO");
-      expect(payBtn, findsOneWidget);
+      final payBtn = find.text('PAY RS. 7,900 • 3 MONTHS PRO');
       await tester.ensureVisible(payBtn);
       await tester.tap(payBtn);
       await tester.pumpAndSettle();
 
-      // Verify the Web Browser Notice dialog popped up
-      expect(find.text("Web Browser Notice"), findsOneWidget);
-      expect(find.textContaining("Web browsers enforce strict CORS"), findsOneWidget);
-      expect(find.textContaining("On Android & iPhone (iOS), the payment gateway connects natively"), findsOneWidget);
-
-      // Tap Activate Plan (Sandbox)
-      final activateSandboxBtn = find.text("Activate Plan (Sandbox)");
-      expect(activateSandboxBtn, findsOneWidget);
-      await tester.tap(activateSandboxBtn);
-      await tester.pumpAndSettle();
-
-      // Verify user profile was updated to Pro
-      expect(fakeRepo.savedUser, isNotNull);
-      expect(fakeRepo.savedUser!.plan, 'pro');
-      expect(fakeRepo.savedUser!.subscriptionStatus, 'active');
-      expect(fakeRepo.savedUser!.billingCycle, 'quarterly');
-
-      // Verify Plan Activated dialog appears
-      expect(find.text("Plan Activated!"), findsOneWidget);
+      expect(find.text('Activate Plan (Sandbox)'), findsNothing);
+      expect(fakeRepo.savedUser, isNull);
+      expect(testUser.plan, 'trial');
     });
   });
 

@@ -18,98 +18,104 @@ class AuthRepository {
   AuthRepository(this._firebaseAuth);
 
   Stream<User?> get authStateChanges async* {
-    if (_firebaseAuth.currentUser != null) {
-      yield _firebaseAuth.currentUser;
-    }
-    yield* _firebaseAuth.authStateChanges();
+    if (_firebaseAuth.currentUser != null) yield _firebaseAuth.currentUser;
+    yield* _firebaseAuth.userChanges();
   }
 
   User? get currentUser => _firebaseAuth.currentUser;
 
+  Future<User?> reloadCurrentUser() async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) return null;
+    await user.reload();
+    return _firebaseAuth.currentUser;
+  }
+
   Future<User?> signInWithEmail(String email, String password) async {
-    try {
-      final credential = await _firebaseAuth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      return credential.user;
-    } catch (e) {
-      rethrow;
-    }
+    final credential = await _firebaseAuth.signInWithEmailAndPassword(email: email, password: password);
+    return credential.user;
   }
 
   Future<User?> signUpWithEmail(String email, String password) async {
-    try {
-      final credential = await _firebaseAuth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      return credential.user;
-    } catch (e) {
-      rethrow;
-    }
+    final credential = await _firebaseAuth.createUserWithEmailAndPassword(email: email, password: password);
+    return credential.user;
   }
 
   Future<UserCredential?> signInWithGoogle() async {
-    try {
-      if (kIsWeb) {
-        final googleProvider = GoogleAuthProvider();
-        googleProvider.addScope('email');
-        googleProvider.addScope('profile');
-        return await _firebaseAuth.signInWithPopup(googleProvider);
-      } else {
-        final googleSignIn = GoogleSignIn(
-          scopes: ['email', 'profile'],
-        );
-        final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-        if (googleUser == null) {
-          // User cancelled the sign-in flow
-          return null;
-        }
-        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-        final OAuthCredential credential = GoogleAuthProvider.credential(
-          accessToken: googleAuth.accessToken,
-          idToken: googleAuth.idToken,
-        );
-        return await _firebaseAuth.signInWithCredential(credential);
-      }
-    } catch (e) {
-      rethrow;
+    if (kIsWeb) {
+      final googleProvider = GoogleAuthProvider()
+        ..addScope('email')
+        ..addScope('profile');
+      return _firebaseAuth.signInWithPopup(googleProvider);
     }
+
+    final googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+    final googleUser = await googleSignIn.signIn();
+    if (googleUser == null) return null;
+    final googleAuth = await googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+    return _firebaseAuth.signInWithCredential(credential);
   }
 
   Future<void> signOut() async {
     try {
-      if (!kIsWeb) {
-        await GoogleSignIn().signOut();
-      }
+      if (!kIsWeb) await GoogleSignIn().signOut();
     } catch (_) {}
     await _firebaseAuth.signOut();
   }
 
-  Future<void> deleteCurrentUserAccount({String? currentPassword}) async {
+  Future<void> reauthenticateCurrentUser({String? currentPassword}) async {
     final user = _firebaseAuth.currentUser;
-    if (user == null) throw Exception("No user logged in");
+    if (user == null) throw Exception('No user logged in');
 
     try {
       if (currentPassword != null && currentPassword.isNotEmpty && user.email != null) {
-        try {
-          final cred = EmailAuthProvider.credential(
-            email: user.email!,
-            password: currentPassword,
-          );
-          await user.reauthenticateWithCredential(cred);
-        } catch (e) {
-          final err = e.toString().toLowerCase();
-          if (err.contains('wrong-password') || err.contains('invalid-credential')) {
-            throw Exception("Incorrect password. Please verify your current password.");
-          }
-        }
+        final credential = EmailAuthProvider.credential(email: user.email!, password: currentPassword);
+        await user.reauthenticateWithCredential(credential);
+        await user.getIdToken(true);
+        return;
       }
+
+      final providerIds = user.providerData.map((provider) => provider.providerId).toSet();
+      if (providerIds.contains(GoogleAuthProvider.PROVIDER_ID)) {
+        if (kIsWeb) {
+          await user.reauthenticateWithPopup(GoogleAuthProvider());
+          await user.getIdToken(true);
+          return;
+        }
+        final googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+        final googleUser = await googleSignIn.signIn();
+        if (googleUser == null) throw Exception('Google reauthentication was cancelled.');
+        final googleAuth = await googleUser.authentication;
+        final credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+        await user.reauthenticateWithCredential(credential);
+        await user.getIdToken(true);
+        return;
+      }
+
+      throw Exception('This sign-in method needs a fresh sign-in before account deletion.');
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        throw Exception('Incorrect password. Please verify your current password.');
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> deleteCurrentUserAccount() async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) throw Exception('No user logged in');
+    try {
       await user.delete();
     } on FirebaseAuthException catch (e) {
       if (e.code == 'requires-recent-login') {
-        throw Exception("Security notice: This operation is sensitive. Please log out, log back in, and try deleting your account.");
+        throw Exception('Security notice: Please sign in again, then retry account deletion.');
       }
       rethrow;
     }
@@ -117,74 +123,28 @@ class AuthRepository {
 
   Future<void> sendEmailVerification() async {
     final user = _firebaseAuth.currentUser;
-    if (user != null && !user.emailVerified) {
-      await user.sendEmailVerification();
-    }
+    if (user != null && !user.emailVerified) await user.sendEmailVerification();
   }
-  
+
   Future<void> resetPassword(String email) async {
-      await _firebaseAuth.sendPasswordResetEmail(email: email);
+    await _firebaseAuth.sendPasswordResetEmail(email: email);
   }
 
   Future<void> changePassword(String currentPassword, String newPassword) async {
     final user = _firebaseAuth.currentUser;
-    if (user == null) throw Exception("No user logged in");
-
-    final cred = EmailAuthProvider.credential(
-      email: user.email!, 
-      password: currentPassword
-    );
-
-    // 1. Re-authenticate
-    await user.reauthenticateWithCredential(cred);
-    
-    // 2. Update Password
+    if (user == null || user.email == null) throw Exception('No email account is logged in.');
+    final credential = EmailAuthProvider.credential(email: user.email!, password: currentPassword);
+    await user.reauthenticateWithCredential(credential);
     await user.updatePassword(newPassword);
   }
 
-  // Create secondary account without signing out current user
+  /// Creates a synthetic-email employee account without signing out the owner.
   Future<String?> createEmployeeAccount(String email, String password) async {
-    FirebaseApp app = await Firebase.initializeApp(
-      name: 'Secondary',
-      options: Firebase.app().options,
-    );
-    
+    final app = await Firebase.initializeApp(name: 'Secondary', options: Firebase.app().options);
     try {
-      UserCredential cred = await FirebaseAuth.instanceFor(app: app)
+      final credential = await FirebaseAuth.instanceFor(app: app)
           .createUserWithEmailAndPassword(email: email, password: password);
-      
-      // Auto-verify email for convenience (optional)
-      // await cred.user?.sendEmailVerification();
-      
-      return cred.user?.uid;
-    } catch (e) {
-      rethrow;
-    } finally {
-      await app.delete(); 
-    }
-  }
-
-  // Admin Reset Password (Client-side workaround using stored credential)
-  Future<void> updateEmployeePassword(String email, String oldPassword, String newPassword) async {
-    FirebaseApp app = await Firebase.initializeApp(
-      name: 'SecondaryUpdate',
-      options: Firebase.app().options,
-    );
-
-    try {
-      // 1. Sign In
-      UserCredential cred = await FirebaseAuth.instanceFor(app: app)
-          .signInWithEmailAndPassword(email: email, password: oldPassword);
-      
-      // 2. Update Password
-      await cred.user?.updatePassword(newPassword);
-      
-    } catch (e) {
-      // Improve error message
-      if (e.toString().contains("wrong-password")) {
-         throw Exception("System Mismatch: The stored password does not match the cloud account. Cannot reset.");
-      }
-      rethrow;
+      return credential.user?.uid;
     } finally {
       await app.delete();
     }
