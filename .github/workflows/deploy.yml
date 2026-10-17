@@ -1,4 +1,4 @@
-name: POS Podda CI validation
+name: POS Podda CI and controlled release
 
 on:
   pull_request:
@@ -8,6 +8,12 @@ on:
     branches:
       - main
 
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: 'Full 40-character current main SHA reviewed for this release'
+        required: true
+        type: string
 permissions:
   contents: read
 
@@ -37,6 +43,8 @@ jobs:
           flutter-version: '3.35.6'
           cache: true
 
+      - name: Test production release guards (offline)
+        run: node --test tests/deployment/*.test.mjs
       - name: Install Flutter dependencies
         run: flutter pub get
 
@@ -64,3 +72,108 @@ jobs:
 
       - name: Run Firestore Emulator rules tests
         run: npm test --prefix tests/firestore
+      - name: Preserve the validated Hosting build for this release only
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: hosting-${{ github.sha }}
+          path: build/web/
+          if-no-files-found: error
+          retention-days: 1
+
+  release-preflight:
+    name: Verify production protection (no cloud identity)
+    needs: validate
+    if: >-
+      github.repository == 'SenanThewnaka/POS-PODDA' &&
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+      - name: Refuse absent or weakened production protections before referencing environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: node scripts/production-preflight.mjs
+
+  deploy-production:
+    name: Deploy approved production release
+    needs: [validate, release-preflight]
+    if: >-
+      github.repository == 'SenanThewnaka/POS-PODDA' &&
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://pos-podda.web.app
+    concurrency:
+      group: pos-podda-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+      - name: Check owner enablement and non-secret identity configuration
+        env:
+          RELEASE_ENABLED: ${{ vars.PRODUCTION_RELEASE_ENABLED }}
+          PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOYER: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          test "$RELEASE_ENABLED" = 'true' || { echo 'Owner setup and release enablement required'; exit 1; }
+          test "$PROJECT_ID" = 'pos-podda' || { echo 'Unexpected Firebase project'; exit 1; }
+          test -n "$WIF_PROVIDER" && test -n "$DEPLOYER" || { echo 'Keyless identity setup required'; exit 1; }
+      - name: Recheck protection and current main after approval / concurrency wait
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: node scripts/production-preflight.mjs
+      - name: Restore Hosting build from this validated run (never a cross-run artifact)
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: hosting-${{ github.sha }}
+          path: build/web
+      - name: Install locked Functions and Firebase CLI dependencies before authentication
+        run: |
+          npm ci --prefix functions
+          npm ci --prefix tests/firestore
+          test -s build/web/index.html
+          tests/firestore/node_modules/.bin/firebase --version
+      - name: Block known moderate or high deployment-tool advisories before authentication
+        # Currently a release blocker. Do not waive by removing this gate.
+        run: npm audit --prefix tests/firestore --audit-level=moderate
+      - name: Obtain short-lived Google credentials only after protected approval
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ vars.FIREBASE_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+      # Sequential, deliberately not atomic. Stop on any failure; do not use --force.
+      # Deploying the cleanup callable does NOT invoke it; no migration runs here.
+      - name: Deploy Firestore rules only (not indexes or data)
+        run: tests/firestore/node_modules/.bin/firebase deploy --project pos-podda --only firestore:rules --non-interactive
+      - name: Deploy Functions (never invoke legacy-password cleanup)
+        run: tests/firestore/node_modules/.bin/firebase deploy --project pos-podda --only functions --non-interactive
+      - name: Deploy validated Hosting build last
+        run: tests/firestore/node_modules/.bin/firebase deploy --project pos-podda --only hosting --non-interactive
