@@ -51,12 +51,15 @@
         ".git",
         "firebase-debug.log",
         "firebase-debug.*.log",
-        "*.local"
+        "*.local",
+        ".env",
+        ".env.*"
       ]
     }
   ],
   "hosting": {
     "public": "build/web",
+    "cleanUrls": true,
     "ignore": [
       "firebase.json",
       "**/.*",
