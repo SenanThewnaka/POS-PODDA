@@ -77,3 +77,6 @@ functions/.env
 functions/.secret.local
 firebase-debug.log
 firebase-debug.*.log
+
+# Ephemeral GitHub OIDC ADC files (never commit or package)
+gha-creds-*.json

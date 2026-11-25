@@ -73,3 +73,7 @@ To run this project on your local machine, you will need to set up your own Fire
 This project is licensed under a **Custom Non-Commercial License**. 
 
 You are strictly prohibited from using, selling, reselling, bundling, or distributing this software for commercial purposes or financial gain. For more detailed terms, please see the [LICENSE](LICENSE) file.
+
+## Production releases
+
+See [the controlled production release runbook](docs/production-release.md) for required owner setup, keyless identity, protection gates, and current release blockers. Pushes and merges validate only; production release requires separate authorization and manual dispatch.
