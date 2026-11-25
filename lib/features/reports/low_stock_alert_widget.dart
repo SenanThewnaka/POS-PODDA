@@ -5,8 +5,8 @@ import 'package:sme_buddy/features/inventory/product_model.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 import 'package:sme_buddy/utils/unit_formatter.dart';
 
-final lowStockProvider = FutureProvider<List<Product>>((ref) {
-  return ref.read(productRepositoryProvider).getLowStockItems();
+final lowStockProvider = FutureProvider.autoDispose<List<Product>>((ref) {
+  return ref.watch(productRepositoryProvider).getLowStockItems();
 });
 
 class LowStockAlertWidget extends ConsumerWidget {

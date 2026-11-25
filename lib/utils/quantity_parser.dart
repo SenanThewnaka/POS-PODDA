@@ -1,54 +1,93 @@
 class QuantityParser {
   // Parses a natural language quantity string into the Base Unit amount.
-  // [input]: "1kg 500g", "2.5 L", "5 feet".
-  // [baseUnit]: 'g', 'ml', 'cm'.
-  // Returns the total quantity in the base unit (e.g. 1500.0).
-  static double parse(String input, String baseUnit) {
+  // [input]: "1kg 500g", "2.5 L", "500g", "5 feet".
+  // [baseUnit]: 'g', 'kg', 'ml', 'l', 'cm', 'm', 'unit'.
+  // Returns the total quantity in the product's base unit.
+  static double parse(String input, String? baseUnit) {
     if (input.isEmpty) return 0;
     
-    String cleanInput = input.toLowerCase().replaceAll(',', ' ').replaceAll('  ', ' ');
-    double total = 0;
+    final String cleanInput = input.toLowerCase().replaceAll(',', ' ').replaceAll('  ', ' ');
+    final String normalizedUnit = (baseUnit ?? 'g').trim().toLowerCase();
 
-    // RegEx patterns for different units
-    
-    // WEIGHT (Base: g)
-    if (baseUnit == 'g') {
-      total += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*kg')) * 1000;
-      total += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*g\b')); // \b to avoid matching kg
+    // WEIGHT (Base: g or kg)
+    if (normalizedUnit == 'g' || normalizedUnit == 'kg') {
+      double grams = 0;
+      grams += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*kg')) * 1000;
+      grams += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*g\b')); // \b to avoid matching kg
+
+      if (grams > 0) {
+        return normalizedUnit == 'kg' ? grams / 1000.0 : grams;
+      }
+
+      // Fallback: raw numeric input (e.g. "1.5" or "500")
+      final double? raw = double.tryParse(cleanInput.trim());
+      if (raw != null) {
+        if (normalizedUnit == 'g') {
+          // If base is grams, assume small values (< 20) are typed in kg (e.g., 1.5 -> 1500g)
+          return raw < 20 ? raw * 1000.0 : raw;
+        } else {
+          // If base is kg, assume large values (>= 50) were typed in grams (e.g., 500 -> 0.5kg)
+          return raw >= 50 ? raw / 1000.0 : raw;
+        }
+      }
     }
     
-    // VOLUME (Base: ml)
-    else if (baseUnit == 'ml') {
-      total += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*l\b')) * 1000; // L
-      total += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*liters?')) * 1000; 
-      total += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*ml'));
+    // VOLUME (Base: ml or l)
+    else if (normalizedUnit == 'ml' || normalizedUnit == 'l') {
+      double ml = 0;
+      ml += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*l\b')) * 1000; // L
+      ml += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*liters?')) * 1000; 
+      ml += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*ml'));
+
+      if (ml > 0) {
+        return normalizedUnit == 'l' ? ml / 1000.0 : ml;
+      }
+
+      final double? raw = double.tryParse(cleanInput.trim());
+      if (raw != null) {
+        if (normalizedUnit == 'ml') {
+          return raw < 20 ? raw * 1000.0 : raw;
+        } else {
+          return raw >= 50 ? raw / 1000.0 : raw;
+        }
+      }
     }
     
-    // LENGTH (Base: cm)
-    else if (baseUnit == 'cm') {
-      total += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*m\b')) * 100; // Meters
-      total += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*meters?')) * 100; 
-      total += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*cm'));
+    // LENGTH (Base: cm or m)
+    else if (normalizedUnit == 'cm' || normalizedUnit == 'm') {
+      double cm = 0;
+      cm += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*m\b')) * 100; // Meters
+      cm += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*meters?')) * 100; 
+      cm += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*cm'));
       
       // Feet & Inches support (1 ft = 30.48 cm)
-      total += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*ft')) * 30.48;
-      total += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*feet')) * 30.48;
-      total += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*inch(es)?')) * 2.54;
-    }
+      cm += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*ft')) * 30.48;
+      cm += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*feet')) * 30.48;
+      cm += _extractValue(cleanInput, RegExp(r'(\d+(\.\d+)?)\s*inch(es)?')) * 2.54;
 
-    // Fallback: If no units found, assume user typed raw number for base unit? 
-    // Or maybe they typed "1.5" implying main unit (Kg/L/M)?
-    // Let's assume if it's just a number, it's the MAIN UNIT (e.g. 1.5 -> 1.5kg -> 1500g)
-    // ONLY if the regex didn't match anything.
-    if (total == 0) {
-      double? raw = double.tryParse(cleanInput.trim());
+      if (cm > 0) {
+        return normalizedUnit == 'm' ? cm / 100.0 : cm;
+      }
+
+      final double? raw = double.tryParse(cleanInput.trim());
       if (raw != null) {
-         if (baseUnit == 'g' || baseUnit == 'ml') return raw * 1000;
-         if (baseUnit == 'cm') return raw * 100;
+        if (normalizedUnit == 'cm') {
+          return raw < 10 ? raw * 100.0 : raw;
+        } else {
+          return raw;
+        }
       }
     }
 
-    return total;
+    // Generic fallback for pure numbers
+    final double? raw = double.tryParse(cleanInput.trim());
+    if (raw != null) {
+      if (normalizedUnit == 'g' || normalizedUnit == 'ml') return raw * 1000.0;
+      if (normalizedUnit == 'cm') return raw * 100.0;
+      return raw;
+    }
+
+    return 0.0;
   }
 
   static double _extractValue(String input, RegExp patterns) {

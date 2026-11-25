@@ -14,7 +14,10 @@ class GlassAlert {
       title: title,
       child: Text(
         message, 
-        style: const TextStyle(fontSize: 16, color: Colors.white70),
+        style: TextStyle(
+          fontSize: 16, 
+          color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : const Color(0xFF334155),
+        ),
         textAlign: TextAlign.center,
       ),
       actions: [
@@ -47,7 +50,10 @@ class GlassAlert {
       title: title,
       child: Text(
         message, 
-        style: const TextStyle(fontSize: 16, color: Colors.white70),
+        style: TextStyle(
+          fontSize: 16, 
+          color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : const Color(0xFF334155),
+        ),
         textAlign: TextAlign.center,
       ),
       actions: [

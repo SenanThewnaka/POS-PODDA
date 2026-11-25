@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/users/user_model.dart';
 import 'package:sme_buddy/features/users/user_repository.dart';
-import 'package:sme_buddy/features/auth/auth_repository.dart'; // Import AuthRepo
 import 'package:sme_buddy/features/users/app_permissions.dart';
 import 'package:sme_buddy/features/roles/role_model.dart';
 import 'package:sme_buddy/features/roles/role_repository.dart';
@@ -21,10 +20,8 @@ class _EditEmployeeScreenState extends ConsumerState<EditEmployeeScreen> {
   late TextEditingController _nameCtrl;
   late TextEditingController _userCtrl;
   late TextEditingController _mobileCtrl;
-  late TextEditingController _passCtrl; // New
   String? _selectedRoleId;              // New
   late String _selectedRoleName;        // New: Track role name for display/save
-  bool _isPasswordVisible = false;      // New
   bool _isLoading = false;
 
   @override
@@ -36,7 +33,6 @@ class _EditEmployeeScreenState extends ConsumerState<EditEmployeeScreen> {
     _nameCtrl = TextEditingController(text: widget.employee.name);
     _userCtrl = TextEditingController(text: widget.employee.username ?? "");
     _mobileCtrl = TextEditingController(text: widget.employee.mobile);
-    _passCtrl = TextEditingController(text: widget.employee.storedPassword ?? ""); // Init
   }
   
   @override
@@ -44,51 +40,72 @@ class _EditEmployeeScreenState extends ConsumerState<EditEmployeeScreen> {
     _nameCtrl.dispose();
     _userCtrl.dispose();
     _mobileCtrl.dispose();
-    _passCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     setState(() => _isLoading = true);
     try {
-      // PASSWORD UPDATE LOGIC
-      String? newPassword = widget.employee.storedPassword;
-      
-      // If password field changed and is valid
-      if (_passCtrl.text.isNotEmpty && _passCtrl.text != widget.employee.storedPassword) {
-         if (widget.employee.storedPassword == null) {
-            throw "Cannot reset password for legacy accounts locally. Please delete and recreate.";
-         }
-         
-         // Call Repository to update Auth
-         await ref.read(authRepositoryProvider).updateEmployeePassword(
-            widget.employee.email, 
-            widget.employee.storedPassword!, 
-            _passCtrl.text.trim()
-         );
-         newPassword = _passCtrl.text.trim();
-      }
-
-      final updatedUser = UserModel(
-        uid: widget.employee.uid,
-        email: widget.employee.email,
-        name: _nameCtrl.text.trim(),
-        mobile: _mobileCtrl.text.trim(),
-        role: _selectedRoleName.toLowerCase(), // Save selected role name (lowercased standard)
-        roleId: _selectedRoleId, // Save Role ID
-        shopId: widget.employee.shopId,
-        shopCode: widget.employee.shopCode,
-        username: _userCtrl.text.trim(),
-        storedPassword: newPassword, // Save new password
-        permissions: _permissions,
-        shopName: widget.employee.shopName,
-      );
-
+      final updatedData = Map<String, dynamic>.from(widget.employee.toMap())
+        ..addAll({
+          'name': _nameCtrl.text.trim(),
+          'mobile': _mobileCtrl.text.trim(),
+          'role': _selectedRoleName.toLowerCase(),
+          'roleId': _selectedRoleId,
+          'username': _userCtrl.text.trim(),
+          'permissions': _permissions,
+        });
+      final updatedUser = UserModel.fromMap(updatedData);
       await ref.read(userProfileRepositoryProvider).saveUserProfile(updatedUser);
       if (mounted) Navigator.pop(context);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Employee Updated!")));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _resetEmployeePassword() async {
+    final currentUser = ref.read(userProfileProvider).value;
+    if (currentUser == null || currentUser.role != 'owner' || currentUser.uid != widget.employee.shopId) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Only the shop owner can reset this password.')));
+      return;
+    }
+
+    final passwordController = TextEditingController();
+    final newPassword = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reset employee password'),
+        content: TextField(
+          controller: passwordController,
+          obscureText: true,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'New password', helperText: 'At least 6 characters'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('CANCEL')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, passwordController.text), child: const Text('RESET')),
+        ],
+      ),
+    );
+    passwordController.dispose();
+    if (newPassword == null) return;
+    if (newPassword.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.')));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await ref.read(userProfileRepositoryProvider).setEmployeePassword(
+        employeeUid: widget.employee.uid,
+        newPassword: newPassword,
+      );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Employee password reset.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Password reset failed: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -104,6 +121,8 @@ class _EditEmployeeScreenState extends ConsumerState<EditEmployeeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = ref.watch(userProfileProvider).value;
+    final canResetPassword = currentUser?.role == 'owner' && currentUser?.uid == widget.employee.shopId;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -182,33 +201,19 @@ class _EditEmployeeScreenState extends ConsumerState<EditEmployeeScreen> {
                       decoration: const InputDecoration(labelText: "Username (Login ID)", prefixIcon: Icon(Icons.badge_outlined), border: InputBorder.none),
                       onTap: () => _userCtrl.selection = TextSelection(baseOffset: 0, extentOffset: _userCtrl.text.length),
                     ),
-                    if (widget.employee.storedPassword != null) ...[
-                       const Divider(),
-                       TextField(
-                         controller: _passCtrl,
-                         obscureText: !_isPasswordVisible,
-                         decoration: InputDecoration(
-                           labelText: "Login Password", 
-                           prefixIcon: const Icon(Icons.lock_outline), 
-                           border: InputBorder.none,
-                           suffixIcon: IconButton(
-                             icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off),
-                             onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
-                           )
-                         ),
-                         onTap: () => _passCtrl.selection = TextSelection(baseOffset: 0, extentOffset: _passCtrl.text.length),
-                       ),
-                    ] else ...[
-                       const Divider(),
-                       const Padding(
-                         padding: EdgeInsets.symmetric(vertical: 12),
-                         child: Row(children: [
-                           Icon(Icons.warning, color: Colors.orange),
-                           SizedBox(width: 8),
-                           Expanded(child: Text("Legacy Account: Password not viewable/editable.", style: TextStyle(color: Colors.orange))),
-                         ]),
-                       )
-                    ]
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Password'),
+                      subtitle: const Text('Passwords are not stored in the employee profile.'),
+                      trailing: canResetPassword
+                          ? TextButton.icon(
+                              onPressed: _isLoading ? null : _resetEmployeePassword,
+                              icon: const Icon(Icons.lock_reset),
+                              label: const Text('RESET'),
+                            )
+                          : null,
+                    ),
                   ],
                 ),
               ),

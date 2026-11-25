@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/auth/auth_repository.dart';
@@ -9,6 +10,9 @@ import 'package:sme_buddy/features/auth/setup_shop_screen.dart';
 import 'package:sme_buddy/utils/shimmer_skeletons.dart';
 import 'package:sme_buddy/utils/biometric_lock_service.dart';
 import 'package:sme_buddy/utils/analytics_service.dart';
+import 'package:sme_buddy/utils/device_session_service.dart';
+import 'package:sme_buddy/features/auth/session_conflict_screen.dart';
+import 'package:sme_buddy/utils/web_loader.dart';
 
 class AuthGate extends ConsumerStatefulWidget {
   const AuthGate({super.key});
@@ -19,11 +23,27 @@ class AuthGate extends ConsumerStatefulWidget {
 
 class _AuthGateState extends ConsumerState<AuthGate> with WidgetsBindingObserver {
   bool _isLocked = false;
+  String? _localSessionId;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WebLoader.hide();
+    });
+    _checkInitialLockState();
+    DeviceSessionService.getLocalSessionId().then((id) {
+      if (mounted) setState(() => _localSessionId = id);
+    });
+  }
+
+  Future<void> _checkInitialLockState() async {
+    final enabled = await BiometricLockService.isEnabled();
+    if (enabled && mounted) {
+      setState(() => _isLocked = true);
+      await _unlock();
+    }
   }
 
   @override
@@ -95,11 +115,9 @@ class _AuthGateState extends ConsumerState<AuthGate> with WidgetsBindingObserver
 
         return userProfileAsync.when(
           data: (profile) {
-            final isEmployee = user.email != null && user.email!.endsWith('.sme');
-            final isVerified = user.emailVerified || (profile != null && profile.isVerified) || isEmployee;
-
-            if (!isVerified) return const VerifyEmailScreen();
-            if (profile == null) return const SetupShopScreen();
+            if (profile == null) {
+              return user.emailVerified ? const SetupShopScreen() : const VerifyEmailScreen();
+            }
             if (!profile.isActive) {
               return const Scaffold(
                 body: Center(
@@ -115,6 +133,12 @@ class _AuthGateState extends ConsumerState<AuthGate> with WidgetsBindingObserver
               );
             }
 
+            // Staff accounts use synthetic shop email addresses without inboxes.
+            // Only owner accounts require Firebase Auth email verification.
+            if (profile.role == 'owner' && !user.emailVerified) {
+              return const VerifyEmailScreen();
+            }
+
             // Set Analytics user properties on every app open
             AnalyticsService.setUserProperties(
               userId: profile.uid,
@@ -122,13 +146,34 @@ class _AuthGateState extends ConsumerState<AuthGate> with WidgetsBindingObserver
               role: profile.role,
             );
 
+            // Enforce Single-Device Session Lock for Plus & non-Pro accounts
+            // Pro tier accounts have unlimited concurrent devices
+            final effectivePlan = (ref.watch(shopOwnerProfileProvider).value?.plan ?? profile.plan).toLowerCase();
+            if (_localSessionId != null && effectivePlan != 'pro') {
+              if (profile.activeSessionId == null || profile.activeSessionId!.isEmpty) {
+                // Automatically register this device as the active counter
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  DeviceSessionService.claimActiveSession(user: profile, ref: ref);
+                });
+              } else if (profile.activeSessionId != _localSessionId) {
+                // Another device holds the active session lock
+                return SessionConflictScreen(user: profile);
+              }
+            }
+
             return const DashboardScreen();
           },
           loading: () => const ShimmerFullPage(),
           error: (e, st) => Scaffold(body: Center(child: Text('Profile Error: $e'))),
         );
       },
-      loading: () => const ShimmerFullPage(),
+      loading: () {
+        // Fast-path: if no user session is cached, render LoginScreen immediately without waiting
+        if (ref.read(authRepositoryProvider).currentUser == null) {
+          return const LoginScreen();
+        }
+        return const ShimmerFullPage();
+      },
       error: (e, st) => Scaffold(body: Center(child: Text('Auth Error: $e'))),
     );
   }

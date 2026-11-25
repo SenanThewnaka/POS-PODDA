@@ -1,11 +1,11 @@
 {
-    "name": "sme_buddy",
-    "short_name": "sme_buddy",
+    "name": "POS Podda",
+    "short_name": "POS Podda",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#132148",
-    "theme_color": "#132148",
-    "description": "A new Flutter project.",
+    "background_color": "#080b11",
+    "theme_color": "#080b11",
+    "description": "Cloud & Mobile POS System for Sri Lanka",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

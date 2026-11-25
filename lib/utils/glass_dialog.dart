@@ -30,6 +30,8 @@ class GlassDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,
@@ -38,8 +40,7 @@ class GlassDialog extends StatelessWidget {
         width: width,
         borderRadius: 24,
         padding: const EdgeInsets.all(0), 
-        border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.3), width: 1.5),
-        color: Theme.of(context).brightness == Brightness.dark ? Colors.black.withValues(alpha: 0.85) : null,
+        color: isDark ? const Color(0xFF1E222B) : const Color(0xFFE8ECEF),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -48,11 +49,16 @@ class GlassDialog extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.1))),
+                  border: Border(bottom: BorderSide(color: isDark ? const Color(0xFF282E3A) : const Color(0xFFCBD5E1))),
                 ),
                 child: Text(
                   title!.toUpperCase(), 
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.cyanAccent),
+                  style: TextStyle(
+                    fontSize: 18, 
+                    fontWeight: FontWeight.bold, 
+                    letterSpacing: 1.5, 
+                    color: isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5),
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -66,7 +72,8 @@ class GlassDialog extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.2),
+                  color: isDark ? const Color(0xFF161920) : const Color(0xFFDFE4EA),
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,

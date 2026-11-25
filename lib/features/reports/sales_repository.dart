@@ -36,11 +36,11 @@ final salesRepositoryProvider = Provider((ref) {
   return repo;
 });
 
-final salesSummaryProvider = StreamProvider.family<DailySummary, DateTimeRange>((ref, range) {
+final salesSummaryProvider = StreamProvider.family.autoDispose<DailySummary, DateTimeRange>((ref, range) {
   return ref.watch(salesRepositoryProvider).getStatsStream(range.start, range.end);
 });
 
-final salesListProvider = StreamProvider.family<List<Sale>, DateTimeRange>((ref, range) {
+final salesListProvider = StreamProvider.family.autoDispose<List<Sale>, DateTimeRange>((ref, range) {
   return ref.watch(salesRepositoryProvider).getSalesStream(range.start, range.end);
 });
 
@@ -61,21 +61,17 @@ class SalesRepository {
   CollectionReference get _metadataCollection =>
       FirebaseFirestore.instance.collection('shops').doc(currentUser.shopId).collection('system');
 
-  Future<Sale> recordSale(double amount, String method, String? customerId, Map<String, CartItem> cartItems) async {
+  Future<Sale> recordSale(
+    double amount,
+    String method,
+    String? customerId,
+    Map<String, CartItem> cartItems, {
+    double? amountTendered,
+    Map<String, double>? splitPayments,
+  }) async {
     final docRef = _collection.doc();
     final todayStr = DateFormat('yyyy_MM_dd').format(DateTime.now());
     final statsRef = _statsCollection.doc(todayStr);
-    
-    // ... (rest of recordSale logic is fine, no changes needed inside)
-    // Actually, I need to preserve the recordSale implementation from previous step, 
-    // but replaced_file_content requires me to provide the content I'm replacing + context.
-    // Since I'm essentially inserting methods or modifying the class structure, 
-    // I should be careful not to overwrite the long recordSale unless I provide it all.
-    // 
-    // Strategy: I will use `performMaintenance` as the anchor to insert the migration logic BEFORE or AFTER it,
-    // Or I can add the migration method at the end of the class.
-    // 
-    // Let's modify `performMaintenance` to INLCUDE the migration check.
     
     // Convert Cart (Map<String, CartItem>) to List<SaleItem>
     final List<SaleItem> lineItems = cartItems.values.map((item) {
@@ -101,24 +97,54 @@ class SalesRepository {
         quantity: item.quantity,
         subTotal: item.subTotal,
         description: item.description,
+        isTaxable: item.product.isTaxable,
       );
     }).toList();
 
-    print("RECORDING SALE: Total=$amount, Method=$method, Customer=$customerId");
+    print("RECORDING SALE: Total=$amount, Method=$method, Customer=$customerId, Split=$splitPayments");
+    
+    final double cashPortion = method == 'CASH'
+        ? amount
+        : (method == 'SPLIT' ? (splitPayments?['CASH'] ?? 0.0) : 0.0);
+    final double cardPortion = method == 'CARD'
+        ? amount
+        : (method == 'SPLIT' ? (splitPayments?['CARD'] ?? 0.0) : 0.0);
+    final double creditPortion = method == 'CREDIT'
+        ? amount
+        : (method == 'SPLIT' ? (splitPayments?['CREDIT'] ?? 0.0) : 0.0);
+
+    double tenderPaid;
+    if (method == 'CASH') {
+      tenderPaid = (amountTendered != null && amountTendered >= amount ? amountTendered : amount);
+    } else if (method == 'SPLIT') {
+      tenderPaid = cashPortion + cardPortion;
+    } else if (method == 'CARD') {
+      tenderPaid = amount;
+    } else {
+      tenderPaid = 0.0;
+    }
+
+    final bool isFullyPaid = method == 'CREDIT'
+        ? false
+        : (method == 'SPLIT' ? creditPortion <= 0.0 : true);
+
     final sale = Sale(
       id: docRef.id,
       timestamp: DateTime.now(),
       totalAmount: amount,
       paymentMethod: method,
       customerId: customerId,
-      isFullyPaid: method != 'CREDIT', // Cash/Card = Paid. Credit = Not Paid.
-      amountPaid: method != 'CREDIT' ? amount : 0, 
+      isFullyPaid: isFullyPaid,
+      amountPaid: tenderPaid, 
       items: lineItems,
       userId: currentUser.uid, // Audit
       userName: currentUser.name, // Audit
+      splitPayments: splitPayments,
     );
     
-    // ATOMIC WRITE: Sale Doc + Stats Increment
+    // ATOMIC WRITE: Sale Doc + Stats Increment + Customer Balance (all or nothing).
+    // Previously updateBalance was called separately BEFORE recordSale, causing desync if
+    // any later step (stock deduction, etc.) failed — resulting in "overdue shows but no record".
     await FirebaseFirestore.instance.runTransaction((transaction) async {
        // 1. Write Sale
        transaction.set(docRef, sale.toMap());
@@ -126,10 +152,19 @@ class SalesRepository {
        // 2. Increment Stats (Blind Write / SetMerge)
        transaction.set(statsRef, {
          'totalSales': FieldValue.increment(amount),
-         'cashInHand': method == 'CASH' ? FieldValue.increment(amount) : FieldValue.increment(0),
-         'creditGiven': method == 'CREDIT' ? FieldValue.increment(amount) : FieldValue.increment(0),
+         'cashInHand': FieldValue.increment(cashPortion),
+         'creditGiven': FieldValue.increment(creditPortion),
          'updatedAt': FieldValue.serverTimestamp(),
        }, SetOptions(merge: true));
+
+       // 3. ATOMIC: Update customer balance for credit portion in the same transaction.
+       // This ensures the sale record and the outstanding balance ALWAYS stay in sync.
+       if (creditPortion > 0 && customerId != null && customerId.isNotEmpty) {
+         final customerRef = _customerCollection.doc(customerId);
+         transaction.update(customerRef, {
+           'currentBalance': FieldValue.increment(creditPortion),
+         });
+       }
     });
     
     print("Sale Saved Successfully: ${docRef.id}");
@@ -148,24 +183,8 @@ class SalesRepository {
   Future<void> performMaintenance() async {
      // A. Backfill Stats if needed (One-time Migration)
      _checkAndRunStatsMigration();
-
-     // B. Delete Old Sales
-     try {
-       final cutoff = DateTime.now().subtract(const Duration(days: 60));
-       // Batch delete is safer for large sets
-       final snapshot = await _collection.where('timestamp', isLessThan: Timestamp.fromDate(cutoff)).limit(500).get();
-       
-       if (snapshot.docs.isNotEmpty) {
-         print("Maintenance: Deleting ${snapshot.docs.length} old sales records.");
-         final batch = FirebaseFirestore.instance.batch();
-         for(var doc in snapshot.docs) {
-           batch.delete(doc.reference);
-         }
-         await batch.commit();
-       }
-     } catch (e) {
-       print("Maintenance Error: $e");
-     }
+     // NOTE: Sales records are strictly retained permanently for tax compliance,
+     // warranty audits, receipt verification, and customer credit ledger integrity.
   }
 
   Future<void> _checkAndRunStatsMigration() async {
@@ -355,6 +374,14 @@ class SalesRepository {
            'currentBalance': currentBalance - amount
          });
        }
+
+       // Update today's cash stats so daily cash collection balances
+       final todayStr = DateFormat('yyyy_MM_dd').format(DateTime.now());
+       final statsRef = _statsCollection.doc(todayStr);
+       transaction.set(statsRef, {
+         'cashInHand': FieldValue.increment(amount),
+         'updatedAt': FieldValue.serverTimestamp(),
+       }, SetOptions(merge: true));
     });
   }
 
@@ -390,7 +417,15 @@ class SalesRepository {
     final Map<String, double> breakdown = {};
     
     for (var sale in sales) {
-      breakdown[sale.paymentMethod] = (breakdown[sale.paymentMethod] ?? 0) + sale.totalAmount;
+      if (sale.paymentMethod == 'SPLIT' && sale.splitPayments != null) {
+        sale.splitPayments!.forEach((key, val) {
+          if (key != 'CASH_TENDERED' && val > 0) {
+            breakdown[key] = (breakdown[key] ?? 0) + val;
+          }
+        });
+      } else {
+        breakdown[sale.paymentMethod] = (breakdown[sale.paymentMethod] ?? 0) + sale.totalAmount;
+      }
     }
     return breakdown;
   }
@@ -424,5 +459,34 @@ class SalesRepository {
       hoursMap[hour] = (hoursMap[hour] ?? 0) + 1;
     }
     return hoursMap;
+  }
+
+  // 5. Fetch Single Sale by ID (For Receipt Verification & Reprints)
+  Future<Sale?> getSaleById(String saleId) async {
+    try {
+      final doc = await _collection.doc(saleId.trim()).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return Sale.fromMap(doc.data() as Map<String, dynamic>);
+    } catch (e) {
+      print("Error fetching sale $saleId: $e");
+      return null;
+    }
+  }
+
+  // 6. Update Sale Payment Details (Correct Cash Tendered After Checkout)
+  Future<Sale> updateSalePaymentDetails({
+    required String saleId,
+    required double amountPaid,
+  }) async {
+    await _collection.doc(saleId.trim()).update({
+      'amountPaid': amountPaid,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final updated = await getSaleById(saleId.trim());
+    if (updated == null) {
+      throw Exception("Sale $saleId not found after updating payment details");
+    }
+    return updated;
   }
 }

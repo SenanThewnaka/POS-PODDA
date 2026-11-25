@@ -3,9 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sme_buddy/features/home/cart_provider.dart';
 import 'package:sme_buddy/features/inventory/product_model.dart';
+import 'package:sme_buddy/features/users/user_repository.dart';
+import 'package:sme_buddy/features/users/app_permissions.dart';
 import 'package:sme_buddy/utils/quantity_parser.dart';
 import 'package:sme_buddy/utils/unit_formatter.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:sme_buddy/utils/text_controller_extensions.dart';
 
 class AddToCartSheet extends ConsumerStatefulWidget {
   final Product product;
@@ -49,6 +52,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
     if (widget.product.stockType == 'unit' || widget.product.stockType == 'service') {
       _quantity = 1.0;
       _smartInputController.text = "1"; // Init text for Unit Counter
+      _smartInputController.selectAll();
     } else {
        _quantity = 0.0;
     }
@@ -57,6 +61,22 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
     if (widget.product.costPrice > 0) {
       _manualCostController.text = widget.product.costPrice.toStringAsFixed(2);
     }
+
+    _qtyFocusNode.addListener(() {
+      if (_qtyFocusNode.hasFocus) {
+        _smartInputController.selectAll();
+      }
+    });
+    _costFocusNode.addListener(() {
+      if (_costFocusNode.hasFocus) {
+        _manualCostController.selectAll();
+      }
+    });
+    _discountFocusNode.addListener(() {
+      if (_discountFocusNode.hasFocus) {
+        _overridePriceController.selectAll();
+      }
+    });
   }
 
   @override
@@ -75,23 +95,45 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
   void _parseInput(String val) {
     if (widget.product.stockType == 'unit') return;
     
-    double qty = QuantityParser.parse(val, widget.product.baseUnit!);
+    final trimmed = val.trim();
+    final bUnit = widget.product.baseUnit ?? 'g';
+    if (trimmed.isEmpty) {
+      setState(() {
+        _quantity = 0.0;
+        _parsedFeedback = "";
+        _errorMessage = null;
+      });
+      return;
+    }
+    double qty = QuantityParser.parse(trimmed, bUnit);
     setState(() {
       _quantity = qty;
-      _parsedFeedback = _quantity > 0 ? "Adding: ${UnitFormatter.format(_quantity, widget.product.baseUnit)}" : "";
-      _errorMessage = null; // Clear error on change
+      if (qty <= 0) {
+        _errorMessage = "Quantity must be greater than 0";
+        _parsedFeedback = "";
+      } else {
+        _errorMessage = null;
+        _parsedFeedback = "Adding: ${UnitFormatter.format(_quantity, bUnit)}";
+      }
     });
   }
 
   // Submit Handler (Extracted for Enter Key)
-  // Submit Handler (Extracted for Enter Key)
   void _submit() {
+     if (_quantity <= 0) {
+       setState(() {
+         _errorMessage = "Quantity must be greater than 0";
+       });
+       return;
+     }
+
      // Helper for Conversion
      double conversionFactor = 1.0;
      if (widget.product.stockType != 'unit' && widget.product.stockType != 'service') {
-        if (widget.product.baseUnit == 'g' || widget.product.baseUnit == 'ml') {
+        final bUnit = (widget.product.baseUnit ?? 'g').trim().toLowerCase();
+        if (bUnit == 'g' || bUnit == 'ml') {
            conversionFactor = 1000.0;
-        } else if (widget.product.baseUnit == 'cm') {
+        } else if (bUnit == 'cm') {
            conversionFactor = 100.0;
         }
      }
@@ -118,13 +160,24 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
        }
      }
 
+     if (finalTotalSelling < 0) {
+       setState(() {
+         _errorMessage = "Total price cannot be negative";
+       });
+       return;
+     }
+
      if (_quantity > 0 && finalTotalSelling >= 0 
           && !(widget.product.isVariablePrice && (double.tryParse(_overridePriceController.text) ?? 0) <= 0)
           && !(widget.product.isVariablePrice && (double.tryParse(_manualCostController.text) ?? -1) < 0) 
       ) { 
                 final cart = ref.read(cartProvider);
-                final existingItem = cart[widget.product.id];
-                final currentQtyInCart = existingItem?.quantity ?? 0.0;
+                double currentQtyInCart = 0.0;
+                for (final item in cart.values) {
+                  if (item.product.id == widget.product.id) {
+                    currentQtyInCart += item.quantity;
+                  }
+                }
                 final totalRequested = currentQtyInCart + _quantity;
                 
                 // Stock Check - Skip for Services
@@ -189,6 +242,10 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(userProfileProvider).valueOrNull;
+    final canGiveDiscount = user == null ? true : (user.isAdmin || user.hasPermission(AppPermissions.canGiveDiscount));
+    final canViewCost = user == null ? true : (user.isAdmin || user.hasPermission(AppPermissions.canViewCostPrice));
+
     // Financial Calcs
     
     // 1. Calculate Standard Totals using EFFECTIVE Rate (from batch selection)
@@ -199,11 +256,21 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
     String displayUnitLabel = "/${widget.product.baseUnit ?? 'unit'}";
     
     if (widget.product.stockType != 'unit' && widget.product.stockType != 'service') {
-       if (widget.product.baseUnit == 'g' || widget.product.baseUnit == 'ml') {
+       final bUnit = (widget.product.baseUnit ?? 'g').trim().toLowerCase();
+       if (bUnit == 'g' || bUnit == 'ml') {
           conversionFactor = 1000.0;
-          displayUnitLabel = widget.product.baseUnit == 'g' ? "/kg" : "/L";
-       } else if (widget.product.baseUnit == 'cm') {
+          displayUnitLabel = bUnit == 'g' ? "/kg" : "/L";
+       } else if (bUnit == 'cm') {
           conversionFactor = 100.0;
+          displayUnitLabel = "/m";
+       } else if (bUnit == 'kg') {
+          conversionFactor = 1.0;
+          displayUnitLabel = "/kg";
+       } else if (bUnit == 'l') {
+          conversionFactor = 1.0;
+          displayUnitLabel = "/L";
+       } else if (bUnit == 'm') {
+          conversionFactor = 1.0;
           displayUnitLabel = "/m";
        }
     }
@@ -380,7 +447,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                     const SizedBox(height: 16),
                     
                     // DISCOUNT TYPE TOGGLE
-                    if (!widget.product.isVariablePrice)
+                    if (!widget.product.isVariablePrice && canGiveDiscount)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Row(
@@ -391,11 +458,27 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                   decoration: BoxDecoration(
-                                    color: !_isFixedDiscount ? Colors.cyan.withValues(alpha: 0.2) : Colors.white10,
+                                    color: !_isFixedDiscount 
+                                        ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyan.withValues(alpha: 0.2) : const Color(0xFF6366F1).withValues(alpha: 0.15)) 
+                                        : (Theme.of(context).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFDFE4EA)),
                                     borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
-                                    border: Border.all(color: !_isFixedDiscount ? Colors.cyanAccent : Colors.white24)
+                                    border: Border.all(
+                                      color: !_isFixedDiscount 
+                                          ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : const Color(0xFF6366F1)) 
+                                          : (Theme.of(context).brightness == Brightness.dark ? Colors.white24 : const Color(0xFFCBD5E1)),
+                                    ),
                                   ),
-                                  child: Center(child: Text("Percentage (%)", style: TextStyle(color: !_isFixedDiscount ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : Colors.blueAccent) : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54), fontWeight: FontWeight.bold))),
+                                  child: Center(
+                                    child: Text(
+                                      "Percentage (%)", 
+                                      style: TextStyle(
+                                        color: !_isFixedDiscount 
+                                            ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : const Color(0xFF4F46E5)) 
+                                            : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : const Color(0xFF64748B)), 
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -405,11 +488,27 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                   decoration: BoxDecoration(
-                                    color: _isFixedDiscount ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyan.withValues(alpha: 0.2) : Colors.blue.withValues(alpha: 0.1)) : (Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.black12),
+                                    color: _isFixedDiscount 
+                                        ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyan.withValues(alpha: 0.2) : const Color(0xFF6366F1).withValues(alpha: 0.15)) 
+                                        : (Theme.of(context).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFDFE4EA)),
                                     borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
-                                    border: Border.all(color: _isFixedDiscount ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : Colors.blueAccent) : Colors.transparent)
+                                    border: Border.all(
+                                      color: _isFixedDiscount 
+                                          ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : const Color(0xFF6366F1)) 
+                                          : (Theme.of(context).brightness == Brightness.dark ? Colors.white24 : const Color(0xFFCBD5E1)),
+                                    ),
                                   ),
-                                  child: Center(child: Text("Fixed Amount (Rs)", style: TextStyle(color: _isFixedDiscount ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : Colors.blueAccent) : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54), fontWeight: FontWeight.bold))),
+                                  child: Center(
+                                    child: Text(
+                                      "Fixed Amount (Rs)", 
+                                      style: TextStyle(
+                                        color: _isFixedDiscount 
+                                            ? (Theme.of(context).brightness == Brightness.dark ? Colors.cyanAccent : const Color(0xFF4F46E5)) 
+                                            : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : const Color(0xFF64748B)), 
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -418,7 +517,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                       ),
                     
                     // COST FIELD (Variable OR SERVICE)
-                    if (widget.product.isVariablePrice || widget.product.productType == 'SERVICE') ...[
+                    if ((widget.product.isVariablePrice || widget.product.productType == 'SERVICE') && canViewCost) ...[
                        TextField(
                          controller: _manualCostController,
                          focusNode: _costFocusNode,
@@ -432,6 +531,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                             }
                          },
                          onChanged: (val) => setState((){}), 
+                         onTap: () => _manualCostController.selectAll(),
                          decoration: InputDecoration(
                            labelText: "Cost Price (Per Unit)",
                            hintText: "Cost for 1 item (e.g. Labor + Parts)",
@@ -446,6 +546,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                     ],
 
                     // DISCOUNT / OVERRIDE / VARIABLE PRICE FIELD
+                    if (widget.product.isVariablePrice || canGiveDiscount)
                     TextField(
                       controller: _overridePriceController,
                       focusNode: _discountFocusNode,
@@ -499,18 +600,15 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                ),
             ],
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
-            // FINANCIALS CARD
-            Container(
+          // Total Preview Container
+          Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark ? Colors.black.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.5),
+              color: Theme.of(context).brightness == Brightness.dark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? Colors.white12 : Colors.black12),
-              boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, spreadRadius: 2)
-              ]
             ),
             child: Column(
               children: [
@@ -521,8 +619,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                     Text("Rs. ${finalTotalSelling.toStringAsFixed(2)}", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
                   ],
                 ),
-                // Show Cost/Profit for ALL items now (including services) if cost logic is satisfied
-                if (true) ...[
+                if (canViewCost) ...[
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -594,6 +691,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
              setState(() {
                _quantity--;
                _smartInputController.text = _quantity.toInt().toString();
+               _errorMessage = null;
              });
           } : null,
           icon: const Icon(Icons.remove),
@@ -617,11 +715,28 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
                }
             },
             onChanged: (val) {
-               double? parsed = double.tryParse(val);
-               if (parsed != null) {
-                 setState(() => _quantity = parsed);
+               final trimmed = val.trim();
+               if (trimmed.isEmpty) {
+                 setState(() {
+                   _quantity = 0.0;
+                   _errorMessage = "Quantity cannot be empty";
+                 });
+                 return;
+               }
+               final parsed = double.tryParse(trimmed);
+               if (parsed == null || parsed <= 0) {
+                 setState(() {
+                   _quantity = 0.0;
+                   _errorMessage = "Quantity must be at least 1";
+                 });
+               } else {
+                 setState(() {
+                   _quantity = parsed;
+                   _errorMessage = null;
+                 });
                }
             },
+            onTap: () => _smartInputController.selectAll(),
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.zero,
@@ -635,6 +750,7 @@ class _AddToCartSheetState extends ConsumerState<AddToCartSheet> {
              setState(() {
                _quantity++;
                _smartInputController.text = _quantity.toInt().toString();
+               _errorMessage = null;
              });
           },
           icon: const Icon(Icons.add),

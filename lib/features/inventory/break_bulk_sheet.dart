@@ -47,6 +47,21 @@ class _BreakBulkSheetState extends ConsumerState<BreakBulkSheet> with SingleTick
     _targetQtyController.addListener(_calculateCost);
   }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _sourceQtyController.removeListener(_calculateCost);
+    _targetQtyController.removeListener(_calculateCost);
+    _sourceQtyController.dispose();
+    _targetQtyController.dispose();
+    _existingPriceController.dispose();
+    _newNameController.dispose();
+    _newBarcodeController.dispose();
+    _newPriceController.dispose();
+    _newUnitController.dispose();
+    super.dispose();
+  }
+
   void _calculateCost() {
     double srcQty = double.tryParse(_sourceQtyController.text) ?? 0;
     double tgtQty = double.tryParse(_targetQtyController.text) ?? 0;

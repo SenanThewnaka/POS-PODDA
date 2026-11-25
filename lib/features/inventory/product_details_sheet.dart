@@ -12,6 +12,7 @@ import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/features/users/app_permissions.dart';
 import 'package:sme_buddy/features/reports/sales_repository.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
+import 'package:sme_buddy/features/inventory/barcode_print_screen.dart';
 
 class ProductDetailsSheet extends ConsumerStatefulWidget {
   final Product product;
@@ -27,10 +28,12 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
   late TextEditingController _priceController;
   late TextEditingController _costController;
   late TextEditingController _lowStockController;
+  late bool _isTaxable;
 
   @override
   void initState() {
     super.initState();
+    _isTaxable = widget.product.isTaxable;
     _nameController = TextEditingController(text: widget.product.name);
     // For measurable, detailed sheets typically show 'Price per Unit'.
     // If we want to support 'Price per KG' editing here, we need to do the math interactively or just show base price.
@@ -67,7 +70,19 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
   }
 
   @override
+  void dispose() {
+    _nameController.dispose();
+    _priceController.dispose();
+    _costController.dispose();
+    _lowStockController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final user = ref.watch(userProfileProvider).value;
+    final canViewCost = user == null ? true : (user.isAdmin || user.hasPermission(AppPermissions.canViewCostPrice));
+
     String unitLabel = "Item";
     if (widget.product.baseUnit == 'g') unitLabel = "KG";
     if (widget.product.baseUnit == 'ml') unitLabel = "L";
@@ -122,6 +137,15 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
               onTap: () => _nameController.selection = TextSelection(baseOffset: 0, extentOffset: _nameController.text.length),
             ),
             const SizedBox(height: 16),
+            SwitchListTile(
+              title: const Text("Taxable Item (VAT Applicable)"),
+              subtitle: const Text("Uncheck for exempt items (e.g. Dhal, Milk)"),
+              value: _isTaxable,
+              activeColor: Colors.cyanAccent,
+              contentPadding: EdgeInsets.zero,
+              onChanged: (val) => setState(() => _isTaxable = val),
+            ),
+            const SizedBox(height: 16),
             const Text("Pricing & Inventory", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 16),
             
@@ -149,17 +173,19 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                 ),
                 onTap: () => _priceController.selection = TextSelection(baseOffset: 0, extentOffset: _priceController.text.length),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _costController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                   labelText: "Cost Price",
-                   prefixText: "Rs. ",
-                   border: OutlineInputBorder(),
+              if (canViewCost) ...[
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _costController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                     labelText: "Cost Price",
+                     prefixText: "Rs. ",
+                     border: OutlineInputBorder(),
+                  ),
+                  onTap: () => _costController.selection = TextSelection(baseOffset: 0, extentOffset: _costController.text.length),
                 ),
-                onTap: () => _costController.selection = TextSelection(baseOffset: 0, extentOffset: _costController.text.length),
-              ),
+              ],
               const SizedBox(height: 16),
             ],
 
@@ -251,22 +277,25 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
   }
 
   void _saveChanges() {
+     final user = ref.read(userProfileProvider).value;
+     final canViewCost = user == null ? true : (user.isAdmin || user.hasPermission(AppPermissions.canViewCostPrice));
+
      // Parse Values
      final name = _nameController.text;
      double sellingPrice = double.tryParse(_priceController.text) ?? 0.0;
-     double costPrice = double.tryParse(_costController.text) ?? 0.0;
+     double costPrice = canViewCost ? (double.tryParse(_costController.text) ?? 0.0) : widget.product.costPrice;
      double? lowStock;
 
      // Handle Unit Conversion for Measurables
      if (widget.product.baseUnit == 'g' || widget.product.baseUnit == 'ml') {
         sellingPrice /= 1000;
-        costPrice /= 1000;
+        if (canViewCost) costPrice /= 1000;
         if (_lowStockController.text.isNotEmpty) {
            lowStock = QuantityParser.parse(_lowStockController.text, widget.product.baseUnit!);
         }
      } else if (widget.product.baseUnit == 'cm') {
         sellingPrice /= 100;
-        costPrice /= 100;
+        if (canViewCost) costPrice /= 100;
         if (_lowStockController.text.isNotEmpty) {
            lowStock = QuantityParser.parse(_lowStockController.text, widget.product.baseUnit!);
         }
@@ -282,6 +311,7 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
        sellingPrice: sellingPrice,
        costPrice: costPrice,
        lowStockThreshold: lowStock,
+       isTaxable: _isTaxable,
      );
 
      ref.read(productRepositoryProvider).updateProduct(updatedProduct);
@@ -328,55 +358,20 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
      }
   }
 
-  Future<void> _printBarcode() async {
-    final pdf = pw.Document();
-    pdf.addPage(pw.Page(
-      pageFormat: PdfPageFormat.roll80,
-      build: (pw.Context context) {
-        return pw.Center(
-          child: pw.Column(
-            mainAxisSize: pw.MainAxisSize.min,
-            children: [
-               pw.Text(widget.product.name, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-               pw.SizedBox(height: 5),
-               pw.BarcodeWidget(
-                 data: widget.product.barcode!,
-                 barcode: pw.Barcode.code128(),
-                 width: 150, height: 50
-               ),
-               pw.Text(widget.product.barcode!, style: const pw.TextStyle(fontSize: 8)),
-            ],
-          )
-        );
-      }
-    ));
-    await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+  void _printBarcode() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BarcodePrintScreen(
+          initialProducts: [widget.product],
+          initialBarcode: widget.product.barcode,
+        ),
+      ),
+    );
   }
 
-  Future<void> _shareBarcode() async {
-    final pdf = pw.Document();
-    // Same PDF generation
-    pdf.addPage(pw.Page(
-      pageFormat: PdfPageFormat.roll80,
-      build: (pw.Context context) {
-        return pw.Center(
-          child: pw.Column(
-            mainAxisSize: pw.MainAxisSize.min,
-            children: [
-               pw.Text(widget.product.name, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-               pw.SizedBox(height: 5),
-               pw.BarcodeWidget(
-                 data: widget.product.barcode!,
-                 barcode: pw.Barcode.code128(),
-                 width: 150, height: 50
-               ),
-               pw.Text(widget.product.barcode!, style: const pw.TextStyle(fontSize: 8)),
-            ],
-          )
-        );
-      }
-    ));
-    await Printing.sharePdf(bytes: await pdf.save(), filename: 'barcode_${widget.product.name}.pdf');
+  void _shareBarcode() {
+    _printBarcode();
   }
 
 

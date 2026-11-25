@@ -31,7 +31,9 @@ class CsvExporter {
         dateStr,
         timeStr,
         sale.totalAmount,
-        sale.paymentMethod,
+        sale.paymentMethod == 'SPLIT' && sale.splitPayments != null
+            ? "SPLIT (Cash: ${sale.splitPayments!['CASH'] ?? 0}, Card: ${sale.splitPayments!['CARD'] ?? 0}, Credit: ${sale.splitPayments!['CREDIT'] ?? 0})"
+            : sale.paymentMethod,
         sale.customerId ?? "Walk-in",
         statusStr,
         itemsStr

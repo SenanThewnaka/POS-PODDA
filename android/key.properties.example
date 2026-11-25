@@ -1,0 +1,7 @@
+# Copy this file to android/key.properties (that file is git-ignored).
+# Use a protected upload/release keystore and keep it out of source control.
+# storeFile is resolved relative to the android/ directory.
+storeFile=../secure/pos-podda-upload-key.jks
+storePassword=REPLACE_WITH_SECURE_VALUE
+keyAlias=REPLACE_WITH_ALIAS
+keyPassword=REPLACE_WITH_SECURE_VALUE

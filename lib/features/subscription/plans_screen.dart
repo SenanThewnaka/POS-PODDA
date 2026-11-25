@@ -1,148 +1,700 @@
 import 'package:flutter/material.dart';
-import 'package:sme_buddy/features/subscription/upgrade_dialog.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher_string.dart';
+import 'package:sme_buddy/features/subscription/subscription_plan_model.dart';
+import 'package:sme_buddy/features/subscription/payments_lk_service.dart';
+import 'package:sme_buddy/features/users/user_repository.dart';
 import 'package:sme_buddy/utils/glass_scaffold.dart';
 import 'package:sme_buddy/utils/glass_card.dart';
 
-class PlansScreen extends StatelessWidget {
+class PlansScreen extends ConsumerStatefulWidget {
   const PlansScreen({super.key});
+
+  @override
+  ConsumerState<PlansScreen> createState() => _PlansScreenState();
+}
+
+class _PlansScreenState extends ConsumerState<PlansScreen> {
+  String _selectedTier = 'pro'; // 'plus' or 'pro'
+  late SubscriptionBillingOption _selectedOption;
+  bool _isLoading = false;
+
+  final currencyFormatter = NumberFormat('#,##0', 'en_US');
+
+  final List<String> _plusFeatures = const [
+    "Full POS Billing & Fast Barcode Scanning",
+    "Thermal Receipt Printing (58mm / 80mm)",
+    "Inventory Catalog & Low Stock Alerts",
+    "Supplier Goods Received Notes (GRN) Management",
+    "Daily Sales Summary & Cash Shift Balancing",
+    "Single Counter / Single Device Operation",
+    "Automatic Cloud Sync & Local Backup",
+  ];
+
+  final List<String> _proFeatures = const [
+    "Everything in Plus Included",
+    "Unlimited Inventory Items & Dynamic Batches",
+    "Multi-Cashier Logins & Custom Role Permissions",
+    "Wholesale Purchase Cost & Margin Privacy Masking",
+    "Customer Credit Book (ණය පොත) & Settlement Receipts",
+    "Custom Thermal Bill Header, Footer & Store Logo",
+    "Advanced Financial Reports & Profit Analytics",
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final user = ref.read(userProfileProvider).value;
+    if (user != null && user.plan.toLowerCase() == 'plus') {
+      _selectedTier = 'plus';
+      _selectedOption = SubscriptionBillingOption.plusOptions[1];
+    } else {
+      _selectedTier = 'pro';
+      _selectedOption = SubscriptionBillingOption.proOptions[1]; // 3 Months default
+    }
+  }
+
+  void _switchTier(String tier) {
+    if (_selectedTier == tier) return;
+    setState(() {
+      _selectedTier = tier;
+      final newOptions = SubscriptionBillingOption.optionsForTier(tier);
+      _selectedOption = newOptions.firstWhere(
+        (o) => o.cycleKey == _selectedOption.cycleKey,
+        orElse: () => newOptions[1],
+      );
+    });
+  }
+
+  Color get _tierColor =>
+      _selectedTier == 'plus' ? const Color(0xFF0EA5E9) : const Color(0xFF6366F1);
+
+  Future<void> _handlePayment() async {
+    final user = ref.read(userProfileProvider).value;
+    if (user == null) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final paymentsService = ref.read(paymentsLkServiceProvider);
+      final checkout = await paymentsService.createCheckoutViaCloudFunction(
+        tier: _selectedTier,
+        cycleKey: _selectedOption.cycleKey,
+      );
+
+      if (mounted) setState(() => _isLoading = false);
+      if (checkout.checkoutId.isEmpty || checkout.url.isEmpty) {
+        throw StateError('The payment service returned an invalid checkout.');
+      }
+
+      await launchUrlString(checkout.url, mode: LaunchMode.externalApplication);
+      if (mounted) {
+        _showVerificationModal(checkout.paymentId ?? '', checkout.url, checkout.checkoutId);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment could not be started or verified. Please try again later.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  void _showVerificationModal(String paymentId, String checkoutUrl, [String? checkoutId]) {
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        bool isChecking = false;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Icon(Icons.payment, size: 48, color: _tierColor),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Complete Payment on Payments.lk",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "We opened the secure Payments.lk checkout page. Once you have completed payment via Card or LANKAQR, tap below to activate your plan.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white70
+                          : Colors.black54,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: isChecking
+                        ? null
+                        : () async {
+                            setModalState(() => isChecking = true);
+                            try {
+                              final paymentsService = ref.read(paymentsLkServiceProvider);
+                              bool isSucceeded = false;
+
+                              final res = await paymentsService.verifyPaymentViaCloudFunction(
+                                paymentId: paymentId.isNotEmpty ? paymentId : null,
+                                checkoutId: checkoutId,
+                              );
+                              isSucceeded = res['status'] == 'succeeded';
+
+                              if (isSucceeded) {
+                                if (context.mounted) {
+                                  Navigator.pop(sheetContext);
+                                  ref.invalidate(userProfileProvider);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Payment verified and subscription activated.')),
+                                  );
+                                }
+                              } else {
+                                setModalState(() => isChecking = false);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        "Payment is pending or not yet confirmed. If you completed checkout, please allow a moment and tap again.",
+                                      ),
+                                      backgroundColor: Colors.orangeAccent,
+                                    ),
+                                  );
+                                }
+                              }
+                            } catch (err) {
+                              setModalState(() => isChecking = false);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text("Verification error: $err"),
+                                    backgroundColor: Colors.redAccent,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: isChecking
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text(
+                            "I HAVE COMPLETED PAYMENT",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: () async {
+                      await launchUrlString(checkoutUrl, mode: LaunchMode.externalApplication);
+                    },
+                    child: const Text("Re-open Checkout Page"),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+    final user = ref.watch(userProfileProvider).value;
+
     return GlassScaffold(
-      appBar: AppBar(title: Text("Plans & Features", style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)), backgroundColor: Colors.transparent, iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black)),
+      appBar: AppBar(
+        title: Text(
+          "Subscription & Pricing",
+          style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
+        ),
+        backgroundColor: Colors.transparent,
+        iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black),
+      ),
       body: SingleChildScrollView(
-         padding: const EdgeInsets.all(16),
-         child: Column(
-           crossAxisAlignment: CrossAxisAlignment.stretch,
-           children: [
-              Text(
-                "Choose the plan that fits your business.",
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: isDark ? Colors.white70 : Colors.black54),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Current Plan Status Header
+            if (user != null) _buildCurrentStatusBanner(user, isDark),
+            const SizedBox(height: 20),
+
+            // Tier Selector (Plus vs Pro)
+            Text(
+              "Choose Your Tier",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+                color: isDark ? Colors.white60 : Colors.black54,
               ),
-              const SizedBox(height: 24),
-              
-              _buildPlanCard(
-                context,
-                title: "PLUS (Starter)",
-                color: Colors.blue,
-                features: [
-                  "Single User (Owner Only)",
-                  "Max 500 Inventory Items",
-                  "Basic Reporting",
-                  "Basic Reporting",
-                  "x No Customer Credit Book",
-                  "x No Team Management",
-                ],
-                isPopular: false,
-                isDark: isDark,
+            ),
+            const SizedBox(height: 12),
+            _buildTierSelector(isDark),
+            const SizedBox(height: 24),
+
+            // Billing Cycle Selector (1M, 3M, 6M, 1Y)
+            Text(
+              "Select Billing Cycle",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+                color: isDark ? Colors.white60 : Colors.black54,
               ),
-              
-              const SizedBox(height: 16),
-              
-              _buildPlanCard(
-                context,
-                title: "PRO (Unlimited)",
-                color: Colors.purple,
-                features: [
-                  "Unlimited Users (Staff Logins)",
-                  "Unlimited Inventory",
-                  "Advanced Analytics",
-                  "Customer Credit Book (Naya Potha)",
-                  "Priority Support",
-                  "All Future Updates"
-                ],
-                isPopular: true,
-                isDark: isDark,
+            ),
+            const SizedBox(height: 12),
+            _buildBillingCycleSelector(isDark),
+            const SizedBox(height: 24),
+
+            // Plan Details Card
+            _buildSelectedPlanCard(isDark),
+            const SizedBox(height: 24),
+
+            // Checkout CTA
+            ElevatedButton(
+              onPressed: _isLoading ? null : _handlePayment,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _tierColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 4,
               ),
-              
-              const SizedBox(height: 32),
-              
-              GlassCard(
-                padding: const EdgeInsets.all(16),
-                borderRadius: 12,
-                border: Border.all(color: isDark ? Colors.white24 : Colors.black12),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.manage_accounts, color: isDark ? Colors.white54 : Colors.black54),
-                        const SizedBox(width: 8),
-                        Text("Account Management", style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
-                      ],
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                    )
+                  : Text(
+                      "PAY RS. ${currencyFormatter.format(_selectedOption.priceLkr)} • ${_selectedOption.label.toUpperCase()} ${_selectedTier.toUpperCase()}",
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Subscriptions are managed externally via the Synthora Portal.",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "yourdomain.com",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: isDark ? Colors.cyanAccent : Colors.blueAccent),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "( Subscription Management Portal )",
-                      style: TextStyle(fontSize: 12, color: isDark ? Colors.white38 : Colors.black38, fontStyle: FontStyle.italic),
-                    ),
-                  ],
-                ),
-              )
-           ],
-         ),
+            ),
+            const SizedBox(height: 12),
+
+            // Compliance Footer (Payments.lk Requirements)
+            _buildComplianceFooter(isDark),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildPlanCard(BuildContext context, {required String title, required Color color, required List<String> features, required bool isPopular, required bool isDark}) {
-    return GlassCard(
-      borderRadius: 20,
-      border: Border.all(color: isPopular ? color : (isDark ? Colors.white24 : Colors.black12), width: isPopular ? 2 : 1),
-      child: Column(
+  Widget _buildTierSelector(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08)),
+      ),
+      child: Row(
         children: [
-           if (isPopular)
-             Container(
-               width: double.infinity,
-               padding: const EdgeInsets.symmetric(vertical: 4),
-               decoration: BoxDecoration(
-                 color: color, 
-                 borderRadius: const BorderRadius.vertical(top: Radius.circular(18)) // Match card radius - 2
-               ), 
-               child: const Text("RECOMMENDED", textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-             ),
-           
-           Padding(
-             padding: const EdgeInsets.all(24),
-             child: Column(
-               children: [
-                 Text(title, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
-                 const SizedBox(height: 24),
-                   ...features.map((f) {
-                     bool isNegative = f.startsWith("x ");
-                     String text = isNegative ? f.substring(2) : f;
-                     return Padding(
-                       padding: const EdgeInsets.symmetric(vertical: 4),
-                       child: Row(
-                         children: [
-                           Icon(
-                             isNegative ? Icons.cancel : Icons.check_circle, 
-                             color: isNegative ? (isDark ? Colors.white38 : Colors.grey) : color, 
-                             size: 20
-                           ),
-                           const SizedBox(width: 12),
-                           Expanded(child: Text(text, style: TextStyle(color: isNegative ? (isDark ? Colors.white38 : Colors.grey) : (isDark ? Colors.white : Colors.black)))),
-                         ],
-                       ),
-                     );
-                   }),
-               ],
-             ),
-           )
+          Expanded(
+            child: _buildTierTab(
+              title: "Plus (+)",
+              subtitle: "Essential POS",
+              isSelected: _selectedTier == 'plus',
+              accentColor: const Color(0xFF0EA5E9),
+              onTap: () => _switchTier('plus'),
+              isDark: isDark,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: _buildTierTab(
+              title: "Pro",
+              subtitle: "Complete ERP",
+              badge: "POPULAR",
+              isSelected: _selectedTier == 'pro',
+              accentColor: const Color(0xFF6366F1),
+              onTap: () => _switchTier('pro'),
+              isDark: isDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTierTab({
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    required Color accentColor,
+    required VoidCallback onTap,
+    required bool isDark,
+    String? badge,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? accentColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: accentColor.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : (isDark ? Colors.white : Colors.black),
+                  ),
+                ),
+                if (badge != null) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.amber : Colors.amber.shade700,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      badge,
+                      style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.black),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: isSelected ? Colors.white70 : (isDark ? Colors.white54 : Colors.black54),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCurrentStatusBanner(user, bool isDark) {
+    final now = DateTime.now();
+    final expiry = user.expiryDate;
+    final isExpired = expiry == null || now.isAfter(expiry);
+    final daysLeft = expiry != null ? expiry.difference(now).inDays : 0;
+
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      border: Border.all(
+        color: isExpired ? Colors.redAccent.withValues(alpha: 0.5) : const Color(0xFF6366F1).withValues(alpha: 0.3),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: isExpired ? Colors.red.withValues(alpha: 0.2) : const Color(0xFF6366F1).withValues(alpha: 0.2),
+            child: Icon(
+              isExpired ? Icons.warning_amber_rounded : Icons.verified,
+              color: isExpired ? Colors.redAccent : const Color(0xFF6366F1),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Current Plan: ${user.plan.toString().toUpperCase()}",
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                Text(
+                  isExpired
+                      ? (expiry != null
+                          ? "Expired on ${DateFormat('MMM dd, yyyy').format(expiry)}"
+                          : "No active subscription / Inactive")
+                      : "$daysLeft days left (Expires ${DateFormat('MMM dd, yyyy').format(expiry!)})",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isExpired ? Colors.redAccent : (isDark ? Colors.white70 : Colors.black54),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBillingCycleSelector(bool isDark) {
+    final currentOptions = SubscriptionBillingOption.optionsForTier(_selectedTier);
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: currentOptions.map((opt) {
+          final isSelected = opt.id == _selectedOption.id;
+
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedOption = opt),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSelected ? _tierColor : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: _tierColor.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      opt.label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                      ),
+                    ),
+                    if (opt.isPopular)
+                      Container(
+                        margin: const EdgeInsets.only(top: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: isSelected ? Colors.amber : Colors.amber.shade700,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          "BEST",
+                          style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.black),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildSelectedPlanCard(bool isDark) {
+    final isPlus = _selectedTier == 'plus';
+    final planTitle = isPlus ? "POS PODDA PLUS (+)" : "POS PODDA PRO";
+    final features = isPlus ? _plusFeatures : _proFeatures;
+    final featuresHeader = isPlus ? "INCLUDED PLUS (+) FEATURES" : "INCLUDED PRO FEATURES";
+
+    return GlassCard(
+      borderRadius: 24,
+      border: Border.all(color: _tierColor, width: 1.5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Banner Top
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            decoration: BoxDecoration(
+              color: _tierColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  planTitle,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1),
+                ),
+                if (_selectedOption.savingsBadge != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.amber,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _selectedOption.savingsBadge!,
+                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 11),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Price Breakdown
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      "Rs. ${currencyFormatter.format(_selectedOption.priceLkr)}",
+                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "/ ${_selectedOption.label.toLowerCase()}",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark ? Colors.white54 : Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+                if (_selectedOption.months > 1) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    "Equivalent to Rs. ${currencyFormatter.format(_selectedOption.monthlyEffectivePrice.round())} / month",
+                    style: TextStyle(color: _tierColor, fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 12),
+
+                Text(
+                  featuresHeader,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1, color: Colors.grey),
+                ),
+                const SizedBox(height: 12),
+
+                ...features.map((f) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          f,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildComplianceFooter(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.shield_outlined, size: 16, color: Colors.green),
+              const SizedBox(width: 6),
+              const Text("Secured by Payments.lk • 128-bit SSL", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Transaction Security: Your payment is processed securely via Payments.lk using 128-bit SSL encryption. Card details are never stored on our servers. This ensures your data is protected against interception during transmission.",
+            style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.black54),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Billing Terms: By proceeding, you authorize a recurring charge of LKR (Sri Lankan Rupee) ${_selectedOption.priceLkr.toStringAsFixed(2)} every ${_selectedOption.label.toLowerCase()} for the POS Podda ${_selectedTier.toUpperCase()} plan. You may cancel at any time via the 'Settings' menu.",
+            style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.black54),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Merchant Location: Synthora Software, Colombo, Sri Lanka.",
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isDark ? Colors.white70 : Colors.black87),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: TextButton(
+              onPressed: () async {
+                final url = 'https://pos-podda.web.app/legal.html';
+                if (await canLaunchUrlString(url)) {
+                  await launchUrlString(url);
+                }
+              },
+              child: const Text("View Terms, Privacy, and Refund Policies", style: TextStyle(fontSize: 11, decoration: TextDecoration.underline)),
+            ),
+          )
         ],
       ),
     );

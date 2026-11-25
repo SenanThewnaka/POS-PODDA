@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Transaction Receipt - POS Podda</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; }
+        .receipt-container { border: 1px solid #ccc; padding: 20px; }
+        .header { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
+        .merchant-name { font-size: 20px; font-weight: bold; }
+        .row { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .payment-info { background: #f9f9f9; padding: 15px; border-radius: 5px; margin-top: 20px; }
+        .footer { font-size: 11px; color: #777; margin-top: 20px; text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <div class="receipt-container">
+        <div class="header">
+            <div class="merchant-name">Synthora Software (POS Podda)</div>
+            <div>Colombo, Sri Lanka</div>
+            <div>www.pospodda.web.app | info@synthora.lk</div>
+            <div style="margin-top: 10px; font-weight: bold;">ORDER #: {{ORDER_ID}}</div>
+            <div>Transaction Date: {{TRANSACTION_DATE}}</div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Description of Goods or Services</th>
+                    <th style="text-align: right;">Price</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>{{PLAN_NAME}} Subscription ({{BILLING_CYCLE}})</td>
+                    <td style="text-align: right;">Rs. {{AMOUNT}}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div style="text-align: right; margin-top: 15px;">
+            <strong>Total Amount: Rs. {{AMOUNT}}</strong>
+        </div>
+
+        <div class="payment-info">
+            <strong>PAYMENT INFORMATION</strong>
+            <div class="row" style="margin-top: 10px;">
+                <div>
+                    <strong>Payment Method:</strong> {{CARD_BRAND}} | Last 4 digits: {{LAST_4_DIGITS}}<br>
+                    <strong>Authorization Code:</strong> {{AUTH_CODE}}<br>
+                    <strong>Transaction Type:</strong> Purchase<br>
+                    <strong>Currency:</strong> LKR (Sri Lankan Rupee)
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            No refunds after activation. See our Return Policy online.<br>
+            Questions? Call Customer Service at +94789367491
+        </div>
+    </div>
+</body>
+</html>

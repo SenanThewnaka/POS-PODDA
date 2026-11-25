@@ -23,6 +23,13 @@ class _BreakBulkScreenState extends ConsumerState<BreakBulkScreen> {
   bool _isLoading = false;
 
   @override
+  void dispose() {
+    _sourceQtyController.dispose();
+    _targetQtyController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(productsStreamProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
